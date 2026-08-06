@@ -19,6 +19,13 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
     
     List<Device> findByStatusIn(List<DeviceStatus> statuses);
 
+    @Query("SELECT d.deviceId FROM Device d WHERE d.status IN :statuses")
+    org.springframework.data.domain.Slice<String> findDeviceIdsByStatusIn(@Param("statuses") List<DeviceStatus> statuses, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE Device d SET d.status = :newStatus WHERE d.deviceId IN :deviceIds")
+    void updateStatusForDeviceIds(@Param("newStatus") DeviceStatus newStatus, @Param("deviceIds") List<String> deviceIds);
+
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"school", "campus", "classroom"})
     @Query("SELECT d FROM Device d " +
             "WHERE (:schoolId IS NULL OR d.school.id = :schoolId) " +

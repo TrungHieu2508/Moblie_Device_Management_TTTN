@@ -35,6 +35,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/devices/register").permitAll() // Đăng ký thiết bị không cần token
+                .requestMatchers("/api/ws/**").permitAll() // Cho phép HTTP Handshake, JWT sẽ được check ở STOMP CONNECT
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

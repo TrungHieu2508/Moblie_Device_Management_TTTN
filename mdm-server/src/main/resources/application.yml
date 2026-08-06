@@ -12,8 +12,8 @@ spring:
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 30000
-      maximum-pool-size: 10
-      minimum-idle: 5
+      maximum-pool-size: 50
+      minimum-idle: 10
       idle-timeout: 600000
       max-lifetime: 1800000
       pool-name: MDMHikariPool
@@ -52,9 +52,9 @@ spring:
       timeout: 2000ms
       lettuce:
         pool:
-          max-active: 8
-          max-idle: 8
-          min-idle: 0
+          max-active: 100
+          max-idle: 50
+          min-idle: 10
 
   # ================================================================
   # JACKSON
