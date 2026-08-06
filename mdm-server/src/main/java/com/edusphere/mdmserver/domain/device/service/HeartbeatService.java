@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -29,9 +28,10 @@ public class HeartbeatService {
     // The grace period before marking a device as offline
     private static final int OFFLINE_THRESHOLD_SECONDS = 90;
 
+    @org.springframework.transaction.annotation.Transactional
     public HeartbeatResponse processHeartbeat(String authDeviceId, HeartbeatRequest request) {
         if (!authDeviceId.equals(request.getDeviceId())) {
-            throw new RuntimeException("Device ID mismatch between token and payload");
+            throw new IllegalArgumentException("Device ID mismatch between token and payload");
         }
 
         String redisKey = "device:" + request.getDeviceId() + ":status";
@@ -42,16 +42,10 @@ public class HeartbeatService {
         // Save to Redis with a TTL of OFFLINE_THRESHOLD_SECONDS
         redisTemplate.opsForValue().set(redisKey, "ONLINE", Duration.ofSeconds(OFFLINE_THRESHOLD_SECONDS));
         
-        // If the device just came back online, sync to DB
+        // If the device just came back online, sync to DB (O(1) Update instead of SELECT + SAVE)
         if (Boolean.FALSE.equals(wasOnline)) {
-            deviceRepository.findByDeviceId(request.getDeviceId()).ifPresent(device -> {
-                if (device.getStatus() == DeviceStatus.OFFLINE) {
-                    device.setStatus(DeviceStatus.ONLINE);
-                    device.setLastHeartbeatAt(Instant.now());
-                    deviceRepository.save(device);
-                    log.info("Device {} recovered from OFFLINE to ONLINE", request.getDeviceId());
-                }
-            });
+            deviceRepository.updateHeartbeat(request.getDeviceId(), Instant.now());
+            log.info("Device {} recovered from OFFLINE/UNKNOWN state", request.getDeviceId());
         }
         
         // Optionally save the latest metrics to Redis as well to show on Dashboard instantly

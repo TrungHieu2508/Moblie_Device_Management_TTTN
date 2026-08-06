@@ -54,6 +54,16 @@ public class DeviceService {
 
         if (existingDevice.isPresent()) {
             device = existingDevice.get();
+            
+            // SECURITY FLAW FIX (Hijacking Prevention): 
+            // If the device is not PENDING (i.e., it is actively enrolled and assigned), 
+            // we must not allow a blind re-registration which would steal its session/token.
+            // The Admin must wipe or unassign it first.
+            if (device.getStatus() != DeviceStatus.PENDING) {
+                log.warn("Hijack attempt or duplicate registration for device ID: {}", request.getDeviceId());
+                throw new IllegalArgumentException("Thiết bị đã được đăng ký và đang hoạt động. Liên hệ Admin để reset thiết bị trước khi đăng ký lại.");
+            }
+
             // Update device details
             device.setDeviceName(request.getDeviceName());
             device.setSerialNumber(request.getSerialNumber());
@@ -99,14 +109,14 @@ public class DeviceService {
 
     public DeviceDto getDeviceById(UUID id) {
         Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Thiết bị không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
         return mapToDto(device);
     }
 
     @Transactional
     public DeviceDto assignDevice(UUID id, AssignDeviceRequest request) {
         Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Thiết bị không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
 
         School school = schoolRepository.getReferenceById(request.getSchoolId());
         Campus campus = campusRepository.getReferenceById(request.getCampusId());
@@ -127,7 +137,7 @@ public class DeviceService {
     @Transactional
     public DeviceDto unassignDevice(UUID id) {
         Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Thiết bị không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
 
         device.setSchool(null);
         device.setCampus(null);
@@ -140,7 +150,7 @@ public class DeviceService {
     @Transactional
     public void deleteDevice(UUID id) {
         Device device = deviceRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Thiết bị không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
         deviceRepository.delete(device);
     }
 

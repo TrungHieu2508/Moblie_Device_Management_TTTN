@@ -86,17 +86,17 @@ public class AuthService {
     public AuthResponse refreshToken(String token) {
         String username = jwtService.extractSubject(token);
         if (username == null) {
-            throw new RuntimeException("Invalid refresh token format");
+            throw new IllegalArgumentException("Invalid refresh token format");
         }
 
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         RefreshToken savedToken = refreshTokenRepository.findByToken(token)
-                .orElseThrow(() -> new RuntimeException("Refresh token not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Refresh token not found"));
 
         if (savedToken.getIsRevoked() || savedToken.getExpiresAt().isBefore(Instant.now()) || !jwtService.isTokenValid(token, username)) {
-            throw new RuntimeException("Refresh token expired or revoked");
+            throw new IllegalArgumentException("Refresh token expired or revoked");
         }
 
         java.util.Map<String, Object> extraClaims = java.util.HashMap.newHashMap(2);

@@ -26,6 +26,10 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
     @Query("UPDATE Device d SET d.status = :newStatus WHERE d.deviceId IN :deviceIds")
     void updateStatusForDeviceIds(@Param("newStatus") DeviceStatus newStatus, @Param("deviceIds") List<String> deviceIds);
 
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE Device d SET d.status = CASE WHEN d.status = 'OFFLINE' THEN 'ONLINE' ELSE d.status END, d.lastHeartbeatAt = :time WHERE d.deviceId = :deviceId")
+    void updateHeartbeat(@Param("deviceId") String deviceId, @Param("time") java.time.Instant time);
+
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"school", "campus", "classroom"})
     @Query("SELECT d FROM Device d " +
             "WHERE (:schoolId IS NULL OR d.school.id = :schoolId) " +
