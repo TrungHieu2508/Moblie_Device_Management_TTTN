@@ -4,6 +4,7 @@ import com.edusphere.agent.data.remote.model.HeartbeatRequest
 import com.edusphere.agent.data.remote.model.HeartbeatResponse
 import com.edusphere.agent.data.remote.model.RegistrationRequest
 import com.edusphere.agent.data.remote.model.RegistrationResponse
+import com.edusphere.agent.data.remote.model.ViolationRequest
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.Header
@@ -18,4 +19,10 @@ interface MdmApiService {
         @Header("Authorization") token: String,
         @Body request: HeartbeatRequest
     ): Response<HeartbeatResponse>
+
+    @POST("api/v1/devices/violation")
+    suspend fun sendViolation(
+        @Header("Authorization") token: String,
+        @Body request: ViolationRequest
+    ): Response<Unit>
 }

@@ -6,6 +6,7 @@ import com.edusphere.agent.data.local.DeviceEntity
 import com.edusphere.agent.data.remote.MdmApiService
 import com.edusphere.agent.data.remote.model.HeartbeatRequest
 import com.edusphere.agent.data.remote.model.RegistrationRequest
+import com.edusphere.agent.data.remote.model.ViolationRequest
 import com.edusphere.agent.domain.repository.DeviceRepository
 import javax.inject.Inject
 
@@ -53,6 +54,18 @@ class DeviceRepositoryImpl @Inject constructor(
             response.isSuccessful
         } catch (e: Exception) {
             Log.e("DeviceRepositoryImpl", "Heartbeat failed", e)
+            false
+        }
+    }
+
+    override suspend fun sendViolation(request: ViolationRequest): Boolean {
+        return try {
+            val deviceInfo = getDeviceInfo() ?: return false
+            val token = "Bearer ${deviceInfo.registrationToken}"
+            val response = apiService.sendViolation(token, request)
+            response.isSuccessful
+        } catch (e: Exception) {
+            Log.e("DeviceRepositoryImpl", "Send violation failed", e)
             false
         }
     }

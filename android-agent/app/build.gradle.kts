@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.edusphere.agent"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.edusphere.agent"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -59,11 +59,14 @@ dependencies {
     // Coroutines
     implementation(libs.coroutines.android)
 
+    // WorkManager
     implementation(libs.work.runtime.ktx)
     implementation(libs.hilt.work)
     ksp(libs.hilt.compiler.ext)
 
     testImplementation(libs.junit)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }

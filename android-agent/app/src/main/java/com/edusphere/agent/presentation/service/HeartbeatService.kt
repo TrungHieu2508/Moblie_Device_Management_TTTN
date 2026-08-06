@@ -11,16 +11,41 @@ import androidx.core.app.NotificationCompat
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.edusphere.agent.data.worker.HeartbeatWorker
+import com.edusphere.agent.data.remote.websocket.CommandReceiver
+import com.edusphere.agent.domain.repository.DeviceRepository
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class HeartbeatService : Service() {
+
+    @Inject
+    lateinit var commandReceiver: CommandReceiver
+
+    @Inject
+    lateinit var deviceRepository: DeviceRepository
+
+    private val serviceScope = CoroutineScope(Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
         startForegroundService()
         scheduleHeartbeatWorker()
+        
+        serviceScope.launch {
+            val deviceInfo = deviceRepository.getDeviceInfo()
+            if (deviceInfo != null && deviceInfo.isRegistered) {
+                commandReceiver.connect(
+                    serverUrl = deviceInfo.serverUrl,
+                    token = deviceInfo.registrationToken,
+                    deviceId = deviceInfo.deviceId
+                )
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -57,5 +82,10 @@ class HeartbeatService : Service() {
         val workRequest = PeriodicWorkRequestBuilder<HeartbeatWorker>(15, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(this).enqueue(workRequest)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        commandReceiver.disconnect()
     }
 }
