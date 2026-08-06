@@ -1,0 +1,125 @@
+spring:
+  application:
+    name: edguardian-mdm-server
+
+  # ================================================================
+  # DATABASE - PostgreSQL
+  # ================================================================
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mdm_db
+    username: mdm_user
+    password: mdm_password
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: MDMHikariPool
+
+  # ================================================================
+  # JPA / HIBERNATE
+  # ================================================================
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Flyway quản lý schema, Hibernate chỉ validate
+    show-sql: false               # Tắt trong production, bật khi debug
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+    open-in-view: false           # Best practice: tắt OSIV
+
+  # ================================================================
+  # FLYWAY - Database Migration
+  # ================================================================
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+    schemas: public
+
+  # ================================================================
+  # REDIS
+  # ================================================================
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:                   # Để trống nếu không có password (dev)
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  # ================================================================
+  # JACKSON
+  # ================================================================
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
+    date-format: yyyy-MM-dd'T'HH:mm:ss
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# ================================================================
+# SERVER
+# ================================================================
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# ================================================================
+# JWT CONFIGURATION
+# ================================================================
+app:
+  jwt:
+    # Secret key - THAY ĐỔI trong production! Phải đủ 256 bit (32+ ký tự)
+    secret: EduGuardianMDMSecretKey2024VeryLongSecretKeyForHS256Algorithm
+    access-token-expiration: 3600000       # 1 giờ (milliseconds)
+    refresh-token-expiration: 604800000    # 7 ngày (milliseconds)
+    device-token-expiration: 2592000000   # 30 ngày (milliseconds) - cho Android Agent
+
+  # ================================================================
+  # HEARTBEAT CONFIGURATION
+  # ================================================================
+  heartbeat:
+    interval-seconds: 30           # Agent gửi heartbeat mỗi 30 giây
+    offline-threshold-seconds: 90  # Sau 90 giây không nhận -> Offline
+    redis-ttl-seconds: 120         # TTL của heartbeat data trong Redis
+
+  # ================================================================
+  # ALERT CONFIGURATION
+  # ================================================================
+  alert:
+    batch-persist-interval: 60    # Persist batch alerts mỗi 60 giây
+
+# ================================================================
+# SPRINGDOC - SWAGGER UI
+# ================================================================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    display-request-duration: true
+    groups-order: DESC
+    operationsSorter: method
+
+# ================================================================
+# LOGGING
+# ================================================================
+logging:
+  level:
+    root: INFO
+    com.edusphere.mdm: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
