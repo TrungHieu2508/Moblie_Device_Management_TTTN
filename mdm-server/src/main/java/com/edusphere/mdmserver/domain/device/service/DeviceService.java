@@ -37,6 +37,7 @@ public class DeviceService {
     private final CampusRepository campusRepository;
     private final ClassroomRepository classroomRepository;
     private final JwtService jwtService;
+    private final org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
 
     @Value("${app.jwt.device-token-expiration}")
     private long deviceTokenExpiration;
@@ -151,6 +152,13 @@ public class DeviceService {
     public void deleteDevice(UUID id) {
         Device device = deviceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
+                
+        // Cleanup Redis keys to prevent memory leaks
+        String deviceId = device.getDeviceId();
+        redisTemplate.delete("device:" + deviceId + ":status");
+        redisTemplate.delete("device:" + deviceId + ":metrics");
+        redisTemplate.delete("device:" + deviceId + ":commands:pending");
+        
         deviceRepository.delete(device);
     }
 

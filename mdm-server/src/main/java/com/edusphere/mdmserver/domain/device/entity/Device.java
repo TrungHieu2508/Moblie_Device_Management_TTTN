@@ -62,4 +62,11 @@ public class Device extends BaseEntity {
     private Instant registeredAt;
 
     private String notes;
+
+    // CASCADING DELETES (Fix Foreign Key Constraint Violation)
+    @OneToMany(mappedBy = "device", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private java.util.List<com.edusphere.mdmserver.domain.alert.entity.Alert> alerts = new java.util.ArrayList<>();
+
+    @OneToMany(mappedBy = "device", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private java.util.List<com.edusphere.mdmserver.domain.command.entity.DeviceCommand> commands = new java.util.ArrayList<>();
 }

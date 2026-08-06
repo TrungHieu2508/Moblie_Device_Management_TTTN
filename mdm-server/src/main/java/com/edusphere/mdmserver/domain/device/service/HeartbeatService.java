@@ -5,6 +5,7 @@ import com.edusphere.mdmserver.domain.device.dto.HeartbeatResponse;
 import com.edusphere.mdmserver.domain.device.entity.Device;
 import com.edusphere.mdmserver.domain.device.enums.DeviceStatus;
 import com.edusphere.mdmserver.domain.device.repository.DeviceRepository;
+import com.edusphere.mdmserver.domain.command.service.CommandQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +22,7 @@ public class HeartbeatService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final DeviceRepository deviceRepository;
+    private final CommandQueueService commandQueueService;
 
     @Value("${app.device.heartbeat-interval}")
     private int heartbeatIntervalSeconds;
@@ -54,10 +56,13 @@ public class HeartbeatService {
 
         // TODO: Batch persist metrics to PostgreSQL using a background queue/job to avoid DB bottleneck
 
+        // Check for pending commands in Redis Queue
+        int pendingCommands = commandQueueService.getPendingCount(request.getDeviceId());
+
         // Send response
         return HeartbeatResponse.builder()
                 .nextHeartbeatSeconds(heartbeatIntervalSeconds)
-                .pendingCommands(0) // TODO: Check for pending commands in Redis/DB
+                .pendingCommands(pendingCommands)
                 .build();
     }
 }

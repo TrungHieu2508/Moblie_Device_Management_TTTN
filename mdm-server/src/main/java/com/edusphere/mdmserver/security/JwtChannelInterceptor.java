@@ -70,6 +70,26 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             } else {
                 throw new IllegalArgumentException("Missing Authorization header");
             }
+        } else if (accessor != null && StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+            // SECURITY CHECK: Prevent devices from subscribing to other devices' topics
+            String destination = accessor.getDestination();
+            if (destination != null && destination.startsWith("/topic/devices/")) {
+                String principalName = accessor.getUser() != null ? accessor.getUser().getName() : null;
+                boolean isDevice = accessor.getUser() != null && 
+                                   accessor.getUser().getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DEVICE"));
+                
+                if (isDevice) {
+                    // destination format: /topic/devices/{deviceId}/...
+                    String[] parts = destination.split("/");
+                    if (parts.length >= 4) {
+                        String targetDeviceId = parts[3];
+                        if (!targetDeviceId.equals(principalName)) {
+                            log.warn("Device {} attempted to subscribe to unauthorized topic: {}", principalName, destination);
+                            throw new IllegalArgumentException("Device not authorized to subscribe to this topic");
+                        }
+                    }
+                }
+            }
         }
         return message;
     }
