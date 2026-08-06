@@ -1,0 +1,37 @@
+package com.edusphere.mdmserver.domain.device.repository;
+
+import com.edusphere.mdmserver.domain.device.entity.Device;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+import java.util.UUID;
+import java.util.List;
+import com.edusphere.mdmserver.domain.device.enums.DeviceStatus;
+
+@Repository
+public interface DeviceRepository extends JpaRepository<Device, UUID> {
+    Optional<Device> findByDeviceId(String deviceId);
+    
+    List<Device> findByStatusIn(List<DeviceStatus> statuses);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"school", "campus", "classroom"})
+    @Query("SELECT d FROM Device d " +
+            "WHERE (:schoolId IS NULL OR d.school.id = :schoolId) " +
+            "AND (:campusId IS NULL OR d.campus.id = :campusId) " +
+            "AND (:classroomId IS NULL OR d.classroom.id = :classroomId) " +
+            "AND (:status IS NULL OR d.status = :status) " +
+            "AND (:search IS NULL OR LOWER(d.deviceName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(d.deviceId) LIKE LOWER(CONCAT('%', :search, '%')))")
+    Page<Device> searchDevices(
+            @Param("schoolId") UUID schoolId,
+            @Param("campusId") UUID campusId,
+            @Param("classroomId") UUID classroomId,
+            @Param("status") com.edusphere.mdmserver.domain.device.enums.DeviceStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+}
