@@ -5,6 +5,7 @@ import com.edusphere.mdmserver.domain.alert.dto.AlertStatusUpdateRequest;
 import com.edusphere.mdmserver.domain.alert.entity.Alert;
 import com.edusphere.mdmserver.domain.alert.enums.AlertStatus;
 import com.edusphere.mdmserver.domain.alert.repository.AlertRepository;
+import com.edusphere.mdmserver.domain.alert.service.AlertService;
 import com.edusphere.mdmserver.domain.user.entity.User;
 import com.edusphere.mdmserver.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

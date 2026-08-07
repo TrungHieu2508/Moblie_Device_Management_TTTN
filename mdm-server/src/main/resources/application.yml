@@ -6,7 +6,7 @@ spring:
   # DATABASE - PostgreSQL
   # ================================================================
   datasource:
-    url: jdbc:postgresql://localhost:5432/mdm_db
+    url: jdbc:postgresql://localhost:5434/mdm_db
     username: mdm_user
     password: mdm_password
     driver-class-name: org.postgresql.Driver
@@ -23,7 +23,7 @@ spring:
   # ================================================================
   jpa:
     hibernate:
-      ddl-auto: validate          # Flyway quản lý schema, Hibernate chỉ validate
+      ddl-auto: update          # Flyway quản lý schema, Hibernate update table missing
     show-sql: false               # Tắt trong production, bật khi debug
     properties:
       hibernate:
@@ -71,7 +71,7 @@ spring:
 # SERVER
 # ================================================================
 server:
-  port: 8080
+  port: 8081
   servlet:
     context-path: /api
 
@@ -85,6 +85,13 @@ app:
     access-token-expiration: 3600000       # 1 giờ (milliseconds)
     refresh-token-expiration: 604800000    # 7 ngày (milliseconds)
     device-token-expiration: 2592000000   # 30 ngày (milliseconds) - cho Android Agent
+
+  # ================================================================
+  # DEVICE CONFIGURATION
+  # ================================================================
+  device:
+    heartbeat-interval: 30
+    websocket-url: "ws://localhost:8081/api/ws"
 
   # ================================================================
   # HEARTBEAT CONFIGURATION

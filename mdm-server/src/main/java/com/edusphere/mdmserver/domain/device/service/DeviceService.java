@@ -18,6 +18,7 @@ import com.edusphere.mdmserver.domain.school.repository.ClassroomRepository;
 import com.edusphere.mdmserver.domain.school.repository.SchoolRepository;
 import com.edusphere.mdmserver.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +31,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;

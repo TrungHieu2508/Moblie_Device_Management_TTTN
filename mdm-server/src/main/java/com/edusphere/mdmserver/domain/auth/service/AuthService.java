@@ -44,7 +44,7 @@ public class AuthService {
         User user = userDetails.getUser();
 
         // 2. Generate tokens with extra claims to avoid DB lookup later
-        java.util.Map<String, Object> extraClaims = java.util.HashMap.newHashMap(2);
+        java.util.Map<String, Object> extraClaims = new java.util.HashMap<>(2);
         extraClaims.put("role", "ROLE_" + user.getRole().name());
         extraClaims.put("userId", user.getId().toString());
         String accessToken = jwtService.generateAccessToken(extraClaims, user.getUsername());
@@ -99,7 +99,7 @@ public class AuthService {
             throw new IllegalArgumentException("Refresh token expired or revoked");
         }
 
-        java.util.Map<String, Object> extraClaims = java.util.HashMap.newHashMap(2);
+        java.util.Map<String, Object> extraClaims = new java.util.HashMap<>(2);
         extraClaims.put("role", "ROLE_" + user.getRole().name());
         extraClaims.put("userId", user.getId().toString());
         String newAccessToken = jwtService.generateAccessToken(extraClaims, user.getUsername());

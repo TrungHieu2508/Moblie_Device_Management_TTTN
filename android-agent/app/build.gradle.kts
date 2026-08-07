@@ -64,6 +64,9 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.compiler.ext)
 
+    // Lifecycle ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
+
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
