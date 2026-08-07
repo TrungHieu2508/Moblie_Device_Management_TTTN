@@ -23,26 +23,46 @@ class CommandReceiver @Inject constructor(
             return
         }
 
-        // Construct STOMP or raw WebSocket URL. Assuming a raw WebSocket for command channel.
-        // E.g., ws://192.168.1.100:8080/ws/commands?deviceId=xyz
+        // Construct STOMP endpoint URL
+        // Backend Spring Boot exposes STOMP at /api/ws
         val wsUrl = if (serverUrl.startsWith("http")) {
             serverUrl.replaceFirst("http", "ws")
         } else {
             serverUrl
-        } + "ws/commands?deviceId=$deviceId"
+        } + "api/ws"
 
         val uri = URI(wsUrl)
         val headers = mapOf("Authorization" to "Bearer $token")
 
         webSocketClient = object : WebSocketClient(uri, headers) {
             override fun onOpen(handshakedata: ServerHandshake?) {
-                Log.i(TAG, "WebSocket Opened")
+                Log.i(TAG, "WebSocket Opened, sending STOMP CONNECT...")
+                val connectFrame = "CONNECT\n" +
+                        "accept-version:1.2,1.1,1.0\n" +
+                        "heart-beat:10000,10000\n" +
+                        "Authorization:Device $token\n" +
+                        "\n\u0000"
+                webSocketClient?.send(connectFrame)
             }
 
             override fun onMessage(message: String?) {
                 Log.i(TAG, "Received message: $message")
                 message?.let {
-                    handleCommand(it)
+                    if (it.startsWith("CONNECTED")) {
+                        Log.i(TAG, "STOMP Connected! Subscribing to command topic...")
+                        val subscribeFrame = "SUBSCRIBE\n" +
+                                "id:sub-0\n" +
+                                "destination:/topic/devices/$deviceId/command\n" +
+                                "\n\u0000"
+                        webSocketClient?.send(subscribeFrame)
+                    } else if (it.startsWith("MESSAGE")) {
+                        // Extract JSON payload from STOMP MESSAGE frame
+                        val payloadIndex = it.indexOf("\n\n")
+                        if (payloadIndex != -1) {
+                            val jsonPayload = it.substring(payloadIndex + 2).replace("\u0000", "")
+                            handleCommand(jsonPayload)
+                        }
+                    }
                 }
             }
 
