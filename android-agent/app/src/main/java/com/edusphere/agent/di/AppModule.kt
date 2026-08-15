@@ -39,7 +39,7 @@ object AppModule {
     fun provideRetrofit(): Retrofit {
         return Retrofit.Builder()
             // Placeholder URL, will be dynamically configured or fetched from local storage in real app
-            .baseUrl("http://192.168.1.100:8080/") 
+            .baseUrl("http://192.168.1.7:8081/") 
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }

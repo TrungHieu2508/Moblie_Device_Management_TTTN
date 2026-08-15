@@ -24,12 +24,13 @@ class DeviceRepositoryImpl @Inject constructor(
             val response = apiService.registerDevice(request)
             if (response.isSuccessful) {
                 val body = response.body()
-                if (body != null) {
+                if (body?.data != null) {
+                    val data = body.data
                     val entity = DeviceEntity(
                         deviceId = request.deviceId,
                         deviceName = request.deviceName,
-                        registrationToken = body.registrationToken,
-                        serverUrl = body.serverConfig.websocketUrl,
+                        registrationToken = data.registrationToken,
+                        serverUrl = data.serverConfig.websocketUrl,
                         isRegistered = true
                     )
                     deviceDao.insertDeviceInfo(entity)
@@ -62,7 +63,7 @@ class DeviceRepositoryImpl @Inject constructor(
         return try {
             val deviceInfo = getDeviceInfo() ?: return false
             val token = "Bearer ${deviceInfo.registrationToken}"
-            val response = apiService.sendViolation(token, request)
+            val response = apiService.sendEvent(token, request)
             response.isSuccessful
         } catch (e: Exception) {
             Log.e("DeviceRepositoryImpl", "Send violation failed", e)
