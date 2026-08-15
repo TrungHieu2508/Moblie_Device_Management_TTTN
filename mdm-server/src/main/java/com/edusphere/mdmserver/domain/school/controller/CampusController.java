@@ -14,30 +14,28 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping
+@RequestMapping("/campuses")
 @RequiredArgsConstructor
 public class CampusController {
 
     private final CampusService campusService;
 
-    @PostMapping("/schools/{schoolId}/campuses")
+    @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CampusDto>> createCampus(
-            @PathVariable UUID schoolId,
             @Valid @RequestBody CreateCampusRequest request) {
-        request.setSchoolId(schoolId);
         CampusDto response = campusService.createCampus(request);
         return ResponseEntity.ok(ApiResponse.success(response, "Campus created successfully"));
     }
 
-    @GetMapping("/schools/{schoolId}/campuses")
+    @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN')")
-    public ResponseEntity<ApiResponse<List<CampusDto>>> getCampusesBySchoolId(@PathVariable UUID schoolId) {
-        List<CampusDto> response = campusService.getCampusesBySchoolId(schoolId);
+    public ResponseEntity<ApiResponse<List<CampusDto>>> getAllCampuses() {
+        List<CampusDto> response = campusService.getAllCampuses();
         return ResponseEntity.ok(ApiResponse.success(response, "Success"));
     }
 
-    @PutMapping("/campuses/{id}")
+    @PutMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CampusDto>> updateCampus(
             @PathVariable UUID id,
@@ -46,7 +44,7 @@ public class CampusController {
         return ResponseEntity.ok(ApiResponse.success(response, "Campus updated successfully"));
     }
 
-    @DeleteMapping("/campuses/{id}")
+    @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteCampus(@PathVariable UUID id) {
         campusService.deleteCampus(id);

@@ -2,11 +2,14 @@ package com.edusphere.mdmserver.domain.device.service;
 
 import com.edusphere.mdmserver.domain.device.dto.AssignDeviceRequest;
 import com.edusphere.mdmserver.domain.device.dto.DeviceDto;
+import com.edusphere.mdmserver.domain.device.dto.UpdateDeviceRequest;
 import com.edusphere.mdmserver.domain.device.dto.DeviceRegistrationRequest;
 import com.edusphere.mdmserver.domain.device.dto.DeviceRegistrationResponse;
 import com.edusphere.mdmserver.domain.device.entity.Device;
 import com.edusphere.mdmserver.domain.device.enums.DeviceStatus;
 import com.edusphere.mdmserver.domain.device.repository.DeviceRepository;
+import com.edusphere.mdmserver.domain.device.entity.EnrollmentProfile;
+import com.edusphere.mdmserver.domain.device.repository.EnrollmentProfileRepository;
 import com.edusphere.mdmserver.domain.school.dto.CampusDto;
 import com.edusphere.mdmserver.domain.school.dto.ClassroomDto;
 import com.edusphere.mdmserver.domain.school.dto.SchoolDto;
@@ -18,6 +21,7 @@ import com.edusphere.mdmserver.domain.school.repository.ClassroomRepository;
 import com.edusphere.mdmserver.domain.school.repository.SchoolRepository;
 import com.edusphere.mdmserver.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,22 +34,24 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DeviceService {
 
     private final DeviceRepository deviceRepository;
     private final SchoolRepository schoolRepository;
     private final CampusRepository campusRepository;
     private final ClassroomRepository classroomRepository;
+    private final EnrollmentProfileRepository enrollmentRepository;
     private final JwtService jwtService;
     private final org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
 
-    @Value("${app.jwt.device-token-expiration}")
+    @Value("${app.jwt.device-token-expiration:31536000000}")
     private long deviceTokenExpiration;
 
-    @Value("${app.device.heartbeat-interval}")
+    @Value("${app.device.heartbeat-interval:60}")
     private int heartbeatIntervalSeconds;
 
-    @Value("${app.device.websocket-url}")
+    @Value("${app.device.websocket-url:ws://localhost:8080/ws-mdm}")
     private String websocketUrl;
 
     @Transactional
@@ -85,6 +91,28 @@ public class DeviceService {
                     .build();
         }
 
+        // Process Enrollment Code if provided
+        if (request.getEnrollmentCode() != null && !request.getEnrollmentCode().isBlank()) {
+            EnrollmentProfile profile = enrollmentRepository.findByCode(request.getEnrollmentCode())
+                    .orElseThrow(() -> new IllegalArgumentException("Mã ghi danh không hợp lệ"));
+            
+            if (!profile.isActive() || (profile.getExpiresAt() != null && profile.getExpiresAt().isBefore(Instant.now()))) {
+                throw new IllegalArgumentException("Mã ghi danh đã hết hạn hoặc bị vô hiệu hóa");
+            }
+            if (profile.getMaxUses() > 0 && profile.getCurrentUses() >= profile.getMaxUses()) {
+                throw new IllegalArgumentException("Mã ghi danh đã vượt quá số lần sử dụng");
+            }
+            
+            // Assign device
+            device.setSchool(profile.getSchool());
+            device.setCampus(profile.getCampus());
+            device.setStatus(DeviceStatus.ONLINE);
+            
+            // Increment uses
+            profile.setCurrentUses(profile.getCurrentUses() + 1);
+            enrollmentRepository.save(profile);
+        }
+
         // Generate token for device
         String registrationToken = jwtService.generateDeviceToken(device.getDeviceId());
         device.setRegistrationToken(registrationToken);
@@ -103,8 +131,9 @@ public class DeviceService {
                 .build();
     }
 
-    public Page<DeviceDto> getDevices(UUID schoolId, UUID campusId, UUID classroomId, DeviceStatus status, String search, Pageable pageable) {
-        return deviceRepository.searchDevices(schoolId, campusId, classroomId, status, search, pageable)
+    public Page<DeviceDto> getDevices(UUID schoolId, UUID campusId, UUID classroomId, DeviceStatus status, String search, String androidVersion, Pageable pageable) {
+        String statusStr = status != null ? status.name() : null;
+        return deviceRepository.searchDevices(schoolId, campusId, classroomId, statusStr, search, androidVersion, pageable)
                 .map(this::mapToDto);
     }
 
@@ -144,6 +173,43 @@ public class DeviceService {
         device.setCampus(null);
         device.setClassroom(null);
         device.setStatus(DeviceStatus.PENDING);
+
+        return mapToDto(deviceRepository.save(device));
+    }
+
+    @Transactional
+    public DeviceDto updateDevice(UUID id, UpdateDeviceRequest request) {
+        Device device = deviceRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
+
+        if (request.getDeviceName() != null) {
+            device.setDeviceName(request.getDeviceName());
+        }
+        if (request.getNotes() != null) {
+            device.setNotes(request.getNotes());
+        }
+
+        // Logic constraint for Campus and School
+        if (request.getCampusId() != null || request.getSchoolId() != null) {
+            // Either both must be provided or none, because they are tied together.
+            // If they want to change the campus/school, we should require both if one changes.
+            if (request.getCampusId() == null || request.getSchoolId() == null) {
+                throw new IllegalArgumentException("Vui lòng chọn cả Cơ sở và Trường học nếu muốn cập nhật");
+            }
+            
+            // Validate that the school actually belongs to the campus
+            School school = schoolRepository.findById(request.getSchoolId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Trường học"));
+            Campus campus = campusRepository.findById(request.getCampusId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Cơ sở (Campus)"));
+            
+            if (school.getCampus() == null || !school.getCampus().getId().equals(campus.getId())) {
+                throw new IllegalArgumentException("Trường học đã chọn không thuộc Cơ sở này");
+            }
+            
+            device.setSchool(school);
+            device.setCampus(campus);
+        }
 
         return mapToDto(deviceRepository.save(device));
     }

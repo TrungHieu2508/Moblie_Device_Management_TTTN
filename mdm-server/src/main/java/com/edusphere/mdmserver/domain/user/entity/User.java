@@ -1,9 +1,12 @@
 package com.edusphere.mdmserver.domain.user.entity;
 
 import com.edusphere.mdmserver.common.entity.BaseEntity;
+import com.edusphere.mdmserver.domain.school.entity.Campus;
 import com.edusphere.mdmserver.domain.school.entity.School;
 import com.edusphere.mdmserver.domain.user.enums.UserRole;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 import java.time.Instant;
@@ -36,6 +39,10 @@ public class User extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "school_id")
     private School school;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
 
     @Builder.Default
     @Column(name = "is_active")

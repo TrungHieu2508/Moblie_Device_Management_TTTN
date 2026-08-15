@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface SchoolRepository extends JpaRepository<School, UUID> {
     Optional<School> findByCode(String code);
     boolean existsByCode(String code);
+    org.springframework.data.domain.Page<School> findByCampusId(UUID campusId, org.springframework.data.domain.Pageable pageable);
 }

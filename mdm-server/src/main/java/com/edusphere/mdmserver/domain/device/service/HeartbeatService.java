@@ -24,7 +24,7 @@ public class HeartbeatService {
     private final DeviceRepository deviceRepository;
     private final CommandQueueService commandQueueService;
 
-    @Value("${app.device.heartbeat-interval}")
+    @Value("${app.device.heartbeat-interval:60}")
     private int heartbeatIntervalSeconds;
 
     // The grace period before marking a device as offline

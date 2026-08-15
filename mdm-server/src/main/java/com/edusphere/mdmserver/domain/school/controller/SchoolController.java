@@ -12,6 +12,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.edusphere.mdmserver.security.CustomUserDetails;
+import com.edusphere.mdmserver.domain.user.enums.UserRole;
+
 import java.util.UUID;
 
 @RestController
@@ -30,8 +34,19 @@ public class SchoolController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN')")
-    public ResponseEntity<ApiResponse<Page<SchoolDto>>> getAllSchools(Pageable pageable) {
-        Page<SchoolDto> response = schoolService.getAllSchools(pageable);
+    public ResponseEntity<ApiResponse<Page<SchoolDto>>> getAllSchools(
+            Pageable pageable, 
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        
+        UUID campusId = null;
+        if (userDetails.getUser().getRole() == UserRole.IT_ADMIN) {
+            if (userDetails.getUser().getCampus() == null) {
+                return ResponseEntity.ok(ApiResponse.success(Page.empty(), "IT_ADMIN hasn't been assigned to a campus"));
+            }
+            campusId = userDetails.getUser().getCampus().getId();
+        }
+        
+        Page<SchoolDto> response = schoolService.getAllSchools(pageable, campusId);
         return ResponseEntity.ok(ApiResponse.success(response, "Success"));
     }
 

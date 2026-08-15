@@ -24,41 +24,41 @@ public class GlobalExceptionHandler {
         
         log.warn("Validation error: {}", errorMessage);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("VALIDATION_FAILED", errorMessage));
+                .body(ApiResponse.error(errorMessage, "VALIDATION_FAILED"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex) {
         log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error("ACCESS_DENIED", "Bạn không có quyền truy cập tài nguyên này"));
+                .body(ApiResponse.error("Bạn không có quyền truy cập tài nguyên này", "ACCESS_DENIED"));
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException ex) {
         log.warn("Authentication failed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("UNAUTHORIZED", "Xác thực thất bại. Vui lòng đăng nhập lại"));
+                .body(ApiResponse.error("Xác thực thất bại. Vui lòng đăng nhập lại", "UNAUTHORIZED"));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.warn("Illegal argument: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("BAD_REQUEST", ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage(), "BAD_REQUEST"));
     }
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
         log.error("Runtime exception occurred", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("INTERNAL_ERROR", ex.getMessage()));
+                .body(ApiResponse.error(ex.getMessage(), "INTERNAL_ERROR"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneralException(Exception ex) {
         log.error("Unhandled exception occurred", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("SYSTEM_ERROR", "Đã xảy ra lỗi hệ thống không xác định. Vui lòng liên hệ Admin."));
+                .body(ApiResponse.error("Đã xảy ra lỗi hệ thống không xác định. Vui lòng liên hệ Admin.", "SYSTEM_ERROR"));
     }
 }

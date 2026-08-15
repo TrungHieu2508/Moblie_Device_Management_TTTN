@@ -3,13 +3,11 @@ package com.edusphere.mdmserver;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
-/**
- * EduGuardian MDM Server
- * Mobile Device Management for Educational Environments
- */
 @SpringBootApplication
 @EnableScheduling
+@EnableJpaAuditing
 public class MdmServerApplication {
 
     public static void main(String[] args) {

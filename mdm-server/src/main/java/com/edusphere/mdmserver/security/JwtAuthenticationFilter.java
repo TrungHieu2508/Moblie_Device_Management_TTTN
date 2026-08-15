@@ -52,13 +52,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String username = jwtService.extractSubject(jwt);
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             if (jwtService.isTokenValid(jwt, username)) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                // Kiểm tra tài khoản có bị khóa không - nếu bị khóa thì từ chối ngay lập tức
+                if (!userDetails.isEnabled()) {
+                    return; // Tài khoản bị khóa, không xác thực -> sẽ bị chặn bởi Spring Security
+                }
                 String role = jwtService.extractClaim(jwt, claims -> claims.get("role", String.class));
                 java.util.List<org.springframework.security.core.authority.SimpleGrantedAuthority> authorities = 
                         role != null ? java.util.Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority(role)) 
                                      : java.util.Collections.emptyList();
                 
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        username, null, authorities
+                        userDetails, null, authorities
                 );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);

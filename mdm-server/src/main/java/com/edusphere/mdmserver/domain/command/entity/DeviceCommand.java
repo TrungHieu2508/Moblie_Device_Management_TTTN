@@ -4,11 +4,11 @@ import com.edusphere.mdmserver.domain.command.enums.CommandStatus;
 import com.edusphere.mdmserver.domain.command.enums.CommandType;
 import com.edusphere.mdmserver.domain.device.entity.Device;
 import com.edusphere.mdmserver.domain.user.entity.User;
-import io.hypersistence.utils.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.Type;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.Map;
@@ -35,7 +35,7 @@ public class DeviceCommand {
     @Column(nullable = false)
     private CommandType commandType;
 
-    @Type(JsonBinaryType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> payload; // Dynamic payload for the command (e.g. message text)
 

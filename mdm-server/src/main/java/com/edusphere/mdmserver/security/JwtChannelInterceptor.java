@@ -75,9 +75,10 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             String destination = accessor.getDestination();
             if (destination != null && destination.startsWith("/topic/devices/")) {
                 String principalName = accessor.getUser() != null ? accessor.getUser().getName() : null;
-                boolean isDevice = accessor.getUser() != null && 
-                                   accessor.getUser().getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DEVICE"));
-                
+                boolean isDevice = false;
+                if (accessor.getUser() instanceof org.springframework.security.core.Authentication auth) {
+                    isDevice = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_DEVICE"));
+                }
                 if (isDevice) {
                     // destination format: /topic/devices/{deviceId}/...
                     String[] parts = destination.split("/");

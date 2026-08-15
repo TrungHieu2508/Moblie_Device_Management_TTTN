@@ -1,122 +1,150 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { Routes, Route, Navigate } from 'react-router-dom';
+import ProtectedRoute from './routes/ProtectedRoute';
 
-function App() {
-  const [count, setCount] = useState(0)
+import Login from './features/auth/Login';
+import DeviceListPage from './features/devices/views/DeviceListPage';
+import DeviceDetailPage from './features/devices/views/DeviceDetailPage';
+import AlertListPage from './features/alerts/views/AlertListPage';
+import DashboardPage from './features/dashboard/views/DashboardPage';
+import UserListPage from './features/users/views/UserListPage';
+import SchoolListPage from './features/schools/views/SchoolListPage';
+import CampusListPage from './features/schools/views/CampusListPage';
+import ProfilePage from './features/profile/ProfilePage';
+import TeacherDashboard from './features/schools/views/TeacherDashboard';
+import SessionHistoryPage from './features/schools/views/SessionHistoryPage';
+import LiveClassesPage from './features/schools/views/LiveClassesPage';
+import { useAuthStore } from './store/authStore';
+
+// Placeholder Layout
+import { Outlet } from 'react-router-dom';
+import { Layout, Menu, Button, Dropdown, Avatar, Space } from 'antd';
+import { AppstoreOutlined, DesktopOutlined, AlertOutlined, UserOutlined, LogoutOutlined, BankOutlined, EnvironmentOutlined, HistoryOutlined } from '@ant-design/icons';
+import { useNavigate, useLocation } from 'react-router-dom';
+
+const { Header, Content, Sider } = Layout;
+
+const MainLayout = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, logout } = useAuthStore();
+  const role = user?.role;
+  const username = user?.username;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const userMenu = {
+    items: [
+      {
+        key: 'profile',
+        icon: <UserOutlined />,
+        label: 'Hồ sơ tài khoản',
+        onClick: () => navigate('/profile'),
+      },
+      {
+        type: 'divider' as const,
+      },
+      {
+        key: 'logout',
+        icon: <LogoutOutlined />,
+        label: 'Đăng xuất',
+        danger: true,
+        onClick: handleLogout,
+      },
+    ],
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <Layout className="min-h-screen">
+      <Sider width={250} theme="dark" className="border-r border-[#2e303a]">
+        <div className="h-16 flex items-center justify-center border-b border-[#2e303a]">
+          <h2 className="text-[var(--color-primary)] font-bold text-xl m-0 tracking-tight">MDM Console</h2>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[location.pathname]}
+          items={[
+            ...(role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? [
+              { key: '/', icon: <AppstoreOutlined />, label: 'Dashboard', onClick: () => navigate('/') },
+              { key: '/devices', icon: <DesktopOutlined />, label: 'Devices', onClick: () => navigate('/devices') },
+              { key: '/alerts', icon: <AlertOutlined />, label: 'Alerts', onClick: () => navigate('/alerts') },
+            ] : []),
+            ...(role === 'SUPER_ADMIN' ? [
+              { key: '/campuses', icon: <EnvironmentOutlined />, label: 'Quản lý Khu vực', onClick: () => navigate('/campuses') }
+            ] : []),
+            ...(role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? [
+              { key: '/schools', icon: <BankOutlined />, label: 'Quản lý Trường học', onClick: () => navigate('/schools') }
+            ] : []),
+            ...(role === 'SUPER_ADMIN' ? [
+              { key: '/users', icon: <UserOutlined />, label: 'Quản lý Tài khoản', onClick: () => navigate('/users') }
+            ] : []),
+            ...(role === 'TEACHER' ? [
+              { key: '/teacher', icon: <DesktopOutlined />, label: 'Lớp học (Teacher)', onClick: () => navigate('/teacher') },
+            ] : []),
+            ...(role === 'TEACHER' || role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? [
+              { key: '/history', icon: <HistoryOutlined />, label: 'Lịch sử buổi học', onClick: () => navigate('/history') }
+            ] : []),
+          ]}
+          className="border-none mt-4"
+        />
+      </Sider>
+      <Layout>
+        <Header className="px-6 flex items-center border-b border-[#2e303a]">
+          <div className="text-gray-300">Admin Dashboard</div>
+          <div className="ml-auto flex items-center gap-6">
+            
+            <Dropdown menu={userMenu} placement="bottomRight" arrow>
+              <div className="flex items-center gap-2 cursor-pointer hover:bg-[#1f2028] p-2 rounded-lg transition-colors">
+                <Avatar icon={<UserOutlined />} className="bg-[var(--color-primary)]" />
+                <span className="text-white font-medium">{username || 'Admin'}</span>
+              </div>
+            </Dropdown>
+          </div>
+        </Header>
+        <Content className="bg-[#0f1015] overflow-auto">
+          <Outlet />
+        </Content>
+      </Layout>
+    </Layout>
+  );
+};
 
-      <div className="ticks"></div>
+function App() {
+  const { user } = useAuthStore();
+  const role = user?.role;
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      
+      {/* Protected Routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<MainLayout />}>
+          <Route path="/" element={role !== 'TEACHER' ? <DashboardPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/devices" element={role !== 'TEACHER' ? <DeviceListPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/devices/:id" element={role !== 'TEACHER' ? <DeviceDetailPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/alerts" element={role !== 'TEACHER' ? <AlertListPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          
+          {/* Super Admin & IT Admin Routes */}
+          <Route path="/campuses" element={role === 'SUPER_ADMIN' ? <CampusListPage /> : <Navigate to="/" replace />} />
+          <Route path="/schools" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <SchoolListPage /> : <Navigate to="/" replace />} />
+          <Route path="/schools/:schoolId/dashboard" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <TeacherDashboard /> : <Navigate to="/" replace />} />
+          <Route path="/users" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <UserListPage /> : <Navigate to="/" replace />} />
+          
+          {/* Teacher Routes */}
+          <Route path="/teacher" element={role === 'TEACHER' ? <TeacherDashboard /> : <Navigate to="/" replace />} />
+          <Route path="/history" element={role === 'TEACHER' || role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <SessionHistoryPage /> : <Navigate to="/" replace />} />
+          <Route path="/live-classes/:sessionId" element={<LiveClassesPage />} />
+        </Route>
+      </Route>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
-export default App
+export default App;

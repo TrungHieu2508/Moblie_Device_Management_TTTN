@@ -9,6 +9,5 @@ import java.util.UUID;
 
 @Repository
 public interface CampusRepository extends JpaRepository<Campus, UUID> {
-    List<Campus> findBySchoolId(UUID schoolId);
     boolean existsByCode(String code);
 }

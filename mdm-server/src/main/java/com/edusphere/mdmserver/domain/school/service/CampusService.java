@@ -3,9 +3,7 @@ package com.edusphere.mdmserver.domain.school.service;
 import com.edusphere.mdmserver.domain.school.dto.CampusDto;
 import com.edusphere.mdmserver.domain.school.dto.CreateCampusRequest;
 import com.edusphere.mdmserver.domain.school.entity.Campus;
-import com.edusphere.mdmserver.domain.school.entity.School;
 import com.edusphere.mdmserver.domain.school.repository.CampusRepository;
-import com.edusphere.mdmserver.domain.school.repository.SchoolRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,14 +17,14 @@ import java.util.stream.Collectors;
 public class CampusService {
 
     private final CampusRepository campusRepository;
-    private final SchoolRepository schoolRepository;
 
     @Transactional
     public CampusDto createCampus(CreateCampusRequest request) {
-        School school = schoolRepository.getReferenceById(request.getSchoolId());
+        if (campusRepository.existsByCode(request.getCode())) {
+            throw new RuntimeException("Mã cơ sở đã tồn tại: " + request.getCode());
+        }
 
         Campus campus = Campus.builder()
-                .school(school)
                 .name(request.getName())
                 .code(request.getCode())
                 .address(request.getAddress())
@@ -35,8 +33,8 @@ public class CampusService {
         return mapToDto(campusRepository.save(campus));
     }
 
-    public List<CampusDto> getCampusesBySchoolId(UUID schoolId) {
-        return campusRepository.findBySchoolId(schoolId)
+    public List<CampusDto> getAllCampuses() {
+        return campusRepository.findAll()
                 .stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
@@ -46,12 +44,6 @@ public class CampusService {
     public CampusDto updateCampus(UUID id, CreateCampusRequest request) {
         Campus campus = campusRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy cơ sở"));
-
-        if (!campus.getSchool().getId().equals(request.getSchoolId())) {
-            School school = schoolRepository.findById(request.getSchoolId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy trường học mới"));
-            campus.setSchool(school);
-        }
 
         if (!campus.getCode().equals(request.getCode()) && campusRepository.existsByCode(request.getCode())) {
             throw new RuntimeException("Mã cơ sở đã tồn tại: " + request.getCode());
@@ -76,7 +68,6 @@ public class CampusService {
     private CampusDto mapToDto(Campus campus) {
         return CampusDto.builder()
                 .id(campus.getId())
-                .schoolId(campus.getSchool().getId())
                 .name(campus.getName())
                 .code(campus.getCode())
                 .address(campus.getAddress())

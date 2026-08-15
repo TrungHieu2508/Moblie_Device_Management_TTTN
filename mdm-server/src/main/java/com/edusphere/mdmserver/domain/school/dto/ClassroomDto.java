@@ -9,7 +9,7 @@ import java.util.UUID;
 @Builder
 public class ClassroomDto {
     private UUID id;
-    private UUID campusId;
+    private UUID schoolId;
     private String name;
     private String code;
 }

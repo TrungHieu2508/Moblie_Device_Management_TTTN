@@ -5,7 +5,9 @@ import com.edusphere.mdmserver.domain.alert.dto.AlertStatusUpdateRequest;
 import com.edusphere.mdmserver.domain.alert.entity.Alert;
 import com.edusphere.mdmserver.domain.alert.enums.AlertStatus;
 import com.edusphere.mdmserver.domain.alert.repository.AlertRepository;
+import com.edusphere.mdmserver.domain.alert.service.AlertService;
 import com.edusphere.mdmserver.domain.user.entity.User;
+import com.edusphere.mdmserver.domain.user.enums.UserRole;
 import com.edusphere.mdmserver.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -31,17 +33,39 @@ public class AlertController {
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('IT_ADMIN')")
     public ResponseEntity<ApiResponse<Page<Alert>>> getAlerts(
+            Principal principal,
             @RequestParam(required = false) AlertStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
+        User user = userRepository.findByUsername(principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException("User không tồn tại"));
+                
+        // Enforce RBAC for IT_ADMIN
+        UUID campusId = null;
+        if (user.getRole() == UserRole.IT_ADMIN) {
+            if (user.getCampus() != null) {
+                campusId = user.getCampus().getId();
+            } else {
+                return ResponseEntity.ok(ApiResponse.success(Page.empty(), "Thành công"));
+            }
+        }
+        
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Alert> alerts;
         
-        if (status != null) {
-            alerts = alertRepository.findByStatus(status, pageRequest);
+        if (campusId != null) {
+            if (status != null) {
+                alerts = alertRepository.findByCampusIdAndStatus(campusId, status, pageRequest);
+            } else {
+                alerts = alertRepository.findByCampusId(campusId, pageRequest);
+            }
         } else {
-            alerts = alertRepository.findAll(pageRequest);
+            if (status != null) {
+                alerts = alertRepository.findByStatus(status, pageRequest);
+            } else {
+                alerts = alertRepository.findAll(pageRequest);
+            }
         }
         
         return ResponseEntity.ok(ApiResponse.success(alerts, "Thành công"));

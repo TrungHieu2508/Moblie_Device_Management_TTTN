@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.edusphere.mdmserver.security.CustomUserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,36 +22,42 @@ public class ClassroomController {
 
     private final ClassroomService classroomService;
 
-    @PostMapping("/campuses/{campusId}/classrooms")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PostMapping("/schools/{schoolId}/classrooms")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'TEACHER')")
     public ResponseEntity<ApiResponse<ClassroomDto>> createClassroom(
-            @PathVariable UUID campusId,
-            @Valid @RequestBody CreateClassroomRequest request) {
-        request.setCampusId(campusId);
-        ClassroomDto response = classroomService.createClassroom(request);
+            @PathVariable UUID schoolId,
+            @Valid @RequestBody CreateClassroomRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        request.setSchoolId(schoolId);
+        ClassroomDto response = classroomService.createClassroom(request, userDetails);
         return ResponseEntity.ok(ApiResponse.success(response, "Classroom created successfully"));
     }
 
-    @GetMapping("/campuses/{campusId}/classrooms")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN')")
-    public ResponseEntity<ApiResponse<List<ClassroomDto>>> getClassroomsByCampusId(@PathVariable UUID campusId) {
-        List<ClassroomDto> response = classroomService.getClassroomsByCampusId(campusId);
+    @GetMapping("/schools/{schoolId}/classrooms")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN', 'TEACHER')")
+    public ResponseEntity<ApiResponse<List<ClassroomDto>>> getClassroomsBySchoolId(
+            @PathVariable UUID schoolId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        List<ClassroomDto> response = classroomService.getClassroomsBySchoolId(schoolId, userDetails);
         return ResponseEntity.ok(ApiResponse.success(response, "Success"));
     }
 
     @PutMapping("/classrooms/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'TEACHER')")
     public ResponseEntity<ApiResponse<ClassroomDto>> updateClassroom(
             @PathVariable UUID id,
-            @Valid @RequestBody CreateClassroomRequest request) {
-        ClassroomDto response = classroomService.updateClassroom(id, request);
+            @Valid @RequestBody CreateClassroomRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        ClassroomDto response = classroomService.updateClassroom(id, request, userDetails);
         return ResponseEntity.ok(ApiResponse.success(response, "Classroom updated successfully"));
     }
 
     @DeleteMapping("/classrooms/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteClassroom(@PathVariable UUID id) {
-        classroomService.deleteClassroom(id);
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'TEACHER')")
+    public ResponseEntity<ApiResponse<Void>> deleteClassroom(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        classroomService.deleteClassroom(id, userDetails);
         return ResponseEntity.ok(ApiResponse.success(null, "Classroom deleted successfully"));
     }
 }

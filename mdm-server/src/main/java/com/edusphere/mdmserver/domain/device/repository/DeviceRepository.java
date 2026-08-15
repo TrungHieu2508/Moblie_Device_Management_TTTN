@@ -35,14 +35,19 @@ public interface DeviceRepository extends JpaRepository<Device, UUID> {
             "WHERE (:schoolId IS NULL OR d.school.id = :schoolId) " +
             "AND (:campusId IS NULL OR d.campus.id = :campusId) " +
             "AND (:classroomId IS NULL OR d.classroom.id = :classroomId) " +
-            "AND (:status IS NULL OR d.status = :status) " +
-            "AND (:search IS NULL OR LOWER(d.deviceName) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(d.deviceId) LIKE LOWER(CONCAT('%', :search, '%')))")
+            "AND (CAST(:androidVersion AS text) IS NULL OR d.androidVersion = CAST(:androidVersion AS text)) " +
+            "AND (CAST(:status AS text) IS NULL OR CAST(d.status AS text) = CAST(:status AS text)) " +
+            "AND (LOWER(COALESCE(d.deviceName, '')) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')) OR LOWER(d.deviceId) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))")
     Page<Device> searchDevices(
             @Param("schoolId") UUID schoolId,
             @Param("campusId") UUID campusId,
             @Param("classroomId") UUID classroomId,
-            @Param("status") com.edusphere.mdmserver.domain.device.enums.DeviceStatus status,
+            @Param("status") String status,
             @Param("search") String search,
+            @Param("androidVersion") String androidVersion,
             Pageable pageable
     );
+
+    @Query("SELECT d.status, COUNT(d) FROM Device d GROUP BY d.status")
+    List<Object[]> countDevicesByStatus();
 }

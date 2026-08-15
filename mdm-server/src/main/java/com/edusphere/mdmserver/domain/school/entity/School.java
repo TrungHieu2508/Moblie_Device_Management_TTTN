@@ -29,6 +29,10 @@ public class School extends BaseEntity {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campus_id")
+    private Campus campus;
+
     @OneToMany(mappedBy = "school", cascade = CascadeType.ALL)
-    private Set<Campus> campuses;
+    private Set<Classroom> classrooms;
 }

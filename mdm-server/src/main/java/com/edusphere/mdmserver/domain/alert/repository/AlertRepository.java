@@ -13,7 +13,11 @@ import java.util.UUID;
 @Repository
 public interface AlertRepository extends JpaRepository<Alert, UUID> {
     Page<Alert> findByStatus(AlertStatus status, Pageable pageable);
+    Page<Alert> findByCampusId(UUID campusId, Pageable pageable);
+    Page<Alert> findByCampusIdAndStatus(UUID campusId, AlertStatus status, Pageable pageable);
     List<Alert> findByDeviceIdAndStatus(UUID deviceId, AlertStatus status);
     boolean existsByDeviceIdAndRuleIdAndStatusIn(UUID deviceId, UUID ruleId, List<AlertStatus> statuses);
     boolean existsByDeviceIdAndStatusIn(UUID deviceId, List<AlertStatus> statuses);
+    
+    long countByStatus(AlertStatus status);
 }

@@ -15,9 +15,8 @@ import java.util.Set;
 @Builder
 public class Campus extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "school_id", nullable = false)
-    private School school;
+    @OneToMany(mappedBy = "campus", cascade = CascadeType.ALL)
+    private Set<School> schools;
 
     @Column(nullable = false)
     private String name;
@@ -31,6 +30,4 @@ public class Campus extends BaseEntity {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
-    @OneToMany(mappedBy = "campus", cascade = CascadeType.ALL)
-    private Set<Classroom> classrooms;
 }

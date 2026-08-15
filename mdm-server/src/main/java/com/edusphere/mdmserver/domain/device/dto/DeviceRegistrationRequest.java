@@ -12,4 +12,6 @@ public class DeviceRegistrationRequest {
     private String androidVersion;
     private String agentVersion;
     private String macAddress;
+    
+    private String enrollmentCode;
 }

@@ -8,9 +8,7 @@ import java.util.UUID;
 
 @Data
 public class CreateCampusRequest {
-    @NotNull(message = "ID của trường không được để trống")
-    private UUID schoolId;
-    
+
     @NotBlank(message = "Tên cơ sở không được để trống")
     private String name;
     

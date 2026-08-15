@@ -9,6 +9,8 @@ import java.util.UUID;
 @Builder
 public class SchoolDto {
     private UUID id;
+    private UUID campusId;
+    private String campusName;
     private String name;
     private String code;
     private String address;
