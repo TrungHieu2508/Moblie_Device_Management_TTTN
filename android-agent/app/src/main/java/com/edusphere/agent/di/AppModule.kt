@@ -38,8 +38,8 @@ object AppModule {
     @Singleton
     fun provideRetrofit(): Retrofit {
         return Retrofit.Builder()
-            // Placeholder URL, will be dynamically configured or fetched from local storage in real app
-            .baseUrl("http://192.168.1.7:8081/") 
+            // Changed to LAN IP so both Physical Device and Emulator can connect.
+            .baseUrl("http://192.168.1.8:8081/") 
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }

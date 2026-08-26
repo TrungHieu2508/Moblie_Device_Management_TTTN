@@ -64,6 +64,32 @@ public class DataSeeder implements CommandLineRunner {
             userRepository.save(superAdmin);
         }
         
-        // IT_ADMIN accounts will not be seeded. They must be created manually by SUPER_ADMIN via the UI.
+        // Create IT Admin
+        if (userRepository.findByUsername("ITadminGV").isEmpty()) {
+            User itAdmin = User.builder()
+                    .username("ITadminGV")
+                    .email("itadmin@edusphere.com")
+                    .passwordHash(passwordEncoder.encode("123456"))
+                    .fullName("IT Admin")
+                    .role(UserRole.IT_ADMIN)
+                    .isActive(true)
+                    .campus(campus)
+                    .build();
+            userRepository.save(itAdmin);
+        }
+
+        // Create Teacher
+        if (userRepository.findByUsername("gv01").isEmpty()) {
+            User teacher = User.builder()
+                    .username("gv01")
+                    .email("gv01@edusphere.com")
+                    .passwordHash(passwordEncoder.encode("123456"))
+                    .fullName("Giáo viên 01")
+                    .role(UserRole.TEACHER)
+                    .isActive(true)
+                    .campus(campus)
+                    .build();
+            userRepository.save(teacher);
+        }
     }
 }

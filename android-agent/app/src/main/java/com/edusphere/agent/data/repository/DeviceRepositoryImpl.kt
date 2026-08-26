@@ -19,7 +19,7 @@ class DeviceRepositoryImpl @Inject constructor(
         return deviceDao.getDeviceInfo()
     }
 
-    override suspend fun registerDevice(request: RegistrationRequest): Boolean {
+    override suspend fun registerDevice(request: RegistrationRequest): Result<Boolean> {
         return try {
             val response = apiService.registerDevice(request)
             if (response.isSuccessful) {
@@ -34,16 +34,24 @@ class DeviceRepositoryImpl @Inject constructor(
                         isRegistered = true
                     )
                     deviceDao.insertDeviceInfo(entity)
-                    true
+                    Result.success(true)
                 } else {
-                    false
+                    Log.e("DeviceRepositoryImpl", "Registration failed with response body null")
+                    Result.failure(Exception("Lỗi phản hồi từ máy chủ (Dữ liệu rỗng)."))
                 }
             } else {
-                false
+                val errorBody = response.errorBody()?.string()
+                Log.e("DeviceRepositoryImpl", "Registration failed with code: ${response.code()}, error: $errorBody")
+                val errorMessage = if (response.code() == 400 || response.code() == 403) {
+                    "Đăng ký thất bại. Mã Enrollment không hợp lệ hoặc thiết bị đã tồn tại."
+                } else {
+                    "Lỗi máy chủ (${response.code()}). Vui lòng thử lại sau."
+                }
+                Result.failure(Exception(errorMessage))
             }
         } catch (e: Exception) {
             Log.e("DeviceRepositoryImpl", "Registration failed", e)
-            false
+            Result.failure(Exception("Không thể kết nối đến máy chủ. Hãy kiểm tra kết nối mạng."))
         }
     }
 

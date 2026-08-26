@@ -4,6 +4,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edusphere.agent.domain.repository.DeviceRepository
@@ -55,6 +56,51 @@ class MainViewModel @Inject constructor(
             )
         }
     }
+
+    fun registerDevice(enrollmentCode: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            
+            val persistentDeviceId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: java.util.UUID.randomUUID().toString()
+            
+            var safeSerialNumber = "UNKNOWN_SERIAL"
+            try {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                    safeSerialNumber = Build.SERIAL.takeIf { it != Build.UNKNOWN } ?: "UNKNOWN_SERIAL"
+                } else {
+                    // Requires permission READ_PHONE_STATE. We won't crash if denied.
+                    try {
+                        safeSerialNumber = Build.getSerial().takeIf { it != Build.UNKNOWN } ?: "UNKNOWN_SERIAL"
+                    } catch (e: SecurityException) {
+                        safeSerialNumber = "UNKNOWN_SERIAL"
+                    }
+                }
+            } catch (e: Exception) {
+                safeSerialNumber = "UNKNOWN_SERIAL"
+            }
+
+            // Build Registration Request
+            val request = com.edusphere.agent.data.remote.model.RegistrationRequest(
+                deviceId = persistentDeviceId,
+                deviceName = Build.MODEL,
+                serialNumber = safeSerialNumber,
+                model = Build.MODEL,
+                androidVersion = Build.VERSION.RELEASE,
+                agentVersion = "1.0",
+                macAddress = "02:00:00:00:00:00", // Placeholder due to Android restrictions
+                enrollmentCode = enrollmentCode
+            )
+
+            val result = deviceRepository.registerDevice(request)
+            result.onSuccess {
+                checkStatus()
+                loadDeviceInfo()
+            }.onFailure { exception ->
+                _uiState.value = _uiState.value.copy(error = exception.message ?: "Đăng ký thất bại.")
+            }
+            _uiState.value = _uiState.value.copy(isLoading = false)
+        }
+    }
 }
 
 data class MainUiState(
@@ -62,5 +108,7 @@ data class MainUiState(
     val isRegistered: Boolean = false,
     val deviceId: String = "Loading...",
     val deviceModel: String = "Loading...",
-    val osVersion: String = "Loading..."
+    val osVersion: String = "Loading...",
+    val isLoading: Boolean = false,
+    val error: String? = null
 )

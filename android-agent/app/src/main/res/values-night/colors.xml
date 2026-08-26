@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Basic Colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- EduSphere Branding (Night) -->
+    <color name="primary">#60A5FA</color>
+    <color name="primaryVariant">#3B82F6</color>
+    <color name="onPrimary">#FFFFFF</color>
+    
+    <!-- Night Mode Backgrounds -->
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    
+    <!-- Status Colors -->
+    <color name="success">#34D399</color>
+    <color name="error">#F87171</color>
+    <color name="warning">#FBBF24</color>
+    <color name="offline">#6B7280</color>
+    
+    <!-- Night Mode Text Colors -->
+    <color name="textPrimary">#F9FAFB</color>
+    <color name="textSecondary">#D1D5DB</color>
+</resources>

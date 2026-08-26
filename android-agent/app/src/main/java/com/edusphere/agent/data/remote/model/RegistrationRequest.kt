@@ -8,5 +8,7 @@ data class RegistrationRequest(
     @SerializedName("serialNumber") val serialNumber: String,
     @SerializedName("model") val model: String,
     @SerializedName("androidVersion") val androidVersion: String,
-    @SerializedName("agentVersion") val agentVersion: String
+    @SerializedName("agentVersion") val agentVersion: String,
+    @SerializedName("macAddress") val macAddress: String? = null,
+    @SerializedName("enrollmentCode") val enrollmentCode: String? = null
 )

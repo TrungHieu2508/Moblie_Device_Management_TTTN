@@ -29,13 +29,16 @@ class HeartbeatWorker @AssistedInject constructor(
 
         // Gather metrics using DeviceMonitor
         val metrics = deviceMonitor.getDeviceMetrics()
+        val currentApp = deviceMonitor.getCurrentApp()
         
         // Enforce rules on foreground app
-        ruleDetector.checkForegroundApp(metrics.currentForegroundApp)
+        ruleDetector.checkForegroundApp(currentApp?.packageName)
 
         val request = HeartbeatRequest(
             deviceId = deviceInfo.deviceId,
-            metrics = metrics
+            timestamp = System.currentTimeMillis(),
+            metrics = metrics,
+            currentApp = currentApp
         )
 
         val success = deviceRepository.sendHeartbeat(request)

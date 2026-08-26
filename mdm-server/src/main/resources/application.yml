@@ -6,8 +6,8 @@ spring:
   # DATABASE - PostgreSQL
   # ================================================================
   datasource:
-    url: jdbc:postgresql://localhost:5432/mdm_db?stringtype=unspecified
-    username: postgres
+    url: jdbc:postgresql://localhost:5434/mdm_db?stringtype=unspecified
+    username: mdm_user
     password: mdm_password
     driver-class-name: org.postgresql.Driver
     hikari:
