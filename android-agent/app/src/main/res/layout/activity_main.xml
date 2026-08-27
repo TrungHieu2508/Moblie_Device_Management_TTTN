@@ -80,6 +80,22 @@
                         style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:hint="Nhập Server URL (vd: http://192.168.1.8:8081)"
+                        app:endIconMode="clear_text">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etServerUrl"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textUri"/>
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
                         android:hint="Nhập Enrollment Code"
                         app:endIconMode="clear_text">
 
@@ -97,6 +113,17 @@
                         android:layout_height="56dp"
                         android:layout_marginTop="16dp"
                         android:text="Đăng ký"
+                        app:cornerRadius="8dp" />
+                        
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnScanQr"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="56dp"
+                        android:layout_marginTop="12dp"
+                        android:text="Quét Mã QR"
+                        app:icon="@android:drawable/ic_menu_camera"
+                        app:iconGravity="textStart"
                         app:cornerRadius="8dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -258,7 +285,8 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
                         <TextView
                             android:layout_width="120dp"
                             android:layout_height="wrap_content"
@@ -266,6 +294,45 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvOsVersion"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Loading..."
+                            android:textColor="?android:attr/textColorPrimary"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Campus Name -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+                        <TextView
+                            android:layout_width="120dp"
+                            android:layout_height="wrap_content"
+                            android:text="Cơ sở:"
+                            android:textColor="?android:attr/textColorSecondary" />
+                        <TextView
+                            android:id="@+id/tvCampus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Loading..."
+                            android:textColor="?android:attr/textColorPrimary"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                    
+                    <!-- School Name -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:layout_width="120dp"
+                            android:layout_height="wrap_content"
+                            android:text="Trường học:"
+                            android:textColor="?android:attr/textColorSecondary" />
+                        <TextView
+                            android:id="@+id/tvSchool"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Loading..."

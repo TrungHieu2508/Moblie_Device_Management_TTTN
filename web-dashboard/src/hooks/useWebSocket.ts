@@ -3,7 +3,7 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useAuthStore } from '../store/authStore';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:8080/api/ws';
+const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:8080/api/ws-web';
 
 export const useWebSocket = (deviceId?: string) => {
   const [metrics, setMetrics] = useState<any>(null);

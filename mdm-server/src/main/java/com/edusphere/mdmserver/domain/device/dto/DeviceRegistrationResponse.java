@@ -11,6 +11,8 @@ public class DeviceRegistrationResponse {
     private UUID deviceUuid;
     private String registrationToken;
     private Instant tokenExpiresAt;
+    private String campusName;
+    private String schoolName;
     private ServerConfig serverConfig;
 
     @Data

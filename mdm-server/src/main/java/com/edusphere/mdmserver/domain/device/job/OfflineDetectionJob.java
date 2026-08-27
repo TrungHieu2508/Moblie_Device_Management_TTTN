@@ -24,6 +24,7 @@ public class OfflineDetectionJob {
 
     private final DeviceRepository deviceRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final com.edusphere.mdmserver.domain.websocket.service.WebSocketNotificationService notificationService;
 
     // Runs every 60 seconds
     @Scheduled(fixedRate = 60000)
@@ -72,6 +73,12 @@ public class OfflineDetectionJob {
                 deviceRepository.updateStatusForDeviceIds(DeviceStatus.OFFLINE, offlineDeviceIds);
                 offlineCount += offlineDeviceIds.size();
                 log.debug("Batch updated {} devices to OFFLINE.", offlineDeviceIds.size());
+                
+                // Broadcast OFFLINE status to Web Dashboard
+                for (String id : offlineDeviceIds) {
+                    notificationService.notifyDeviceStatusChange(id, 
+                            java.util.Map.of("deviceId", id, "status", "OFFLINE"));
+                }
             }
             
             page++;

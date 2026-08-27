@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.edusphere.agent.presentation.viewmodel.MainViewModel
+import com.google.android.material.button.MaterialButton
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -16,6 +17,16 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    
+    @javax.inject.Inject
+    lateinit var sharedPreferencesManager: com.edusphere.agent.data.local.SharedPreferencesManager
+    
+    private lateinit var tvDeviceId: TextView
+    private lateinit var tvDeviceModel: TextView
+    private lateinit var tvOsVersion: TextView
+    private lateinit var tvCampus: TextView
+    private lateinit var tvSchool: TextView
+    private lateinit var btnForceSync: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,6 +34,12 @@ class MainActivity : AppCompatActivity() {
 
         setupObservers()
         setupListeners()
+        
+        // Restore saved URL to UI
+        val savedUrl = sharedPreferencesManager.getServerUrl()
+        if (savedUrl != null) {
+            findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).setText(savedUrl)
+        }
     }
 
     override fun onResume() {
@@ -35,14 +52,55 @@ class MainActivity : AppCompatActivity() {
         ContextCompat.startForegroundService(this, serviceIntent)
     }
 
+    private val barcodeLauncher = registerForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
+        if (result.contents != null) {
+            try {
+                val json = org.json.JSONObject(result.contents)
+                val serverUrl = json.optString("serverUrl")
+                val code = json.optString("code")
+                
+                if (serverUrl.isNotEmpty() && code.isNotEmpty()) {
+                    findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).setText(serverUrl)
+                    findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etEnrollmentCode).setText(code)
+                    
+                    // Auto submit
+                    sharedPreferencesManager.saveServerUrl(serverUrl)
+                    viewModel.registerDevice(code)
+                } else {
+                    android.widget.Toast.makeText(this, "Mã QR không đúng định dạng", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(this, "Không thể đọc mã QR", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun setupListeners() {
         findViewById<Button>(R.id.btnForceSync).setOnClickListener {
             viewModel.checkStatus()
         }
+        
+        findViewById<Button>(R.id.btnScanQr).setOnClickListener {
+            val options = com.journeyapps.barcodescanner.ScanOptions()
+            options.setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
+            options.setPrompt("Quét Mã Ghi Danh trên màn hình máy tính")
+            options.setCameraId(0)
+            options.setBeepEnabled(true)
+            options.setBarcodeImageEnabled(false)
+            barcodeLauncher.launch(options)
+        }
 
         findViewById<Button>(R.id.btnRegister).setOnClickListener {
+            val serverUrl = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).text.toString().trim()
             val enrollmentCode = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etEnrollmentCode).text.toString().trim()
+            
+            if (serverUrl.isEmpty()) {
+                android.widget.Toast.makeText(this, "Vui lòng nhập Server URL", android.widget.Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
             if (enrollmentCode.isNotEmpty()) {
+                sharedPreferencesManager.saveServerUrl(serverUrl)
                 viewModel.registerDevice(enrollmentCode)
             } else {
                 android.widget.Toast.makeText(this, "Vui lòng nhập Enrollment Code", android.widget.Toast.LENGTH_SHORT).show()
@@ -56,9 +114,12 @@ class MainActivity : AppCompatActivity() {
         val tvMdmStatus = findViewById<TextView>(R.id.tvMdmStatus)
         val indicatorMdmStatus = findViewById<View>(R.id.indicatorMdmStatus)
         
-        val tvDeviceId = findViewById<TextView>(R.id.tvDeviceId)
-        val tvDeviceModel = findViewById<TextView>(R.id.tvDeviceModel)
-        val tvOsVersion = findViewById<TextView>(R.id.tvOsVersion)
+        tvDeviceId = findViewById(R.id.tvDeviceId)
+        tvDeviceModel = findViewById(R.id.tvDeviceModel)
+        tvOsVersion = findViewById(R.id.tvOsVersion)
+        tvCampus = findViewById(R.id.tvCampus)
+        tvSchool = findViewById(R.id.tvSchool)
+        btnForceSync = findViewById(R.id.btnForceSync)
         
         val cardRegistration = findViewById<View>(R.id.cardRegistration)
         val btnRegister = findViewById<Button>(R.id.btnRegister)
@@ -69,6 +130,8 @@ class MainActivity : AppCompatActivity() {
                 tvDeviceId.text = state.deviceId
                 tvDeviceModel.text = state.deviceModel
                 tvOsVersion.text = state.osVersion
+                tvCampus.text = state.campusName
+                tvSchool.text = state.schoolName
 
                 // Update MDM Status
                 if (state.isDeviceOwner) {
@@ -81,19 +144,23 @@ class MainActivity : AppCompatActivity() {
                     indicatorMdmStatus.backgroundTintList = ContextCompat.getColorStateList(this@MainActivity, R.color.error)
                 }
 
-                // Update Server Status & Registration UI
-                if (state.isRegistered) {
+                // Update Server Status based on real-time connection
+                if (state.isConnected) {
                     tvServerStatus.text = getString(R.string.status_connected)
                     tvServerStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.success))
                     indicatorServerStatus.backgroundTintList = ContextCompat.getColorStateList(this@MainActivity, R.color.success)
-                    cardRegistration.visibility = View.GONE
-                    
-                    // Start the background service to maintain connection with Dashboard
-                    startHeartbeatService()
                 } else {
                     tvServerStatus.text = getString(R.string.status_offline)
                     tvServerStatus.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.offline))
                     indicatorServerStatus.backgroundTintList = ContextCompat.getColorStateList(this@MainActivity, R.color.offline)
+                }
+                
+                // Manage Registration UI visibility
+                if (state.isRegistered) {
+                    cardRegistration.visibility = View.GONE
+                    // Start the background service to maintain connection with Dashboard
+                    startHeartbeatService()
+                } else {
                     cardRegistration.visibility = View.VISIBLE
                 }
 

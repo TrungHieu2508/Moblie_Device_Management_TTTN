@@ -18,14 +18,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // Unified endpoint for both Web Dashboard and Android Agent
-        // SockJS fallback is useful for web clients if pure WebSocket fails
-        registry.addEndpoint("/api/ws")
+        // Unified endpoint for Web Dashboard (SockJS fallback)
+        registry.addEndpoint("/ws-web")
                 .setAllowedOriginPatterns("*")
                 .withSockJS();
                 
         // Pure WebSocket endpoint for Android Agent (without SockJS wrapper)
-        registry.addEndpoint("/api/ws")
+        registry.addEndpoint("/ws-agent")
                 .setAllowedOriginPatterns("*");
     }
 

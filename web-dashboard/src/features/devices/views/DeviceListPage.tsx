@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Table, Tag, Input, Button, Select, Space, Card, Typography, Modal, Form, Drawer, message, Slider } from 'antd';
 import { SearchOutlined, FilterOutlined, ReloadOutlined, PlusOutlined, MobileOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -333,12 +334,25 @@ const DeviceListPage = () => {
       >
         {createdCode ? (
           <div className="text-center py-8">
-            <Typography.Text className="text-gray-400 block mb-2">Mã Ghi Danh của bạn là:</Typography.Text>
+            <Typography.Text className="text-gray-400 block mb-2">Quét mã QR dưới đây để cấu hình thiết bị:</Typography.Text>
+            
+            <div className="flex justify-center my-6 bg-white p-4 rounded-xl inline-block">
+              <QRCodeSVG 
+                value={JSON.stringify({ 
+                  serverUrl: (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace('/api', ''),
+                  code: createdCode 
+                })} 
+                size={200}
+                level="M"
+              />
+            </div>
+            
+            <Typography.Text className="text-gray-400 block mb-2">Hoặc nhập thủ công mã Ghi Danh sau:</Typography.Text>
             <Typography.Title level={2} className="!text-[var(--color-primary)] tracking-widest bg-[var(--color-primary)]/10 py-4 rounded-xl border border-[var(--color-primary)]/30">
               {createdCode}
             </Typography.Title>
             <Typography.Text className="text-gray-400 block mt-4">
-              Hãy gửi mã này cho người dùng. Khi họ nhập mã này vào ứng dụng EduGuardian, thiết bị sẽ tự động được thêm vào hệ thống với thông tin Cơ sở và Trường học đã chọn.
+              Mã này sẽ tự động cấu hình Server URL và đưa thiết bị vào hệ thống với thông tin Cơ sở và Trường học đã chọn.
             </Typography.Text>
             <Button type="primary" className="mt-6 w-full" onClick={() => setIsRegisterModalVisible(false)}>
               Đóng

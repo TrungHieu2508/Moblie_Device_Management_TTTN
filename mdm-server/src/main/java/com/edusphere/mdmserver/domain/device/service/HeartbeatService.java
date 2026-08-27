@@ -23,6 +23,7 @@ public class HeartbeatService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final DeviceRepository deviceRepository;
     private final CommandQueueService commandQueueService;
+    private final com.edusphere.mdmserver.domain.websocket.service.WebSocketNotificationService notificationService;
 
     @Value("${app.device.heartbeat-interval:60}")
     private int heartbeatIntervalSeconds;
@@ -46,13 +47,22 @@ public class HeartbeatService {
         
         // If the device just came back online, sync to DB (O(1) Update instead of SELECT + SAVE)
         if (Boolean.FALSE.equals(wasOnline)) {
-            deviceRepository.updateHeartbeat(request.getDeviceId(), Instant.now());
+            deviceRepository.updateHeartbeat(request.getDeviceId(), Instant.now(), DeviceStatus.OFFLINE, DeviceStatus.ONLINE);
             log.info("Device {} recovered from OFFLINE/UNKNOWN state", request.getDeviceId());
+            
+            // Broadcast ONLINE status to Web Dashboard
+            notificationService.notifyDeviceStatusChange(request.getDeviceId(), 
+                    java.util.Map.of("deviceId", request.getDeviceId(), "status", "ONLINE"));
         }
         
         // Optionally save the latest metrics to Redis as well to show on Dashboard instantly
         String metricsKey = "device:" + request.getDeviceId() + ":metrics";
         redisTemplate.opsForValue().set(metricsKey, request.getMetrics(), Duration.ofSeconds(OFFLINE_THRESHOLD_SECONDS));
+        
+        // Broadcast metrics to Web Dashboard
+        if (request.getMetrics() != null) {
+            notificationService.broadcastDeviceMetrics(request.getDeviceId(), request.getMetrics());
+        }
 
         // TODO: Batch persist metrics to PostgreSQL using a background queue/job to avoid DB bottleneck
 
@@ -64,5 +74,10 @@ public class HeartbeatService {
                 .nextHeartbeatSeconds(heartbeatIntervalSeconds)
                 .pendingCommands(pendingCommands)
                 .build();
+    }
+
+    public Object getLatestMetrics(String deviceId) {
+        String metricsKey = "device:" + deviceId + ":metrics";
+        return redisTemplate.opsForValue().get(metricsKey);
     }
 }

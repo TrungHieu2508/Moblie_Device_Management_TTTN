@@ -25,7 +25,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "edusphere_agent.db"
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
@@ -36,10 +36,14 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideRetrofit(): Retrofit {
+    fun provideRetrofit(dynamicBaseUrlInterceptor: DynamicBaseUrlInterceptor): Retrofit {
+        val client = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(dynamicBaseUrlInterceptor)
+            .build()
+
         return Retrofit.Builder()
-            // Changed to LAN IP so both Physical Device and Emulator can connect.
-            .baseUrl("http://192.168.1.8:8081/") 
+            .client(client)
+            .baseUrl("http://192.168.1.1:8080/") // Placeholder, will be replaced by Interceptor
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }

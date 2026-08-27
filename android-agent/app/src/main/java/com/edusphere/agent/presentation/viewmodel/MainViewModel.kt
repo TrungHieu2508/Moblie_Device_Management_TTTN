@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.receiver.MDMAdminReceiver
+import com.edusphere.agent.data.remote.websocket.CommandReceiver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val deviceRepository: DeviceRepository,
+    private val commandReceiver: CommandReceiver,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -32,6 +34,15 @@ class MainViewModel @Inject constructor(
     init {
         loadDeviceInfo()
         checkStatus()
+        observeConnectionStatus()
+    }
+
+    private fun observeConnectionStatus() {
+        viewModelScope.launch {
+            commandReceiver.isConnected.collect { connected ->
+                _uiState.value = _uiState.value.copy(isConnected = connected)
+            }
+        }
     }
 
     private fun loadDeviceInfo() {
@@ -40,7 +51,9 @@ class MainViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 deviceId = deviceInfo?.deviceId ?: "Not Registered",
                 deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
-                osVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+                osVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                campusName = deviceInfo?.campusName ?: "Chưa xác định",
+                schoolName = deviceInfo?.schoolName ?: "Chưa xác định"
             )
         }
     }
@@ -106,9 +119,12 @@ class MainViewModel @Inject constructor(
 data class MainUiState(
     val isDeviceOwner: Boolean = false,
     val isRegistered: Boolean = false,
+    val isConnected: Boolean = false,
     val deviceId: String = "Loading...",
     val deviceModel: String = "Loading...",
     val osVersion: String = "Loading...",
+    val campusName: String = "Loading...",
+    val schoolName: String = "Loading...",
     val isLoading: Boolean = false,
     val error: String? = null
 )

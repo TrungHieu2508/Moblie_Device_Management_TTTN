@@ -7,32 +7,70 @@ import org.json.JSONObject
 import java.net.URI
 import javax.inject.Inject
 import javax.inject.Singleton
+import android.content.Context
+import android.content.Intent
 import com.edusphere.agent.domain.action.DeviceActionManager
+import com.edusphere.agent.presentation.main.LockActivity
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 @Singleton
 class CommandReceiver @Inject constructor(
-    private val actionManager: DeviceActionManager
+    private val actionManager: DeviceActionManager,
+    private val sharedPreferencesManager: com.edusphere.agent.data.local.SharedPreferencesManager,
+    @ApplicationContext private val context: Context
 ) {
 
     private var webSocketClient: WebSocketClient? = null
     private val TAG = "CommandReceiver"
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+    
+    private var reconnectJob: Job? = null
+    
+    // Store connection params for auto-reconnect
+    private var currentServerUrl: String? = null
+    private var currentToken: String? = null
+    private var currentDeviceId: String? = null
 
     fun connect(serverUrl: String, token: String, deviceId: String) {
+        // Use user-defined Server URL from SharedPreferences if available, otherwise fallback to serverUrl parameter
+        val prefsUrl = sharedPreferencesManager.getServerUrl()
+        val actualServerUrl = if (!prefsUrl.isNullOrEmpty()) prefsUrl else serverUrl
+        
+        currentServerUrl = actualServerUrl
+        currentToken = token
+        currentDeviceId = deviceId
+        
+        reconnectJob?.cancel()
+        
         if (webSocketClient != null && webSocketClient?.isOpen == true) {
             Log.d(TAG, "WebSocket is already connected")
             return
         }
 
         // Construct STOMP endpoint URL
-        // Backend Spring Boot exposes STOMP at /api/ws
-        val wsUrl = if (serverUrl.startsWith("http")) {
-            serverUrl.replaceFirst("http", "ws")
+        var wsUrl = if (actualServerUrl.startsWith("http")) {
+            actualServerUrl.replaceFirst("http", "ws")
         } else {
-            serverUrl
-        } + "api/ws"
+            actualServerUrl
+        }
+        
+        // Ensure wsUrl ends with /api/ws-agent if it doesn't already
+        if (!wsUrl.endsWith("/api/ws-agent")) {
+            if (!wsUrl.endsWith("/")) {
+                wsUrl += "/"
+            }
+            wsUrl += "api/ws-agent"
+        }
 
         val uri = URI(wsUrl)
-        val headers = mapOf("Authorization" to "Bearer $token")
+        val headers = mapOf("Authorization" to "Device $token")
 
         webSocketClient = object : WebSocketClient(uri, headers) {
             override fun onOpen(handshakedata: ServerHandshake?) {
@@ -55,6 +93,7 @@ class CommandReceiver @Inject constructor(
                                 "destination:/topic/devices/$deviceId/command\n" +
                                 "\n\u0000"
                         webSocketClient?.send(subscribeFrame)
+                        _isConnected.value = true
                     } else if (it.startsWith("MESSAGE")) {
                         // Extract JSON payload from STOMP MESSAGE frame
                         val payloadIndex = it.indexOf("\n\n")
@@ -68,28 +107,69 @@ class CommandReceiver @Inject constructor(
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
                 Log.i(TAG, "WebSocket Closed: $reason")
-                // TODO: Implement reconnection logic
+                _isConnected.value = false
+                scheduleReconnect()
             }
 
             override fun onError(ex: Exception?) {
                 Log.e(TAG, "WebSocket Error", ex)
+                _isConnected.value = false
             }
         }
         
-        webSocketClient?.connect()
+        try {
+            webSocketClient?.connect()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to connect WebSocket", e)
+            scheduleReconnect()
+        }
+    }
+    
+    private fun scheduleReconnect() {
+        if (currentServerUrl == null) return
+        
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            Log.i(TAG, "Waiting 5 seconds before reconnecting...")
+            delay(5000)
+            connect(currentServerUrl!!, currentToken!!, currentDeviceId!!)
+        }
     }
 
     private fun handleCommand(message: String) {
         try {
             val json = JSONObject(message)
-            val commandType = json.optString("command")
+            val commandType = json.optString("commandType", json.optString("command")) // Backend sends "commandType" usually, but sometimes "command"
             val payload = json.optJSONObject("payload")
             
             Log.d(TAG, "Executing command: $commandType")
             
+            executeCommand(commandType, payload)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse command", e)
+        }
+    }
+    
+    fun executeCommand(commandType: String, payload: JSONObject?) {
+        try {
             when (commandType) {
                 "LOCK_SCREEN" -> {
                     actionManager.lockScreen()
+                }
+                "RING_ALARM" -> {
+                    actionManager.ringAlarm()
+                }
+                "WIPE_DATA" -> {
+                    actionManager.wipeData()
+                }
+                "START_STREAM" -> {
+                    Log.i(TAG, "Received START_STREAM command, logging only (not implemented yet)")
+                }
+                "REBOOT_DEVICE" -> {
+                    actionManager.reboot()
+                }
+                "CLEAR_BACKGROUND_APPS" -> {
+                    actionManager.clearRecents()
                 }
                 "OPEN_APP" -> {
                     payload?.optString("packageName")?.let {
@@ -101,18 +181,44 @@ class CommandReceiver @Inject constructor(
                         actionManager.openUrl(it)
                     }
                 }
-                "REBOOT" -> {
-                    actionManager.reboot()
-                }
-                "CLEAR_RECENTS" -> {
-                    actionManager.clearRecents()
-                }
-                "SET_KIOSK" -> {
-                    val pkg = payload?.optString("packageName")
-                    val enable = payload?.optBoolean("enable") ?: false
-                    if (pkg != null) {
-                        actionManager.setKioskMode(pkg, enable)
+                "SHOW_ALERT" -> {
+                    val message = payload?.optString("message", "Có thông báo mới từ hệ thống!")
+                    if (message != null) {
+                        actionManager.showAlert(message)
                     }
+                }
+                "HIDE_APP" -> {
+                    val pkg = payload?.optString("packageName")
+                    val hidden = payload?.optBoolean("hidden") ?: false
+                    if (pkg != null) {
+                        actionManager.setAppHidden(pkg, hidden)
+                    }
+                }
+                "BLOCK_UNINSTALL" -> {
+                    val pkg = payload?.optString("packageName")
+                    val blocked = payload?.optBoolean("blocked") ?: false
+                    if (pkg != null) {
+                        actionManager.setUninstallBlocked(pkg, blocked)
+                    }
+                }
+                "DISABLE_CAMERA" -> {
+                    val disabled = payload?.optBoolean("disabled") ?: false
+                    actionManager.setCameraDisabled(disabled)
+                }
+                "DISABLE_FACTORY_RESET" -> {
+                    val disabled = payload?.optBoolean("disabled") ?: false
+                    actionManager.setFactoryResetDisabled(disabled)
+                }
+                "SHOW_VIOLATION_LOCK" -> {
+                    val intent = Intent(context, LockActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    val message = payload?.optString("message", "Thiết bị đang bị khóa do vi phạm kỷ luật!")
+                    intent.putExtra("LOCK_MESSAGE", message)
+                    context.startActivity(intent)
+                }
+                "UNLOCK_DEVICE" -> {
+                    val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE")
+                    context.sendBroadcast(intent)
                 }
                 else -> {
                     Log.w(TAG, "Unknown command type: $commandType")
@@ -124,7 +230,10 @@ class CommandReceiver @Inject constructor(
     }
     
     fun disconnect() {
+        reconnectJob?.cancel()
+        currentServerUrl = null
         webSocketClient?.close()
         webSocketClient = null
+        _isConnected.value = false
     }
 }

@@ -17,6 +17,8 @@ ksp = "2.0.21-1.0.27"
 coroutines = "1.9.0"
 work = "2.9.0"
 retrofit = "2.9.0"
+zxingEmbedded = "4.3.0"
+zxingCore = "3.5.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,6 +45,8 @@ retrofit-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref 
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 hilt-work = { module = "androidx.hilt:hilt-work", version = "1.2.0" }
 hilt-compiler-ext = { module = "androidx.hilt:hilt-compiler", version = "1.2.0" }
+zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingEmbedded" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxingCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

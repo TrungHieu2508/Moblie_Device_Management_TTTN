@@ -12,8 +12,7 @@ const { Title, Text } = Typography;
 const DeviceDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   
-  // Connect to WebSocket to receive real-time metrics for this specific device
-  const { isConnected, metrics, deviceStatus } = useWebSocket(id);
+  const [initialMetrics, setInitialMetrics] = useState<any>(null);
 
   const { data: deviceInfo, isLoading: loading } = useQuery({
     queryKey: ['device', id],
@@ -21,10 +20,25 @@ const DeviceDetailPage = () => {
     enabled: !!id,
   });
 
+  useEffect(() => {
+    if (deviceInfo?.deviceId) {
+      axiosInstance.get(`/devices/${deviceInfo.deviceId}/metrics`)
+        .then(res => {
+          if (res.data?.data) {
+            setInitialMetrics(res.data.data);
+          }
+        })
+        .catch(err => console.error('Failed to fetch initial metrics', err));
+    }
+  }, [deviceInfo?.deviceId]);
+
+  // Connect to WebSocket to receive real-time metrics for this specific device
+  const { isConnected, metrics, deviceStatus } = useWebSocket(deviceInfo?.deviceId);
+
   const handleSendCommand = async (commandType: string) => {
     try {
       // API call to dispatch command to the queue
-      await axiosInstance.post(`/admin/commands/devices/${id}`, {
+      await axiosInstance.post(`/devices/${id}/commands`, {
         commandType,
         payload: {} // Add specific payload if needed (e.g. { message: '...' } for SEND_MESSAGE)
       });
@@ -40,12 +54,12 @@ const DeviceDetailPage = () => {
   // Use real-time status if available, otherwise fallback to initial info
   const currentStatus = deviceStatus || deviceInfo?.status;
   
-  // Use real-time metrics if available, otherwise mock data
-  const currentMetrics = metrics || {
-    cpuUsage: 12.5,
-    ramUsage: 45.2,
-    batteryLevel: 85,
-    availableStorage: 15.4
+  // Use real-time metrics if available, otherwise fallback to initial metrics, otherwise default 0
+  const currentMetrics = metrics || initialMetrics || {
+    cpuUsagePct: 0,
+    ramUsagePct: 0,
+    batteryLevel: 0,
+    storageUsedGb: 0
   };
 
   return (
@@ -77,11 +91,11 @@ const DeviceDetailPage = () => {
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Giám sát Thời gian thực (Real-time Metrics)</span>}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
-                <Progress type="dashboard" percent={currentMetrics.cpuUsage} strokeColor={{ '0%': '#aa3bff', '100%': '#ef4444' }} trailColor="#1f2028" size={120} />
+                <Progress type="dashboard" percent={currentMetrics.cpuUsagePct} strokeColor={{ '0%': '#aa3bff', '100%': '#ef4444' }} trailColor="#1f2028" size={120} />
                 <div className="mt-2 text-gray-400 font-medium">CPU Usage</div>
               </div>
               <div>
-                <Progress type="dashboard" percent={currentMetrics.ramUsage} strokeColor={{ '0%': '#3b82f6', '100%': '#aa3bff' }} trailColor="#1f2028" size={120} />
+                <Progress type="dashboard" percent={currentMetrics.ramUsagePct} strokeColor={{ '0%': '#3b82f6', '100%': '#aa3bff' }} trailColor="#1f2028" size={120} />
                 <div className="mt-2 text-gray-400 font-medium">RAM Usage</div>
               </div>
               <div>
@@ -90,7 +104,7 @@ const DeviceDetailPage = () => {
               </div>
               <div>
                 <div className="h-[120px] flex flex-col items-center justify-center border-4 border-[#1f2028] rounded-full w-[120px] mx-auto">
-                  <span className="text-2xl font-bold text-white">{currentMetrics.availableStorage}</span>
+                  <span className="text-2xl font-bold text-white">{(currentMetrics.storageTotalGb ? (currentMetrics.storageTotalGb - currentMetrics.storageUsedGb).toFixed(1) : currentMetrics.storageUsedGb) || 0}</span>
                   <span className="text-xs text-gray-500">GB Free</span>
                 </div>
                 <div className="mt-2 text-gray-400 font-medium">Storage</div>
@@ -103,7 +117,7 @@ const DeviceDetailPage = () => {
             <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg">
               <MobileOutlined className="text-6xl text-gray-600 mb-4" />
               <Text className="text-gray-500">Nhấn "Xem trực tiếp" để kích hoạt stream màn hình</Text>
-              <Button type="primary" ghost className="mt-4 border-[var(--color-primary)] text-[var(--color-primary)]">Xem trực tiếp</Button>
+              <Button type="primary" ghost className="mt-4 border-[var(--color-primary)] text-[var(--color-primary)]" onClick={() => handleSendCommand('START_STREAM')}>Xem trực tiếp</Button>
             </div>
           </Card>
         </div>

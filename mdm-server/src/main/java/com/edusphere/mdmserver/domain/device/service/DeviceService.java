@@ -124,6 +124,8 @@ public class DeviceService {
                 .deviceUuid(savedDevice.getId())
                 .registrationToken(registrationToken)
                 .tokenExpiresAt(Instant.now().plusMillis(deviceTokenExpiration))
+                .campusName(savedDevice.getCampus() != null ? savedDevice.getCampus().getName() : "Chưa xác định")
+                .schoolName(savedDevice.getSchool() != null ? savedDevice.getSchool().getName() : "Chưa xác định")
                 .serverConfig(DeviceRegistrationResponse.ServerConfig.builder()
                         .heartbeatIntervalSeconds(heartbeatIntervalSeconds)
                         .websocketUrl(websocketUrl)

@@ -28,4 +28,10 @@ public class HeartbeatController {
         HeartbeatResponse response = heartbeatService.processHeartbeat(authDeviceId, request);
         return ResponseEntity.ok(ApiResponse.success(response, "Heartbeat received"));
     }
+
+    @GetMapping("/{deviceId}/metrics")
+    public ResponseEntity<ApiResponse<Object>> getLatestMetrics(@PathVariable String deviceId) {
+        Object metrics = heartbeatService.getLatestMetrics(deviceId);
+        return ResponseEntity.ok(ApiResponse.success(metrics, "Success"));
+    }
 }

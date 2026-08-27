@@ -41,8 +41,12 @@ class HeartbeatWorker @AssistedInject constructor(
             currentApp = currentApp
         )
 
-        val success = deviceRepository.sendHeartbeat(request)
-        return if (success) {
+        val pendingCount = deviceRepository.sendHeartbeat(request)
+        
+        // We only return failure if network call completely failed (-1)
+        return if (pendingCount != -1) {
+            // HeartbeatWorker doesn't directly handle the pending commands. 
+            // The continuous HeartbeatService will pick them up, or we could handle them here.
             Result.success()
         } else {
             Result.retry()

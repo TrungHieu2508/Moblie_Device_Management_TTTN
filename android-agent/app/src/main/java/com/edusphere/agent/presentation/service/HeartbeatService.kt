@@ -8,15 +8,17 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import com.edusphere.agent.data.worker.HeartbeatWorker
+import com.edusphere.agent.data.remote.model.HeartbeatRequest
 import com.edusphere.agent.data.remote.websocket.CommandReceiver
 import com.edusphere.agent.domain.repository.DeviceRepository
+import com.edusphere.agent.domain.monitor.DeviceMonitor
+import com.edusphere.agent.domain.rule.RuleDetector
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -29,12 +31,17 @@ class HeartbeatService : Service() {
     @Inject
     lateinit var deviceRepository: DeviceRepository
 
+    @Inject
+    lateinit var deviceMonitor: DeviceMonitor
+    
+    @Inject
+    lateinit var ruleDetector: RuleDetector
+
     private val serviceScope = CoroutineScope(Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
         startForegroundService()
-        scheduleHeartbeatWorker()
         
         serviceScope.launch {
             val deviceInfo = deviceRepository.getDeviceInfo()
@@ -44,6 +51,7 @@ class HeartbeatService : Service() {
                     token = deviceInfo.registrationToken,
                     deviceId = deviceInfo.deviceId
                 )
+                startHeartbeatLoop(deviceInfo.deviceId)
             }
         }
     }
@@ -78,10 +86,38 @@ class HeartbeatService : Service() {
         startForeground(1, notification)
     }
 
-    private fun scheduleHeartbeatWorker() {
-        val workRequest = PeriodicWorkRequestBuilder<HeartbeatWorker>(15, TimeUnit.MINUTES)
-            .build()
-        WorkManager.getInstance(this).enqueue(workRequest)
+    private fun startHeartbeatLoop(deviceId: String) {
+        serviceScope.launch {
+            while (isActive) {
+                try {
+                    val metrics = deviceMonitor.getDeviceMetrics()
+                    val currentApp = deviceMonitor.getCurrentApp()
+                    
+                    ruleDetector.checkForegroundApp(currentApp?.packageName)
+                    
+                    val request = HeartbeatRequest(
+                        deviceId = deviceId,
+                        timestamp = System.currentTimeMillis(),
+                        metrics = metrics,
+                        currentApp = currentApp
+                    )
+                    
+                    val pendingCount = deviceRepository.sendHeartbeat(request)
+                    
+                    if (pendingCount > 0) {
+                        val pendingCommands = deviceRepository.fetchPendingCommands()
+                        pendingCommands.forEach { cmd ->
+                            val payloadJson = if (cmd.payload != null) org.json.JSONObject(cmd.payload as Map<*, *>) else null
+                            commandReceiver.executeCommand(cmd.commandType, payloadJson)
+                            deviceRepository.acknowledgeCommand(cmd.id, "EXECUTED")
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                delay(30000) // Send heartbeat every 30 seconds
+            }
+        }
     }
 
     override fun onDestroy() {

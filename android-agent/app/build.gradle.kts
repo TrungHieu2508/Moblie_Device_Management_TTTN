@@ -67,6 +67,10 @@ dependencies {
     // Lifecycle ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
 
+    // ZXing for QR Code Scanning
+    implementation(libs.zxing.android.embedded)
+    implementation(libs.zxing.core)
+
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)

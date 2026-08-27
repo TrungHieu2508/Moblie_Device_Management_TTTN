@@ -10,5 +10,7 @@ data class DeviceEntity(
     val deviceName: String,
     val registrationToken: String,
     val serverUrl: String,
+    val campusName: String?,
+    val schoolName: String?,
     val isRegistered: Boolean
 )

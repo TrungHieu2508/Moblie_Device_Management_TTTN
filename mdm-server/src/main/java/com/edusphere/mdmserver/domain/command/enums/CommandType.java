@@ -5,11 +5,19 @@ package com.edusphere.mdmserver.domain.command.enums;
  * Ánh xạ với command_type ENUM trong PostgreSQL.
  */
 public enum CommandType {
-    SHOW_ALERT,             // Hiển thị thông báo cảnh báo trên màn hình tablet
     LOCK_SCREEN,            // Khóa màn hình thiết bị
-    OPEN_LEARNING_APP,      // Mở ứng dụng học tập
-    RESTART_LEARNING_APP,   // Khởi động lại ứng dụng học tập
+    RING_ALARM,             // Phát âm thanh cảnh báo
+    WIPE_DATA,              // Xóa dữ liệu thiết bị
     REBOOT_DEVICE,          // Khởi động lại thiết bị
-    QUICK_RECOVERY,         // Phục hồi nhanh (restart app + reconnect + check WiFi)
-    CLEAR_BACKGROUND_APPS   // Xóa các app chạy nền để giải phóng RAM
+    CLEAR_BACKGROUND_APPS,  // Xóa ứng dụng chạy nền
+    OPEN_APP,               // Mở ứng dụng theo package name
+    OPEN_URL,               // Mở trình duyệt với URL
+    SHOW_ALERT,             // Hiển thị thông báo trên màn hình
+    SHOW_VIOLATION_LOCK,    // Bật màn hình phạt (Kiosk Mode)
+    UNLOCK_DEVICE,          // Mở khóa màn hình phạt
+    HIDE_APP,               // Ẩn ứng dụng
+    BLOCK_UNINSTALL,        // Cấm gỡ cài đặt
+    DISABLE_CAMERA,         // Tắt camera
+    DISABLE_FACTORY_RESET,  // Cấm khôi phục cài đặt gốc
+    START_STREAM            // Xem màn hình trực tiếp
 }
