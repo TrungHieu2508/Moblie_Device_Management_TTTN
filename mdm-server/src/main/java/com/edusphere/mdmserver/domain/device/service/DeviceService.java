@@ -118,6 +118,12 @@ public class DeviceService {
         device.setRegistrationToken(registrationToken);
         device.setLastHeartbeatAt(Instant.now());
         
+        // Prevent OfflineDetectionJob from immediately marking it offline
+        if (device.getStatus() == DeviceStatus.ONLINE) {
+            String redisKey = "device:" + device.getDeviceId() + ":status";
+            redisTemplate.opsForValue().set(redisKey, "ONLINE", java.time.Duration.ofSeconds(heartbeatIntervalSeconds + 30));
+        }
+        
         Device savedDevice = deviceRepository.save(device);
 
         return DeviceRegistrationResponse.builder()

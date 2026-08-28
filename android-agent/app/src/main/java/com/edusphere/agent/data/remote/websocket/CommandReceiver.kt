@@ -38,6 +38,30 @@ class CommandReceiver @Inject constructor(
     private var currentToken: String? = null
     private var currentDeviceId: String? = null
 
+    private var isConnecting = false
+
+    init {
+        try {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val networkRequest = android.net.NetworkRequest.Builder()
+                .addCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+                
+            connectivityManager.registerNetworkCallback(networkRequest, object : android.net.ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: android.net.Network) {
+                    Log.i(TAG, "Network available, forcing reconnect if needed...")
+                    // Add a small delay to ensure network is fully routed before connecting
+                    scope.launch {
+                        delay(1000)
+                        reconnectIfNeeded()
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register network callback", e)
+        }
+    }
+
     fun connect(serverUrl: String, token: String, deviceId: String) {
         // Use user-defined Server URL from SharedPreferences if available, otherwise fallback to serverUrl parameter
         val prefsUrl = sharedPreferencesManager.getServerUrl()
@@ -49,8 +73,8 @@ class CommandReceiver @Inject constructor(
         
         reconnectJob?.cancel()
         
-        if (webSocketClient != null && webSocketClient?.isOpen == true) {
-            Log.d(TAG, "WebSocket is already connected")
+        if (webSocketClient != null && (webSocketClient?.isOpen == true || isConnecting)) {
+            Log.d(TAG, "WebSocket is already connected or connecting")
             return
         }
 
@@ -72,12 +96,14 @@ class CommandReceiver @Inject constructor(
         val uri = URI(wsUrl)
         val headers = mapOf("Authorization" to "Device $token")
 
+        isConnecting = true
         webSocketClient = object : WebSocketClient(uri, headers) {
             override fun onOpen(handshakedata: ServerHandshake?) {
+                isConnecting = false
                 Log.i(TAG, "WebSocket Opened, sending STOMP CONNECT...")
                 val connectFrame = "CONNECT\n" +
                         "accept-version:1.2,1.1,1.0\n" +
-                        "heart-beat:10000,10000\n" +
+                        "heart-beat:0,0\n" +
                         "Authorization:Device $token\n" +
                         "\n\u0000"
                 webSocketClient?.send(connectFrame)
@@ -106,22 +132,36 @@ class CommandReceiver @Inject constructor(
             }
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
+                isConnecting = false
                 Log.i(TAG, "WebSocket Closed: $reason")
                 _isConnected.value = false
                 scheduleReconnect()
             }
 
             override fun onError(ex: Exception?) {
+                isConnecting = false
                 Log.e(TAG, "WebSocket Error", ex)
                 _isConnected.value = false
             }
         }
         
+        // Set connection lost timeout to ping the server every 30 seconds
+        webSocketClient?.setConnectionLostTimeout(30)
+        
         try {
             webSocketClient?.connect()
         } catch (e: Exception) {
+            isConnecting = false
             Log.e(TAG, "Failed to connect WebSocket", e)
             scheduleReconnect()
+        }
+    }
+    
+    fun reconnectIfNeeded() {
+        if (_isConnected.value || isConnecting) return
+        if (currentServerUrl != null && currentToken != null && currentDeviceId != null) {
+            Log.i(TAG, "Forcing reconnect...")
+            connect(currentServerUrl!!, currentToken!!, currentDeviceId!!)
         }
     }
     
@@ -163,7 +203,14 @@ class CommandReceiver @Inject constructor(
                     actionManager.wipeData()
                 }
                 "START_STREAM" -> {
-                    Log.i(TAG, "Received START_STREAM command, logging only (not implemented yet)")
+                    val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                }
+                "STOP_STREAM" -> {
+                    val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)
+                    intent.action = "STOP"
+                    context.startService(intent)
                 }
                 "REBOOT_DEVICE" -> {
                     actionManager.reboot()
@@ -235,5 +282,17 @@ class CommandReceiver @Inject constructor(
         webSocketClient?.close()
         webSocketClient = null
         _isConnected.value = false
+    }
+
+    fun sendScreenFrame(base64Frame: String) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val json = JSONObject().apply {
+                put("deviceId", currentDeviceId)
+                put("frame", base64Frame)
+            }
+            val destination = "/app/stream/frame"
+            val message = "SEND\ndestination:$destination\n\n${json.toString()}\u0000"
+            webSocketClient?.send(message)
+        }
     }
 }

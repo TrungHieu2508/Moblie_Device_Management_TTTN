@@ -21,55 +21,59 @@ class DeviceMonitor @Inject constructor(
 ) {
 
     fun getDeviceMetrics(): DeviceMetrics {
-        val ramStats = getRamStats()
-        val storageStats = getStorageStats()
-        val batteryStats = getBatteryStats()
-        val wifiStats = getWifiStats()
+        val ramStats = try { getRamStats() } catch (e: Exception) { Triple(0, 0, 0.0) }
+        val storageStats = try { getStorageStats() } catch (e: Exception) { Pair(0.0, 0.0) }
+        val batteryStats = try { getBatteryStats() } catch (e: Exception) { Pair(-1, false) }
+        val wifiStats = try { getWifiStats() } catch (e: Exception) { Pair<String?, Int>(null, 0) }
 
         return DeviceMetrics(
             ramTotalMb = ramStats.first,
             ramUsedMb = ramStats.second,
             ramUsagePct = ramStats.third,
-            cpuUsagePct = getCpuUsage(),
+            cpuUsagePct = try { getCpuUsage() } catch (e: Exception) { 0.0 },
             storageTotalGb = storageStats.first,
             storageUsedGb = storageStats.second,
             batteryLevel = batteryStats.first,
             batteryCharging = batteryStats.second,
             wifiSsid = wifiStats.first,
             wifiSignal = wifiStats.second,
-            ipAddress = getLocalIpAddress()
+            ipAddress = try { getLocalIpAddress() } catch (e: Exception) { null }
         )
     }
 
     fun getCurrentApp(): CurrentApp? {
-        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val time = System.currentTimeMillis()
-        val stats = usageStatsManager.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY,
-            time - 1000 * 10,
-            time
-        )
-        
-        var currentPackageName: String? = null
-        if (stats != null && stats.isNotEmpty()) {
-            var latestTime = 0L
-            for (usageStats in stats) {
-                if (usageStats.lastTimeUsed > latestTime) {
-                    latestTime = usageStats.lastTimeUsed
-                    currentPackageName = usageStats.packageName
+        try {
+            val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val time = System.currentTimeMillis()
+            val stats = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY,
+                time - 1000 * 10,
+                time
+            )
+            
+            var currentPackageName: String? = null
+            if (stats != null && stats.isNotEmpty()) {
+                var latestTime = 0L
+                for (usageStats in stats) {
+                    if (usageStats.lastTimeUsed > latestTime) {
+                        latestTime = usageStats.lastTimeUsed
+                        currentPackageName = usageStats.packageName
+                    }
                 }
             }
-        }
-        
-        if (currentPackageName != null) {
-            val appName = try {
-                val packageManager = context.packageManager
-                val applicationInfo = packageManager.getApplicationInfo(currentPackageName, 0)
-                packageManager.getApplicationLabel(applicationInfo).toString()
-            } catch (e: Exception) {
-                currentPackageName
+            
+            if (currentPackageName != null) {
+                val appName = try {
+                    val packageManager = context.packageManager
+                    val applicationInfo = packageManager.getApplicationInfo(currentPackageName, 0)
+                    packageManager.getApplicationLabel(applicationInfo).toString()
+                } catch (e: Exception) {
+                    currentPackageName
+                }
+                return CurrentApp(currentPackageName, appName)
             }
-            return CurrentApp(currentPackageName, appName)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return null
     }

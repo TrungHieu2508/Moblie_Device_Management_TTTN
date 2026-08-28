@@ -29,6 +29,12 @@ class DeviceActionManager @Inject constructor(
         } else {
             Log.e("DeviceActionManager", "Cannot lock screen: Admin not active")
         }
+        
+        // Hiện thông báo khóa màn hình
+        val intent = Intent(context, com.edusphere.agent.presentation.main.LockActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        intent.putExtra("LOCK_MESSAGE", "Sử dụng điện thoại ngoài việc học nha")
+        context.startActivity(intent)
     }
 
     fun reboot() {
@@ -123,15 +129,43 @@ class DeviceActionManager @Inject constructor(
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+            
+            try {
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+            } catch (e: SecurityException) {
+                Log.w("DeviceActionManager", "Cannot set volume due to DND, ignoring...")
+            }
 
             var alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             if (alarmUri == null) {
                 alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             }
-            val ringtone = RingtoneManager.getRingtone(context, alarmUri)
-            ringtone.play()
+            
+            val mediaPlayer = android.media.MediaPlayer()
+            mediaPlayer.setDataSource(context, alarmUri)
+            mediaPlayer.setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            mediaPlayer.isLooping = true
+            mediaPlayer.prepare()
+            mediaPlayer.start()
+            
             Log.d("DeviceActionManager", "Playing alarm sound at max volume")
+            showAlert("Sử dụng điện thoại ngoài việc học nha")
+            
+            // Auto stop after 10 seconds
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    if (mediaPlayer.isPlaying) {
+                        mediaPlayer.stop()
+                        mediaPlayer.release()
+                    }
+                } catch (e: Exception) {}
+            }, 10000)
+            
         } catch (e: Exception) {
             Log.e("DeviceActionManager", "Failed to play alarm", e)
         }
@@ -147,10 +181,10 @@ class DeviceActionManager @Inject constructor(
     }
 
     fun showAlert(message: String) {
-        // Run on main thread to show Toast
-        android.os.Handler(android.os.Looper.getMainLooper()).post {
-            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-        }
+        val intent = Intent(context, com.edusphere.agent.presentation.main.AlertActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        intent.putExtra("ALERT_MESSAGE", message)
+        context.startActivity(intent)
         Log.d("DeviceActionManager", "Showing alert: $message")
     }
 }

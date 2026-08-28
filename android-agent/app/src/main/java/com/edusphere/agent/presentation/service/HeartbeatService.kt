@@ -57,7 +57,19 @@ class HeartbeatService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // This service runs continuously
+        // This service runs continuously. Try to reconnect if dropped.
+        serviceScope.launch {
+            val deviceInfo = deviceRepository.getDeviceInfo()
+            if (deviceInfo != null && deviceInfo.isRegistered) {
+                if (!commandReceiver.isConnected.value) {
+                    commandReceiver.connect(
+                        serverUrl = deviceInfo.serverUrl,
+                        token = deviceInfo.registrationToken,
+                        deviceId = deviceInfo.deviceId
+                    )
+                }
+            }
+        }
         return START_STICKY
     }
 

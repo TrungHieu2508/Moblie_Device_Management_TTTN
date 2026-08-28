@@ -33,7 +33,7 @@ const DeviceDetailPage = () => {
   }, [deviceInfo?.deviceId]);
 
   // Connect to WebSocket to receive real-time metrics for this specific device
-  const { isConnected, metrics, deviceStatus } = useWebSocket(deviceInfo?.deviceId);
+  const { isConnected, metrics, deviceStatus, screenFrame } = useWebSocket(deviceInfo?.deviceId);
 
   const handleSendCommand = async (commandType: string) => {
     try {
@@ -54,13 +54,6 @@ const DeviceDetailPage = () => {
   // Use real-time status if available, otherwise fallback to initial info
   const currentStatus = deviceStatus || deviceInfo?.status;
   
-  // Use real-time metrics if available, otherwise fallback to initial metrics, otherwise default 0
-  const currentMetrics = metrics || initialMetrics || {
-    cpuUsagePct: 0,
-    ramUsagePct: 0,
-    batteryLevel: 0,
-    storageUsedGb: 0
-  };
 
   return (
     <div className="p-6">
@@ -88,36 +81,36 @@ const DeviceDetailPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Live Metrics */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Giám sát Thời gian thực (Real-time Metrics)</span>}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <Progress type="dashboard" percent={currentMetrics.cpuUsagePct} strokeColor={{ '0%': '#aa3bff', '100%': '#ef4444' }} trailColor="#1f2028" size={120} />
-                <div className="mt-2 text-gray-400 font-medium">CPU Usage</div>
-              </div>
-              <div>
-                <Progress type="dashboard" percent={currentMetrics.ramUsagePct} strokeColor={{ '0%': '#3b82f6', '100%': '#aa3bff' }} trailColor="#1f2028" size={120} />
-                <div className="mt-2 text-gray-400 font-medium">RAM Usage</div>
-              </div>
-              <div>
-                <Progress type="dashboard" percent={currentMetrics.batteryLevel} strokeColor={currentMetrics.batteryLevel < 20 ? '#ef4444' : '#10b981'} trailColor="#1f2028" size={120} />
-                <div className="mt-2 text-gray-400 font-medium">Battery</div>
-              </div>
-              <div>
-                <div className="h-[120px] flex flex-col items-center justify-center border-4 border-[#1f2028] rounded-full w-[120px] mx-auto">
-                  <span className="text-2xl font-bold text-white">{(currentMetrics.storageTotalGb ? (currentMetrics.storageTotalGb - currentMetrics.storageUsedGb).toFixed(1) : currentMetrics.storageUsedGb) || 0}</span>
-                  <span className="text-xs text-gray-500">GB Free</span>
-                </div>
-                <div className="mt-2 text-gray-400 font-medium">Storage</div>
-              </div>
-            </div>
-          </Card>
 
-          {/* Placeholder for Live Incident View (Phase 6.6) */}
+          {/* Live Incident View (MJPEG Stream) */}
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Live Incident View</span>}>
-            <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg">
-              <MobileOutlined className="text-6xl text-gray-600 mb-4" />
-              <Text className="text-gray-500">Nhấn "Xem trực tiếp" để kích hoạt stream màn hình</Text>
-              <Button type="primary" ghost className="mt-4 border-[var(--color-primary)] text-[var(--color-primary)]" onClick={() => handleSendCommand('START_STREAM')}>Xem trực tiếp</Button>
+            <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative">
+              {screenFrame ? (
+                <>
+                  <img src={`data:image/jpeg;base64,${screenFrame}`} className="h-full w-full object-contain" alt="Live Screen" />
+                  <Button 
+                    type="primary" 
+                    ghost 
+                    className="absolute bottom-4 right-4 border-[var(--color-primary)] text-[var(--color-primary)] bg-black/60 hover:bg-black/80" 
+                    onClick={() => handleSendCommand('STOP_STREAM')}
+                  >
+                    Dừng xem
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <MobileOutlined className="text-6xl text-gray-600 mb-4" />
+                  <Text className="text-gray-500 mb-4">Màn hình hiện đang tắt</Text>
+                  <Button 
+                    type="primary" 
+                    ghost 
+                    className="border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-colors" 
+                    onClick={() => handleSendCommand('START_STREAM')}
+                  >
+                    Bắt đầu Xem trực tiếp
+                  </Button>
+                </>
+              )}
             </div>
           </Card>
         </div>
@@ -126,14 +119,23 @@ const DeviceDetailPage = () => {
         <div className="space-y-6">
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-[var(--color-primary)] font-bold"><SendOutlined /> Điều khiển Thiết bị</span>}>
             <div className="flex flex-col gap-3">
-              <Button 
-                size="large" 
-                icon={<LockOutlined />} 
-                className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500 hover:text-white transition-all text-left flex justify-start items-center"
-                onClick={() => handleSendCommand('LOCK_SCREEN')}
-              >
-                Khóa màn hình khẩn cấp
-              </Button>
+              <div className="grid grid-cols-2 gap-3">
+                <Button 
+                  size="large" 
+                  icon={<LockOutlined />} 
+                  className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500 hover:text-white transition-all text-left flex justify-center items-center"
+                  onClick={() => handleSendCommand('LOCK_SCREEN')}
+                >
+                  Khóa màn hình
+                </Button>
+                <Button 
+                  size="large" 
+                  className="bg-green-500/10 text-green-500 border-green-500/30 hover:bg-green-500 hover:text-white transition-all text-left flex justify-center items-center"
+                  onClick={() => handleSendCommand('UNLOCK_DEVICE')}
+                >
+                  Mở khóa màn hình
+                </Button>
+              </div>
               <Button 
                 size="large" 
                 icon={<AlertOutlined />} 
@@ -158,16 +160,24 @@ const DeviceDetailPage = () => {
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Thông tin Hệ thống</span>}>
             <Space direction="vertical" className="w-full">
               <div className="flex justify-between border-b border-[#2e303a] pb-2">
+                <Text className="text-gray-500">Thiết bị</Text>
+                <Text className="text-white font-medium">{deviceInfo?.deviceName || deviceInfo?.model}</Text>
+              </div>
+              <div className="flex justify-between border-b border-[#2e303a] pb-2">
                 <Text className="text-gray-500">Hệ điều hành</Text>
                 <Text className="text-white">Android {deviceInfo?.androidVersion}</Text>
               </div>
               <div className="flex justify-between border-b border-[#2e303a] pb-2">
-                <Text className="text-gray-500">ID Thiết bị</Text>
-                <Text className="text-white">{deviceInfo?.deviceId}</Text>
+                <Text className="text-gray-500">Mã thiết bị (ID)</Text>
+                <Text className="text-white font-mono text-xs mt-1">{deviceInfo?.deviceId}</Text>
+              </div>
+              <div className="flex justify-between border-b border-[#2e303a] pb-2">
+                <Text className="text-gray-500">Cơ sở / Trường</Text>
+                <Text className="text-white text-right">{deviceInfo?.school?.name || '---'}</Text>
               </div>
               <div className="flex justify-between pb-2">
-                <Text className="text-gray-500">MDM Agent Ver</Text>
-                <Text className="text-white">{deviceInfo?.agentVersion || 'Unknown'}</Text>
+                <Text className="text-gray-500">Phiên bản MDM</Text>
+                <Tag color="purple" className="m-0 border-0">{deviceInfo?.agentVersion || 'v1.0'}</Tag>
               </div>
             </Space>
           </Card>
