@@ -3,7 +3,9 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useAuthStore } from '../store/authStore';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:8080/api/ws-web';
+const isProd = import.meta.env.PROD;
+const dynamicWsUrl = `http://${window.location.hostname}:8081/api/ws-web`;
+const WS_URL = isProd ? (import.meta.env.VITE_WS_URL || dynamicWsUrl) : dynamicWsUrl;
 
 export const useWebSocket = (deviceId?: string) => {
   const [metrics, setMetrics] = useState<any>(null);
@@ -53,9 +55,14 @@ export const useWebSocket = (deviceId?: string) => {
         // Subscribe to screen frames
         client.subscribe(`/topic/devices/${deviceId}/screen`, (message) => {
           if (message.body) {
-            const data = JSON.parse(message.body);
-            if (data.frame) {
-              setScreenFrame(data.frame);
+            try {
+              const data = JSON.parse(message.body);
+              if (data.frame) {
+                setScreenFrame(data.frame);
+              }
+            } catch (e) {
+              // Fallback if the agent sends raw base64 instead of JSON
+              setScreenFrame(message.body);
             }
           }
         });

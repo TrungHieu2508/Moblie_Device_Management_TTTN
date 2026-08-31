@@ -74,7 +74,7 @@ public class DeviceController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN', 'TEACHER')")
     public ResponseEntity<ApiResponse<DeviceDto>> getDeviceById(@PathVariable UUID id) {
         DeviceDto response = deviceService.getDeviceById(id);
         return ResponseEntity.ok(ApiResponse.success(response, "Success"));

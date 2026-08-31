@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Table, Tag, Input, Select, Card, Typography, Space, Button } from 'antd';
 import { SearchOutlined, CheckCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
@@ -55,6 +55,12 @@ const AlertListPage = () => {
 
   // Real-time alert listener
   const { alertInfo } = useWebSocket();
+  
+  useEffect(() => {
+    if (alertInfo) {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    }
+  }, [alertInfo, queryClient]);
   
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string, status: string }) => updateAlertStatus(id, status),

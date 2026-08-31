@@ -22,3 +22,8 @@ export const getActiveEnrollments = async () => {
   const response = await axiosInstance.get('/enrollments');
   return response.data.data as EnrollmentDto[];
 };
+
+export const deleteEnrollmentProfile = async (id: string) => {
+  const response = await axiosInstance.delete('/enrollments/' + id);
+  return response.data;
+};

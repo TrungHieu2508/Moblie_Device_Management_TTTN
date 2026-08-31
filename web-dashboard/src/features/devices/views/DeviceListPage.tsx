@@ -4,6 +4,7 @@ import { Table, Tag, Input, Button, Select, Space, Card, Typography, Modal, Form
 import { SearchOutlined, FilterOutlined, ReloadOutlined, PlusOutlined, MobileOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import axiosInstance, { API_BASE_URL } from '../../../config/axios';
 import { getDevices, updateDevice, deleteDevice } from '../../../services/deviceService';
 import { createEnrollmentProfile } from '../../../services/enrollmentService';
 import { getAllCampuses, getSchools } from '../../../services/schoolService';
@@ -216,7 +217,6 @@ const DeviceListPage = () => {
               setEditingDevice(record);
               editForm.setFieldsValue({ 
                 deviceName: record.deviceName, 
-                notes: record.notes || '',
                 campusId: record.campus?.id,
                 schoolId: record.school?.id
               });
@@ -339,7 +339,7 @@ const DeviceListPage = () => {
             <div className="flex justify-center my-6 bg-white p-4 rounded-xl inline-block">
               <QRCodeSVG 
                 value={JSON.stringify({ 
-                  serverUrl: (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace('/api', ''),
+                  serverUrl: API_BASE_URL.replace('/api', ''),
                   code: createdCode 
                 })} 
                 size={200}

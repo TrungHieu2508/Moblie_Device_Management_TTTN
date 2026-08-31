@@ -27,13 +27,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvCampus: TextView
     private lateinit var tvSchool: TextView
     private lateinit var btnForceSync: MaterialButton
+    private lateinit var btnPauseMdm: MaterialButton
+    private lateinit var btnUnenroll: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        setupObservers()
         setupListeners()
+        setupObservers()
         
         // Restore saved URL to UI
         val savedUrl = sharedPreferencesManager.getServerUrl()
@@ -56,10 +58,13 @@ class MainActivity : AppCompatActivity() {
         if (result.contents != null) {
             try {
                 val json = org.json.JSONObject(result.contents)
-                val serverUrl = json.optString("serverUrl")
+                var serverUrl = json.optString("serverUrl")
                 val code = json.optString("code")
                 
                 if (serverUrl.isNotEmpty() && code.isNotEmpty()) {
+                    if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+                        serverUrl = "http://$serverUrl"
+                    }
                     findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).setText(serverUrl)
                     findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etEnrollmentCode).setText(code)
                     
@@ -91,12 +96,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.btnRegister).setOnClickListener {
-            val serverUrl = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).text.toString().trim()
+            var serverUrl = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).text.toString().trim()
             val enrollmentCode = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etEnrollmentCode).text.toString().trim()
             
             if (serverUrl.isEmpty()) {
                 android.widget.Toast.makeText(this, "Vui lòng nhập Server URL", android.widget.Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
+            }
+
+            if (!serverUrl.startsWith("http://") && !serverUrl.startsWith("https://")) {
+                serverUrl = "http://$serverUrl"
             }
             
             if (enrollmentCode.isNotEmpty()) {
@@ -106,6 +115,43 @@ class MainActivity : AppCompatActivity() {
                 android.widget.Toast.makeText(this, "Vui lòng nhập Enrollment Code", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
+
+        btnPauseMdm = findViewById(R.id.btnPauseMdm)
+        btnUnenroll = findViewById(R.id.btnUnenroll)
+
+        btnPauseMdm.setOnClickListener {
+            showPinDialog {
+                val isPaused = viewModel.uiState.value.isPaused
+                viewModel.togglePause(!isPaused)
+            }
+        }
+
+        btnUnenroll.setOnClickListener {
+            showPinDialog {
+                viewModel.unenroll()
+                android.widget.Toast.makeText(this, "Đã gỡ ghi danh thiết bị", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun showPinDialog(onSuccess: () -> Unit) {
+        val input = android.widget.EditText(this)
+        input.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Nhập mã PIN")
+            .setMessage("Vui lòng nhập mã PIN quản trị (123456) để xác nhận.")
+            .setView(input)
+            .setPositiveButton("Xác nhận") { _, _ ->
+                val pin = input.text.toString()
+                if (pin == "123456") {
+                    onSuccess()
+                } else {
+                    android.widget.Toast.makeText(this, "Mã PIN không đúng!", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
     }
 
     private fun setupObservers() {
@@ -158,10 +204,23 @@ class MainActivity : AppCompatActivity() {
                 // Manage Registration UI visibility
                 if (state.isRegistered) {
                     cardRegistration.visibility = View.GONE
+                    btnPauseMdm.visibility = View.VISIBLE
+                    btnUnenroll.visibility = View.VISIBLE
                     // Start the background service to maintain connection with Dashboard
                     startHeartbeatService()
                 } else {
                     cardRegistration.visibility = View.VISIBLE
+                    btnPauseMdm.visibility = View.GONE
+                    btnUnenroll.visibility = View.GONE
+                }
+
+                // Update Pause button text
+                if (state.isPaused) {
+                    btnPauseMdm.text = "Tiếp tục MDM (Đang Tạm Dừng)"
+                    btnPauseMdm.setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.success))
+                } else {
+                    btnPauseMdm.text = "Tạm dừng MDM"
+                    btnPauseMdm.setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.error))
                 }
 
                 // Handle Loading state

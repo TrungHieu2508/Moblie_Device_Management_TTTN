@@ -291,7 +291,7 @@ class CommandReceiver @Inject constructor(
                 put("frame", base64Frame)
             }
             val destination = "/app/stream/frame"
-            val message = "SEND\ndestination:$destination\n\n${json.toString()}\u0000"
+            val message = "SEND\ndestination:$destination\ncontent-type:application/json\n\n${json.toString()}\u0000"
             webSocketClient?.send(message)
         }
     }

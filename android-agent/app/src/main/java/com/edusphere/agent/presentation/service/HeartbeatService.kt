@@ -13,6 +13,7 @@ import com.edusphere.agent.data.remote.websocket.CommandReceiver
 import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.domain.monitor.DeviceMonitor
 import com.edusphere.agent.domain.rule.RuleDetector
+import com.edusphere.agent.data.local.SharedPreferencesManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,9 @@ class HeartbeatService : Service() {
     
     @Inject
     lateinit var ruleDetector: RuleDetector
+
+    @Inject
+    lateinit var sharedPreferencesManager: SharedPreferencesManager
 
     private val serviceScope = CoroutineScope(Dispatchers.IO)
 
@@ -102,26 +106,42 @@ class HeartbeatService : Service() {
         serviceScope.launch {
             while (isActive) {
                 try {
-                    val metrics = deviceMonitor.getDeviceMetrics()
-                    val currentApp = deviceMonitor.getCurrentApp()
+                    val isPaused = sharedPreferencesManager.isMdmPaused()
                     
-                    ruleDetector.checkForegroundApp(currentApp?.packageName)
-                    
-                    val request = HeartbeatRequest(
-                        deviceId = deviceId,
-                        timestamp = System.currentTimeMillis(),
-                        metrics = metrics,
-                        currentApp = currentApp
-                    )
-                    
-                    val pendingCount = deviceRepository.sendHeartbeat(request)
-                    
-                    if (pendingCount > 0) {
-                        val pendingCommands = deviceRepository.fetchPendingCommands()
-                        pendingCommands.forEach { cmd ->
-                            val payloadJson = if (cmd.payload != null) org.json.JSONObject(cmd.payload as Map<*, *>) else null
-                            commandReceiver.executeCommand(cmd.commandType, payloadJson)
-                            deviceRepository.acknowledgeCommand(cmd.id, "EXECUTED")
+                    if (!isPaused) {
+                        // Attempt reconnect if backend restarted or connection dropped
+                        if (!commandReceiver.isConnected.value) {
+                            val deviceInfo = deviceRepository.getDeviceInfo()
+                            if (deviceInfo != null && deviceInfo.isRegistered) {
+                                commandReceiver.connect(
+                                    serverUrl = deviceInfo.serverUrl,
+                                    token = deviceInfo.registrationToken,
+                                    deviceId = deviceInfo.deviceId
+                                )
+                            }
+                        }
+
+                        val metrics = deviceMonitor.getDeviceMetrics()
+                        val currentApp = deviceMonitor.getCurrentApp()
+                        
+                        ruleDetector.checkForegroundApp(currentApp?.packageName)
+                        
+                        val request = HeartbeatRequest(
+                            deviceId = deviceId,
+                            timestamp = System.currentTimeMillis(),
+                            metrics = metrics,
+                            currentApp = currentApp
+                        )
+                        
+                        val pendingCount = deviceRepository.sendHeartbeat(request)
+                        
+                        if (pendingCount > 0) {
+                            val pendingCommands = deviceRepository.fetchPendingCommands()
+                            pendingCommands.forEach { cmd ->
+                                val payloadJson = if (cmd.payload != null) org.json.JSONObject(cmd.payload as Map<*, *>) else null
+                                commandReceiver.executeCommand(cmd.commandType, payloadJson)
+                                deviceRepository.acknowledgeCommand(cmd.id, "EXECUTED")
+                            }
                         }
                     }
                 } catch (e: Exception) {

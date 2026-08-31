@@ -19,6 +19,10 @@ class DeviceRepositoryImpl @Inject constructor(
         return deviceDao.getDeviceInfo()
     }
 
+    override suspend fun clearDeviceInfo() {
+        deviceDao.clearDeviceInfo()
+    }
+
     override suspend fun registerDevice(request: RegistrationRequest): Result<Boolean> {
         return try {
             val response = apiService.registerDevice(request)

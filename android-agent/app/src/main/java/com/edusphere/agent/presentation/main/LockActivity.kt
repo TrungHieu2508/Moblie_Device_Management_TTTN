@@ -64,6 +64,11 @@ class LockActivity : AppCompatActivity() {
                 dpm.setLockTaskPackages(adminComponent, newPackages.toTypedArray())
             }
         }
+        
+        findViewById<android.widget.Button>(R.id.btnUnlock).setOnClickListener {
+            val code = findViewById<android.widget.EditText>(R.id.etUnlockCode).text.toString()
+            onUnlockCodeEntered(code)
+        }
     }
 
     override fun onResume() {
@@ -84,5 +89,13 @@ class LockActivity : AppCompatActivity() {
     override fun onBackPressed() {
         // Prevent back button
         // Do nothing
+    }
+
+    // Emergency unlock logic for demo
+    fun onUnlockCodeEntered(code: String) {
+        if (code == "1234") {
+            stopLockTask()
+            finish()
+        }
     }
 }

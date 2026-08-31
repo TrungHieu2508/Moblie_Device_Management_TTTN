@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.receiver.MDMAdminReceiver
 import com.edusphere.agent.data.remote.websocket.CommandReceiver
+import com.edusphere.agent.data.local.SharedPreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val deviceRepository: DeviceRepository,
     private val commandReceiver: CommandReceiver,
+    private val sharedPreferencesManager: SharedPreferencesManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -60,12 +62,14 @@ class MainViewModel @Inject constructor(
 
     fun checkStatus() {
         val isDeviceOwner = dpm.isDeviceOwnerApp(context.packageName)
+        val isPaused = sharedPreferencesManager.isMdmPaused()
         
         viewModelScope.launch {
             val deviceInfo = deviceRepository.getDeviceInfo()
             _uiState.value = _uiState.value.copy(
                 isDeviceOwner = isDeviceOwner,
-                isRegistered = deviceInfo?.isRegistered == true
+                isRegistered = deviceInfo?.isRegistered == true,
+                isPaused = isPaused
             )
         }
     }
@@ -114,12 +118,48 @@ class MainViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = false)
         }
     }
+
+    fun unenroll() {
+        viewModelScope.launch {
+            // Clear local database
+            deviceRepository.clearDeviceInfo()
+            // Disconnect websocket
+            commandReceiver.disconnect()
+            // Turn off pause if it was on
+            sharedPreferencesManager.setMdmPaused(false)
+            // Update UI
+            checkStatus()
+            loadDeviceInfo()
+        }
+    }
+
+    fun togglePause(isPaused: Boolean) {
+        sharedPreferencesManager.setMdmPaused(isPaused)
+        checkStatus()
+        
+        if (isPaused) {
+            commandReceiver.disconnect()
+        } else {
+            // Reconnect
+            viewModelScope.launch {
+                val deviceInfo = deviceRepository.getDeviceInfo()
+                if (deviceInfo != null && deviceInfo.isRegistered) {
+                    commandReceiver.connect(
+                        serverUrl = deviceInfo.serverUrl,
+                        token = deviceInfo.registrationToken,
+                        deviceId = deviceInfo.deviceId
+                    )
+                }
+            }
+        }
+    }
 }
 
 data class MainUiState(
     val isDeviceOwner: Boolean = false,
     val isRegistered: Boolean = false,
     val isConnected: Boolean = false,
+    val isPaused: Boolean = false,
     val deviceId: String = "Loading...",
     val deviceModel: String = "Loading...",
     val osVersion: String = "Loading...",

@@ -9,6 +9,7 @@ import com.edusphere.mdmserver.domain.command.repository.DeviceCommandRepository
 import com.edusphere.mdmserver.domain.device.entity.Device;
 import com.edusphere.mdmserver.domain.device.enums.DeviceStatus;
 import com.edusphere.mdmserver.domain.device.repository.DeviceRepository;
+import com.edusphere.mdmserver.domain.alert.service.AlertService;
 import com.edusphere.mdmserver.domain.user.entity.User;
 import com.edusphere.mdmserver.domain.user.repository.UserRepository;
 import com.edusphere.mdmserver.domain.websocket.service.WebSocketNotificationService;
@@ -34,6 +35,7 @@ public class CommandService {
     private final UserRepository userRepository;
     private final CommandQueueService commandQueueService;
     private final WebSocketNotificationService wsNotificationService;
+    private final AlertService alertService;
 
     @Transactional
     public CommandDto createCommand(UUID deviceUuid, CommandCreateRequest request, String username) {
@@ -54,6 +56,14 @@ public class CommandService {
         command = commandRepository.save(command);
 
         dispatchCommand(command, device);
+
+        // Record an alert if this is a manual action that implies a violation/punishment
+        String cmdType = request.getCommandType().name();
+        if ("LOCK_SCREEN".equals(cmdType) || 
+            "RING_ALARM".equals(cmdType) || 
+            "WIPE_DATA".equals(cmdType)) {
+            alertService.createManualAlert(device, cmdType, user);
+        }
 
         return mapToDto(command);
     }

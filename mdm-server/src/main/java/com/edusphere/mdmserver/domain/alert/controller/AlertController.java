@@ -32,7 +32,7 @@ public class AlertController {
 
     @GetMapping
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('IT_ADMIN')")
-    public ResponseEntity<ApiResponse<Page<Alert>>> getAlerts(
+    public ResponseEntity<ApiResponse<Page<com.edusphere.mdmserver.domain.alert.dto.AlertDto>>> getAlerts(
             Principal principal,
             @RequestParam(required = false) AlertStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -52,28 +52,35 @@ public class AlertController {
         }
         
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<Alert> alerts;
         
-        if (campusId != null) {
-            if (status != null) {
-                alerts = alertRepository.findByCampusIdAndStatus(campusId, status, pageRequest);
-            } else {
-                alerts = alertRepository.findByCampusId(campusId, pageRequest);
-            }
-        } else {
-            if (status != null) {
-                alerts = alertRepository.findByStatus(status, pageRequest);
-            } else {
-                alerts = alertRepository.findAll(pageRequest);
-            }
+        Page<com.edusphere.mdmserver.domain.alert.dto.AlertDto> dtoPage = alertService.getAlerts(campusId, status, pageRequest);
+        
+        return ResponseEntity.ok(ApiResponse.success(dtoPage, "Thành công"));
+    }
+
+    private com.edusphere.mdmserver.domain.alert.dto.AlertDto mapToDto(Alert alert) {
+        com.edusphere.mdmserver.domain.alert.dto.AlertDto dto = com.edusphere.mdmserver.domain.alert.dto.AlertDto.builder()
+                .id(alert.getId())
+                .title(alert.getTitle())
+                .description(alert.getDescription())
+                .severity(alert.getSeverity())
+                .status(alert.getStatus())
+                .createdAt(alert.getCreatedAt())
+                .build();
+                
+        if (alert.getDevice() != null) {
+            dto.setDevice(com.edusphere.mdmserver.domain.alert.dto.AlertDto.DeviceBasicInfo.builder()
+                    .id(alert.getDevice().getId())
+                    .deviceName(alert.getDevice().getDeviceName())
+                    .deviceId(alert.getDevice().getDeviceId())
+                    .build());
         }
-        
-        return ResponseEntity.ok(ApiResponse.success(alerts, "Thành công"));
+        return dto;
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('IT_ADMIN')")
-    public ResponseEntity<ApiResponse<Alert>> updateAlertStatus(
+    public ResponseEntity<ApiResponse<com.edusphere.mdmserver.domain.alert.dto.AlertDto>> updateAlertStatus(
             Principal principal,
             @PathVariable UUID id,
             @RequestBody AlertStatusUpdateRequest request) {
@@ -83,6 +90,6 @@ public class AlertController {
                 
         Alert alert = alertService.updateAlertStatus(id, request.getStatus(), request.getResolutionNote(), user);
         
-        return ResponseEntity.ok(ApiResponse.success(alert, "Cập nhật Alert thành công"));
+        return ResponseEntity.ok(ApiResponse.success(mapToDto(alert), "Cập nhật Alert thành công"));
     }
 }

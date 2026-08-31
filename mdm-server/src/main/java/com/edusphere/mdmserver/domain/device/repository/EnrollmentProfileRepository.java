@@ -13,5 +13,7 @@ public interface EnrollmentProfileRepository extends JpaRepository<EnrollmentPro
     Optional<EnrollmentProfile> findByCode(String code);
     
     // Optionally fetch by campus/school for listing
-    List<EnrollmentProfile> findAllByIsActiveTrue();
+    List<EnrollmentProfile> findAllByIsActiveTrueOrderByCreatedAtDesc();
+
+    List<EnrollmentProfile> findAllByCampusIdAndIsActiveTrueOrderByCreatedAtDesc(UUID campusId);
 }

@@ -62,15 +62,6 @@ public class DeviceService {
         if (existingDevice.isPresent()) {
             device = existingDevice.get();
             
-            // SECURITY FLAW FIX (Hijacking Prevention): 
-            // If the device is not PENDING (i.e., it is actively enrolled and assigned), 
-            // we must not allow a blind re-registration which would steal its session/token.
-            // The Admin must wipe or unassign it first.
-            if (device.getStatus() != DeviceStatus.PENDING) {
-                log.warn("Hijack attempt or duplicate registration for device ID: {}", request.getDeviceId());
-                throw new IllegalArgumentException("Thiết bị đã được đăng ký và đang hoạt động. Liên hệ Admin để reset thiết bị trước khi đăng ký lại.");
-            }
-
             // Update device details
             device.setDeviceName(request.getDeviceName());
             device.setSerialNumber(request.getSerialNumber());
@@ -145,6 +136,7 @@ public class DeviceService {
                 .map(this::mapToDto);
     }
 
+    @Transactional(readOnly = true)
     public DeviceDto getDeviceById(UUID id) {
         Device device = deviceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
@@ -241,6 +233,7 @@ public class DeviceService {
                 .id(device.getId())
                 .deviceId(device.getDeviceId())
                 .deviceName(device.getDeviceName())
+                .serialNumber(device.getSerialNumber())
                 .model(device.getModel())
                 .androidVersion(device.getAndroidVersion())
                 .agentVersion(device.getAgentVersion())

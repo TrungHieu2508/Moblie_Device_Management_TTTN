@@ -20,8 +20,17 @@ class SharedPreferencesManager @Inject constructor(
         return prefs.getString(KEY_SERVER_URL, null)
     }
 
+    fun setMdmPaused(isPaused: Boolean) {
+        prefs.edit().putBoolean(KEY_MDM_PAUSED, isPaused).apply()
+    }
+
+    fun isMdmPaused(): Boolean {
+        return prefs.getBoolean(KEY_MDM_PAUSED, false)
+    }
+
     companion object {
         private const val PREFS_NAME = "edusphere_mdm_prefs"
         private const val KEY_SERVER_URL = "server_url"
+        private const val KEY_MDM_PAUSED = "mdm_paused"
     }
 }

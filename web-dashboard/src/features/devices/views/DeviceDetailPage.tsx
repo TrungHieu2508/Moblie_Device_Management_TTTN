@@ -35,12 +35,19 @@ const DeviceDetailPage = () => {
   // Connect to WebSocket to receive real-time metrics for this specific device
   const { isConnected, metrics, deviceStatus, screenFrame } = useWebSocket(deviceInfo?.deviceId);
 
-  const handleSendCommand = async (commandType: string) => {
+  useEffect(() => {
+    if (isConnected && deviceInfo?.deviceId) {
+      // Auto-start stream when connected
+      handleSendCommand('START_STREAM');
+    }
+  }, [isConnected, deviceInfo?.deviceId]);
+
+  const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
     try {
       // API call to dispatch command to the queue
       await axiosInstance.post(`/devices/${id}/commands`, {
         commandType,
-        payload: {} // Add specific payload if needed (e.g. { message: '...' } for SEND_MESSAGE)
+        payload: payloadData
       });
       message.success(`Đã xếp hàng lệnh ${commandType} thành công!`);
     } catch (error) {
@@ -100,15 +107,19 @@ const DeviceDetailPage = () => {
               ) : (
                 <>
                   <MobileOutlined className="text-6xl text-gray-600 mb-4" />
-                  <Text className="text-gray-500 mb-4">Màn hình hiện đang tắt</Text>
-                  <Button 
-                    type="primary" 
-                    ghost 
-                    className="border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-colors" 
-                    onClick={() => handleSendCommand('START_STREAM')}
-                  >
-                    Bắt đầu Xem trực tiếp
-                  </Button>
+                  <Text className="text-gray-500 mb-4">
+                    {isConnected ? 'Đang tải luồng video trực tiếp...' : 'Màn hình hiện đang tắt'}
+                  </Text>
+                  {!isConnected && (
+                    <Button 
+                      type="primary" 
+                      ghost 
+                      className="border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-colors" 
+                      onClick={() => handleSendCommand('START_STREAM')}
+                    >
+                      Bắt đầu Xem trực tiếp
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -124,7 +135,7 @@ const DeviceDetailPage = () => {
                   size="large" 
                   icon={<LockOutlined />} 
                   className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500 hover:text-white transition-all text-left flex justify-center items-center"
-                  onClick={() => handleSendCommand('LOCK_SCREEN')}
+                  onClick={() => handleSendCommand('LOCK_SCREEN', { message: 'Sử dụng phần mềm không phải học tập đi' })}
                 >
                   Khóa màn hình
                 </Button>
@@ -157,29 +168,30 @@ const DeviceDetailPage = () => {
             </div>
           </Card>
 
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Thông tin Hệ thống</span>}>
-            <Space direction="vertical" className="w-full">
-              <div className="flex justify-between border-b border-[#2e303a] pb-2">
-                <Text className="text-gray-500">Thiết bị</Text>
-                <Text className="text-white font-medium">{deviceInfo?.deviceName || deviceInfo?.model}</Text>
+          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6" title={<span className="text-[var(--color-primary)] font-bold">Thông tin Hệ thống</span>}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
+                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Thiết bị</Text>
+                <Text className="text-white font-medium text-base">{deviceInfo?.deviceName || deviceInfo?.model || 'Unknown'}</Text>
               </div>
-              <div className="flex justify-between border-b border-[#2e303a] pb-2">
-                <Text className="text-gray-500">Hệ điều hành</Text>
-                <Text className="text-white">Android {deviceInfo?.androidVersion}</Text>
+              <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
+                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Hệ điều hành</Text>
+                <Text className="text-white font-medium text-base">Android {deviceInfo?.androidVersion}</Text>
               </div>
-              <div className="flex justify-between border-b border-[#2e303a] pb-2">
-                <Text className="text-gray-500">Mã thiết bị (ID)</Text>
-                <Text className="text-white font-mono text-xs mt-1">{deviceInfo?.deviceId}</Text>
+              <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
+                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Cơ sở / Trường</Text>
+                <Text className="text-white font-medium text-base">{deviceInfo?.school?.name || 'Chưa gán'}</Text>
               </div>
-              <div className="flex justify-between border-b border-[#2e303a] pb-2">
-                <Text className="text-gray-500">Cơ sở / Trường</Text>
-                <Text className="text-white text-right">{deviceInfo?.school?.name || '---'}</Text>
+              <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
+                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Model / Serial</Text>
+                <Text className="text-white font-mono text-sm">{deviceInfo?.model || '---'} / {deviceInfo?.serialNumber || '---'}</Text>
               </div>
-              <div className="flex justify-between pb-2">
-                <Text className="text-gray-500">Phiên bản MDM</Text>
-                <Tag color="purple" className="m-0 border-0">{deviceInfo?.agentVersion || 'v1.0'}</Tag>
-              </div>
-            </Space>
+            </div>
+            
+            <div className="mt-4 bg-blue-500/5 p-4 rounded-lg border border-blue-500/20">
+              <Text className="text-gray-400 text-xs uppercase tracking-wider block mb-1">Mã định danh (ID)</Text>
+              <Text className="text-blue-400 font-mono text-sm break-all" copyable>{deviceInfo?.deviceId || 'Không có dữ liệu'}</Text>
+            </div>
           </Card>
         </div>
       </div>

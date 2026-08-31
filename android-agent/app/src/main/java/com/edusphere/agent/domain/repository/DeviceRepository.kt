@@ -14,4 +14,5 @@ interface DeviceRepository {
     suspend fun sendViolation(request: ViolationRequest): Boolean
     suspend fun fetchPendingCommands(): List<CommandDto>
     suspend fun acknowledgeCommand(commandId: String, status: String, errorMessage: String? = null): Boolean
+    suspend fun clearDeviceInfo()
 }

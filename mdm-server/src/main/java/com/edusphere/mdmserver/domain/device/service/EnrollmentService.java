@@ -60,10 +60,27 @@ public class EnrollmentService {
         return mapToDto(enrollmentRepository.save(profile));
     }
 
-    public List<EnrollmentDto> getActiveEnrollments() {
-        return enrollmentRepository.findAllByIsActiveTrue().stream()
+    @Transactional(readOnly = true)
+    public List<EnrollmentDto> getActiveEnrollments(UUID campusId) {
+        List<EnrollmentProfile> profiles;
+        if (campusId != null) {
+            profiles = enrollmentRepository.findAllByCampusIdAndIsActiveTrueOrderByCreatedAtDesc(campusId);
+        } else {
+            profiles = enrollmentRepository.findAllByIsActiveTrueOrderByCreatedAtDesc();
+        }
+        
+        return profiles.stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void deleteEnrollment(UUID id) {
+        EnrollmentProfile profile = enrollmentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Enrollment profile not found"));
+        // Soft delete
+        profile.setActive(false);
+        enrollmentRepository.save(profile);
     }
 
     private EnrollmentDto mapToDto(EnrollmentProfile profile) {

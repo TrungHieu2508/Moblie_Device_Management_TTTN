@@ -16,6 +16,7 @@ public class DeviceDto {
     private UUID id;
     private String deviceId;
     private String deviceName;
+    private String serialNumber;
     private String model;
     private String androidVersion;
     private String agentVersion;

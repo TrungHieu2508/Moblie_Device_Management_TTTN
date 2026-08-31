@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-// Lấy base URL từ biến môi trường, mặc định là http://localhost:8080/api
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+// Lấy base URL từ biến môi trường, hoặc lấy IP hiện tại của trình duyệt (hỗ trợ mạng LAN)
+const isProd = import.meta.env.PROD;
+const dynamicApiUrl = `http://${window.location.hostname}:8081/api`;
+export const API_BASE_URL = isProd ? (import.meta.env.VITE_API_URL || dynamicApiUrl) : dynamicApiUrl;
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

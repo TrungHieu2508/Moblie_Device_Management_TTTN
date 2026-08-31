@@ -4,6 +4,7 @@ export interface DeviceDto {
   id: string;
   deviceId: string;
   deviceName: string;
+  serialNumber?: string;
   model: string;
   androidVersion: string;
   agentVersion: string;

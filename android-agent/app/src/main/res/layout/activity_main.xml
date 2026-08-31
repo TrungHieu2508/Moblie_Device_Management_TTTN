@@ -254,8 +254,10 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvDeviceId"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
                             android:layout_height="wrap_content"
+                            android:gravity="end"
                             android:text="Loading..."
                             android:textColor="?android:attr/textColorPrimary"
                             android:textStyle="bold" />
@@ -274,8 +276,10 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvDeviceModel"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
                             android:layout_height="wrap_content"
+                            android:gravity="end"
                             android:text="Loading..."
                             android:textColor="?android:attr/textColorPrimary"
                             android:textStyle="bold" />
@@ -294,8 +298,10 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvOsVersion"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
                             android:layout_height="wrap_content"
+                            android:gravity="end"
                             android:text="Loading..."
                             android:textColor="?android:attr/textColorPrimary"
                             android:textStyle="bold" />
@@ -314,8 +320,10 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvCampus"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
                             android:layout_height="wrap_content"
+                            android:gravity="end"
                             android:text="Loading..."
                             android:textColor="?android:attr/textColorPrimary"
                             android:textStyle="bold" />
@@ -333,8 +341,10 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvSchool"
-                            android:layout_width="wrap_content"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
                             android:layout_height="wrap_content"
+                            android:gravity="end"
                             android:text="Loading..."
                             android:textColor="?android:attr/textColorPrimary"
                             android:textStyle="bold" />
@@ -348,6 +358,28 @@
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:text="@string/force_sync"
+                app:cornerRadius="8dp" />
+                
+            <!-- Pause MDM Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnPauseMdm"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="12dp"
+                android:text="Tạm dừng MDM"
+                android:backgroundTint="?attr/colorError"
+                app:cornerRadius="8dp" />
+                
+            <!-- Unenroll Button -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnUnenroll"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="12dp"
+                android:text="Gỡ ghi danh (Đổi lớp)"
+                android:textColor="?attr/colorError"
+                app:strokeColor="?attr/colorError"
                 app:cornerRadius="8dp" />
 
         </LinearLayout>
