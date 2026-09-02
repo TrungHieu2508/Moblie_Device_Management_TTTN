@@ -45,27 +45,23 @@ class DeviceMonitor @Inject constructor(
         try {
             val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val time = System.currentTimeMillis()
-            val stats = usageStatsManager.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY,
-                time - 1000 * 10,
-                time
-            )
+            val events = usageStatsManager.queryEvents(time - 1000 * 60 * 60, time)
             
             var currentPackageName: String? = null
-            if (stats != null && stats.isNotEmpty()) {
-                var latestTime = 0L
-                for (usageStats in stats) {
-                    if (usageStats.lastTimeUsed > latestTime) {
-                        latestTime = usageStats.lastTimeUsed
-                        currentPackageName = usageStats.packageName
-                    }
+            val event = android.app.usage.UsageEvents.Event()
+            
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                if (event.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED) {
+                    currentPackageName = event.packageName
                 }
             }
+
             
             if (currentPackageName != null) {
                 val appName = try {
                     val packageManager = context.packageManager
-                    val applicationInfo = packageManager.getApplicationInfo(currentPackageName, 0)
+                    val applicationInfo = packageManager.getApplicationInfo(currentPackageName, android.content.pm.PackageManager.GET_META_DATA)
                     packageManager.getApplicationLabel(applicationInfo).toString()
                 } catch (e: Exception) {
                     currentPackageName

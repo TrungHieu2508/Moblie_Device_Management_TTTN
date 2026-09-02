@@ -59,9 +59,21 @@ public class HeartbeatService {
         String metricsKey = "device:" + request.getDeviceId() + ":metrics";
         redisTemplate.opsForValue().set(metricsKey, request.getMetrics(), Duration.ofSeconds(OFFLINE_THRESHOLD_SECONDS));
         
+        // Save currentApp to Redis
+        if (request.getCurrentApp() != null) {
+            String appKey = "device:" + request.getDeviceId() + ":currentApp";
+            redisTemplate.opsForValue().set(appKey, request.getCurrentApp(), Duration.ofSeconds(OFFLINE_THRESHOLD_SECONDS));
+        }
+        
         // Broadcast metrics to Web Dashboard
         if (request.getMetrics() != null) {
             notificationService.broadcastDeviceMetrics(request.getDeviceId(), request.getMetrics());
+        }
+
+        // Broadcast currentApp to Web Dashboard
+        if (request.getCurrentApp() != null) {
+            notificationService.notifyDeviceStatusChange(request.getDeviceId(), 
+                    java.util.Map.of("deviceId", request.getDeviceId(), "currentApp", request.getCurrentApp()));
         }
 
         // TODO: Batch persist metrics to PostgreSQL using a background queue/job to avoid DB bottleneck

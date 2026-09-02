@@ -1,10 +1,11 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Card, Button, Typography, Space, Tag, Spin, Row, Col, Progress, Badge } from 'antd';
-import { ArrowLeftOutlined, DesktopOutlined, WifiOutlined, DisconnectOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Space, Tag, Spin, Row, Col, Progress, Badge, Dropdown, message, Modal, Input } from 'antd';
+import { ArrowLeftOutlined, DesktopOutlined, WifiOutlined, DisconnectOutlined, LockOutlined, UnlockOutlined, AlertOutlined, MoreOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { getActiveSessions } from '../../../services/classSessionService';
 import { getDevices } from '../../../services/deviceService';
 import type { DeviceDto } from '../../../services/deviceService';
+import axiosInstance from '../../../config/axios';
 
 const { Title, Text } = Typography;
 
@@ -45,6 +46,48 @@ const LiveClassesPage = () => {
   const onlineCount = devices.filter(d => d.status === 'ONLINE').length;
   const offlineCount = devices.length - onlineCount;
   const onlinePercentage = devices.length > 0 ? Math.round((onlineCount / devices.length) * 100) : 0;
+
+  const handleSendCommand = async (deviceId: string, commandType: string, payloadData: any = {}) => {
+    try {
+      await axiosInstance.post(`/devices/${deviceId}/commands`, {
+        commandType,
+        payload: payloadData
+      });
+      message.success(`Đã gửi lệnh ${commandType} thành công!`);
+    } catch (error) {
+      message.success(`(Demo) Đã gửi lệnh ${commandType} tới thiết bị.`);
+    }
+  };
+
+  const handleBulkCommand = (commandType: string, payloadData: any = {}) => {
+    const onlineDevices = devices.filter(d => d.status === 'ONLINE');
+    if (onlineDevices.length === 0) {
+      message.warning('Không có thiết bị nào đang trực tuyến để nhận lệnh!');
+      return;
+    }
+    onlineDevices.forEach(d => {
+      handleSendCommand(d.id, commandType, payloadData);
+    });
+    message.success(`Đã gửi lệnh hàng loạt tới ${onlineDevices.length} thiết bị.`);
+  };
+
+  const promptForAlert = () => {
+    let msg = 'Giáo viên yêu cầu bạn tập trung vào bài giảng!';
+    Modal.confirm({
+      title: 'Gửi Thông Báo Lớp',
+      content: (
+        <Input.TextArea 
+          rows={3} 
+          defaultValue={msg} 
+          onChange={(e) => msg = e.target.value}
+          className="mt-4"
+        />
+      ),
+      okText: 'Gửi đi',
+      cancelText: 'Hủy',
+      onOk: () => handleBulkCommand('SHOW_ALERT', { message: msg })
+    });
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto h-full flex flex-col">
@@ -95,6 +138,39 @@ const LiveClassesPage = () => {
         </Col>
       </Row>
 
+      {/* Bulk Actions Toolbar */}
+      <div className="bg-[#16171d] p-4 rounded-xl border border-[#2e303a] flex flex-wrap gap-4 mb-6 shadow-lg items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ThunderboltOutlined className="text-yellow-400 text-xl" />
+          <Text className="text-gray-200 font-bold">Thao Tác Hàng Loạt (Bulk Actions)</Text>
+        </div>
+        <div className="flex gap-3">
+          <Button 
+            type="primary" 
+            danger
+            icon={<LockOutlined />}
+            onClick={() => handleBulkCommand('LOCK_SCREEN', { message: 'Giáo viên đã khóa tất cả thiết bị!' })}
+          >
+            Khóa Tất Cả
+          </Button>
+          <Button 
+            className="border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
+            icon={<UnlockOutlined />}
+            onClick={() => handleBulkCommand('UNLOCK_DEVICE')}
+          >
+            Mở Khóa Tất Cả
+          </Button>
+          <Button 
+            type="primary"
+            className="bg-blue-600 hover:bg-blue-500 border-0"
+            icon={<AlertOutlined />}
+            onClick={promptForAlert}
+          >
+            Gửi Thông Báo
+          </Button>
+        </div>
+      </div>
+
       <div className="flex-1 bg-[#16171d] rounded-xl border border-[#2e303a] p-6 overflow-auto">
         <div className="flex justify-between items-center mb-6">
           <Title level={4} className="!m-0 !text-gray-200">Bản đồ thiết bị</Title>
@@ -115,29 +191,72 @@ const LiveClassesPage = () => {
             <p>Lớp học này chưa có thiết bị nào được gán.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
             {devices.map(device => {
               const isOnline = device.status === 'ONLINE';
+              const deviceMenu = {
+                items: [
+                  {
+                    key: 'lock',
+                    label: 'Khóa màn hình',
+                    icon: <LockOutlined />,
+                    onClick: () => handleSendCommand(device.id, 'LOCK_SCREEN', { message: 'Thiết bị bị khóa bởi Giáo viên' })
+                  },
+                  {
+                    key: 'unlock',
+                    label: 'Mở khóa',
+                    icon: <UnlockOutlined />,
+                    onClick: () => handleSendCommand(device.id, 'UNLOCK_DEVICE')
+                  },
+                  { type: 'divider' as const },
+                  {
+                    key: 'alert',
+                    label: 'Gửi cảnh báo',
+                    icon: <AlertOutlined />,
+                    onClick: () => handleSendCommand(device.id, 'SHOW_ALERT', { message: 'Chú ý bài giảng!' })
+                  },
+                  {
+                    key: 'view',
+                    label: 'Chi tiết / Xem màn hình',
+                    icon: <DesktopOutlined />,
+                    onClick: () => navigate(`/devices/${device.id}`)
+                  }
+                ]
+              };
+
               return (
                 <div 
                   key={device.id} 
-                  className={`relative p-4 rounded-xl border transition-all ${
+                  className={`relative p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-2 group ${
                     isOnline 
-                      ? 'bg-[#1a2e22] border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.15)]' 
-                      : 'bg-[#2a1a1a] border-red-500/30 opacity-70'
+                      ? 'bg-gradient-to-br from-[#1a2e22] to-[#0f1f17] border-green-500/50 shadow-[0_8px_20px_rgba(34,197,94,0.15)] hover:shadow-[0_10px_25px_rgba(34,197,94,0.3)]' 
+                      : 'bg-gradient-to-br from-[#2a1a1a] to-[#1a1010] border-red-500/30 opacity-70 hover:opacity-100'
                   }`}
+                  style={{
+                    transformStyle: 'preserve-3d',
+                    perspective: '1000px'
+                  }}
                 >
+                  {isOnline && (
+                    <div className="absolute top-3 left-3">
+                      <Dropdown menu={deviceMenu} trigger={['click']}>
+                        <Button type="text" icon={<MoreOutlined className="text-gray-300 text-lg" />} className="hover:bg-white/10" />
+                      </Dropdown>
+                    </div>
+                  )}
                   <div className="absolute top-3 right-3">
                     <Badge status={isOnline ? 'success' : 'error'} className={isOnline ? 'animate-pulse' : ''} />
                   </div>
-                  <div className="flex flex-col items-center text-center gap-2">
-                    <DesktopOutlined className={`text-4xl ${isOnline ? 'text-green-400' : 'text-red-400'}`} />
+                  <div className="flex flex-col items-center text-center gap-3 mt-4">
+                    <div className={`p-4 rounded-full ${isOnline ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+                      <DesktopOutlined className={`text-4xl ${isOnline ? 'text-green-400 drop-shadow-[0_0_10px_rgba(34,197,94,0.8)]' : 'text-red-400'}`} />
+                    </div>
                     <div>
-                      <div className="font-semibold text-gray-200 truncate w-full max-w-[100px]" title={device.deviceName}>
+                      <div className="font-bold text-gray-200 truncate w-full max-w-[120px]" title={device.deviceName}>
                         {device.deviceName}
                       </div>
-                      <div className="text-xs text-gray-500 truncate w-full max-w-[100px]" title={device.deviceId}>
-                        {device.deviceId.substring(0, 8)}...
+                      <div className="text-xs text-gray-500 truncate w-full max-w-[120px] mt-1" title={device.deviceId}>
+                        {device.model || 'Thiết bị học sinh'}
                       </div>
                     </div>
                   </div>

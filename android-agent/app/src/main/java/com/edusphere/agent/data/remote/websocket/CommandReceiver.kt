@@ -62,6 +62,7 @@ class CommandReceiver @Inject constructor(
         }
     }
 
+    @Synchronized
     fun connect(serverUrl: String, token: String, deviceId: String) {
         // Use user-defined Server URL from SharedPreferences if available, otherwise fallback to serverUrl parameter
         val prefsUrl = sharedPreferencesManager.getServerUrl()
@@ -97,6 +98,13 @@ class CommandReceiver @Inject constructor(
         val headers = mapOf("Authorization" to "Device $token")
 
         isConnecting = true
+        
+        try {
+            webSocketClient?.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing previous WebSocket", e)
+        }
+        
         webSocketClient = object : WebSocketClient(uri, headers) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 isConnecting = false
@@ -157,6 +165,7 @@ class CommandReceiver @Inject constructor(
         }
     }
     
+    @Synchronized
     fun reconnectIfNeeded() {
         if (_isConnected.value || isConnecting) return
         if (currentServerUrl != null && currentToken != null && currentDeviceId != null) {

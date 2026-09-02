@@ -35,13 +35,10 @@ class RuleDetector @Inject constructor(
         var isViolated = false
         var details = ""
 
-        // Hardcode auto-lock for Facebook and YouTube
+        // Check hardcoded forbidden apps
         if (packageName == "com.facebook.katana" || packageName == "com.google.android.youtube") {
             isViolated = true
             details = "App $packageName is explicitly forbidden for studying."
-            
-            // Auto lock the screen
-            actionManager.lockScreen()
         } else if (isWhitelistMode) {
             if (!whitelist.contains(packageName)) {
                 isViolated = true
@@ -60,9 +57,12 @@ class RuleDetector @Inject constructor(
             if (deviceInfo != null) {
                 val request = ViolationRequest(
                     deviceId = deviceInfo.deviceId,
-                    violationType = "UNAUTHORIZED_APP",
-                    details = details,
-                    timestamp = System.currentTimeMillis()
+                    eventType = "BLACKLIST_APP_DETECTED",
+                    timestamp = System.currentTimeMillis(),
+                    payload = mapOf(
+                        "packageName" to packageName,
+                        "details" to details
+                    )
                 )
                 deviceRepository.sendViolation(request)
             }

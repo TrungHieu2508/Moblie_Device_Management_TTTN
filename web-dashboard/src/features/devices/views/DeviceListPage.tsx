@@ -201,6 +201,16 @@ const DeviceListPage = () => {
       )
     },
     {
+      title: 'Ứng dụng đang mở',
+      dataIndex: 'currentApp',
+      key: 'currentApp',
+      render: (currentApp: any) => {
+        if (!currentApp) return <span className="text-gray-500">-</span>;
+        const appName = currentApp.appName || currentApp.packageName || 'Unknown';
+        return <Tag color="cyan" className="border-0 bg-cyan-500/20 text-cyan-400 font-medium px-2 py-0.5 rounded">{appName}</Tag>;
+      }
+    },
+    {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',

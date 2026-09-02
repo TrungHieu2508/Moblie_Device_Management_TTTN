@@ -25,6 +25,6 @@ public class DeviceDto {
     private CampusDto campus;
     private ClassroomDto classroom;
     private Instant lastHeartbeatAt;
-    
-    // TODO: Include metrics later when Heartbeat logic is done
+    private Object metrics;
+    private Object currentApp;
 }

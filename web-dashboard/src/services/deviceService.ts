@@ -13,6 +13,10 @@ export interface DeviceDto {
   campus?: { id: string; name: string };
   classroom?: { id: string; name: string };
   lastHeartbeatAt: string;
+  currentApp?: {
+    appName?: string;
+    packageName?: string;
+  };
 }
 
 export const getDevices = async (params?: { page?: number, size?: number, schoolId?: string, campusId?: string, classroomId?: string, status?: string, search?: string, androidVersion?: string }) => {

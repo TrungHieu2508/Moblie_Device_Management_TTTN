@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 data class ViolationRequest(
     @SerializedName("deviceId") val deviceId: String,
-    @SerializedName("violationType") val violationType: String,
-    @SerializedName("details") val details: String,
-    @SerializedName("timestamp") val timestamp: Long
+    @SerializedName("eventType") val eventType: String,
+    @SerializedName("timestamp") val timestamp: Long,
+    @SerializedName("payload") val payload: Map<String, Any>
 )

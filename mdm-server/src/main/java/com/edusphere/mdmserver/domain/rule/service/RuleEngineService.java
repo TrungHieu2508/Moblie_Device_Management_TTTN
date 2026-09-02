@@ -22,6 +22,7 @@ public class RuleEngineService {
 
     private final RuleCacheService ruleCacheService;
     private final AlertService alertService;
+    private final com.edusphere.mdmserver.domain.command.service.CommandService commandService;
 
     /**
      * Chạy bất đồng bộ (Async) để không làm nghẽn Event Pipeline
@@ -59,6 +60,23 @@ public class RuleEngineService {
                     String title = "Phát hiện ứng dụng bị cấm: " + appName;
                     String desc = "Thiết bị vừa mở ứng dụng " + appName + " (" + packageName + ") nằm trong danh sách cấm của Rule: " + rule.getName();
                     alertService.createAlert(device, rule, eventData, title, desc);
+                    
+                    // Phát hiện vi phạm -> Tự động hú còi sau 5 giây
+                    java.util.concurrent.CompletableFuture.delayedExecutor(5, java.util.concurrent.TimeUnit.SECONDS).execute(() -> {
+                        try {
+                            com.edusphere.mdmserver.domain.command.dto.CommandCreateRequest alarmReq = new com.edusphere.mdmserver.domain.command.dto.CommandCreateRequest();
+                            alarmReq.setCommandType(com.edusphere.mdmserver.domain.command.enums.CommandType.RING_ALARM);
+                            commandService.createCommand(device.getId(), alarmReq, "system");
+                            
+                            com.edusphere.mdmserver.domain.command.dto.CommandCreateRequest lockReq = new com.edusphere.mdmserver.domain.command.dto.CommandCreateRequest();
+                            lockReq.setCommandType(com.edusphere.mdmserver.domain.command.enums.CommandType.LOCK_SCREEN);
+                            commandService.createCommand(device.getId(), lockReq, "system");
+                            
+                            log.info("Auto-Policy triggered ALARM and LOCK for device {}", device.getDeviceId());
+                        } catch (Exception ex) {
+                            log.error("Failed to execute auto-policy", ex);
+                        }
+                    });
                     
                     // Break after first match to avoid generating multiple alerts for the same app
                     break;

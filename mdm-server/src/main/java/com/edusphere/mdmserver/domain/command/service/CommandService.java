@@ -42,8 +42,11 @@ public class CommandService {
         Device device = deviceRepository.findById(deviceUuid)
                 .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
 
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User không tồn tại"));
+        User user = null;
+        if (username != null && !username.isEmpty() && !username.equals("system")) {
+            user = userRepository.findByUsername(username)
+                    .orElseThrow(() -> new IllegalArgumentException("User không tồn tại"));
+        }
 
         DeviceCommand command = DeviceCommand.builder()
                 .device(device)

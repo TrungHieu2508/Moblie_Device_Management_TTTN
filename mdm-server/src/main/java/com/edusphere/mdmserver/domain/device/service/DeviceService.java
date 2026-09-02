@@ -264,6 +264,19 @@ public class DeviceService {
                     .build());
         }
 
+        // Fetch metrics and currentApp from Redis
+        try {
+            String metricsKey = "device:" + device.getDeviceId() + ":metrics";
+            Object metrics = redisTemplate.opsForValue().get(metricsKey);
+            dto.setMetrics(metrics);
+            
+            String appKey = "device:" + device.getDeviceId() + ":currentApp";
+            Object currentApp = redisTemplate.opsForValue().get(appKey);
+            dto.setCurrentApp(currentApp);
+        } catch (Exception e) {
+            log.warn("Failed to fetch metrics/currentApp from Redis for device {}", device.getDeviceId());
+        }
+
         return dto;
     }
 }

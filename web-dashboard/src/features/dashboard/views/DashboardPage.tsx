@@ -3,6 +3,7 @@ import { MobileOutlined, AlertOutlined, SafetyCertificateOutlined, WifiOutlined,
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardSummary } from '../../../services/dashboardService';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 
 const { Title, Text } = Typography;
 
@@ -35,11 +36,21 @@ const DashboardPage = () => {
   const warningPercent = calculatePercent(summary?.warningDevices || 0, totalDevices);
   const criticalPercent = calculatePercent(summary?.criticalDevices || 0, totalDevices);
 
+  const violationData = [
+    { name: 'T2', 'Khóa máy': 12, 'Chơi Game': 18 },
+    { name: 'T3', 'Khóa máy': 19, 'Chơi Game': 23 },
+    { name: 'T4', 'Khóa máy': 15, 'Chơi Game': 20 },
+    { name: 'T5', 'Khóa máy': 22, 'Chơi Game': 35 },
+    { name: 'T6', 'Khóa máy': 30, 'Chơi Game': 45 },
+    { name: 'T7', 'Khóa máy': 10, 'Chơi Game': 15 },
+    { name: 'CN', 'Khóa máy': 5, 'Chơi Game': 8 },
+  ];
+
   return (
     <div className="p-6">
       <div className="mb-6">
-        <Title level={3} className="!m-0 !text-white">Tổng quan Hệ thống</Title>
-        <Text className="text-gray-400">Giám sát trạng thái hoạt động của toàn bộ thiết bị trong nhà trường</Text>
+        <Title level={3} className="!m-0 !text-white">Tổng quan Hệ thống (Admin & IT District)</Title>
+        <Text className="text-gray-400">Giám sát trạng thái hoạt động của toàn bộ thiết bị trong học khu/nhà trường</Text>
       </div>
 
       {/* Stats Cards */}
@@ -94,11 +105,27 @@ const DashboardPage = () => {
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={16}>
           <Card 
-            title={<span className="text-gray-300">Biểu đồ Vi phạm 7 ngày qua</span>} 
-            className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg h-[400px]"
+            title={<span className="text-gray-300">Biểu đồ Vi phạm 7 ngày qua (Demo)</span>} 
+            className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg h-[450px]"
           >
-            <div className="flex items-center justify-center h-full pb-10">
-              <Text className="text-gray-500">Khu vực hiển thị Line Chart (Sẽ sử dụng Recharts hoặc ApexCharts)</Text>
+            <div className="h-[350px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={violationData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#2e303a" />
+                  <XAxis dataKey="name" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1f2028', border: '1px solid #2e303a', borderRadius: '8px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Legend />
+                  <Line type="monotone" dataKey="Khóa máy" stroke="#ef4444" strokeWidth={3} activeDot={{ r: 8 }} />
+                  <Line type="monotone" dataKey="Chơi Game" stroke="#eab308" strokeWidth={3} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </Card>
         </Col>

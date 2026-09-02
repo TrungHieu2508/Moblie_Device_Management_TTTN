@@ -12,6 +12,7 @@ export const useWebSocket = (deviceId?: string) => {
   const [deviceStatus, setDeviceStatus] = useState<string>('');
   const [alertInfo, setAlertInfo] = useState<any>(null);
   const [screenFrame, setScreenFrame] = useState<string | null>(null);
+  const [currentApp, setCurrentApp] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const clientRef = useRef<Client | null>(null);
 
@@ -44,11 +45,16 @@ export const useWebSocket = (deviceId?: string) => {
           }
         });
 
-        // Subscribe to status changes (ONLINE, OFFLINE, WARNING)
+        // Subscribe to status changes (ONLINE, OFFLINE, WARNING) and currentApp updates
         client.subscribe(`/topic/devices/${deviceId}/status`, (message) => {
           if (message.body) {
             const data = JSON.parse(message.body);
-            setDeviceStatus(data.status);
+            if (data.status) {
+              setDeviceStatus(data.status);
+            }
+            if (data.currentApp) {
+              setCurrentApp(data.currentApp);
+            }
           }
         });
 
@@ -97,5 +103,5 @@ export const useWebSocket = (deviceId?: string) => {
   // For MDM, commands from Admin -> Server are usually REST POST /commands
   // Server -> Agent is WS. 
 
-  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame };
+  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame, currentApp };
 };

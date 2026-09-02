@@ -90,7 +90,10 @@ Nếu ko được thì chạy:
 adb shell dpm set-device-owner com.edusphere.agent/.receiver.MDMAdminReceiver
 ```
 
+adb -d shell dpm remove-active-admin com.edusphere.agent/.receiver.MDMAdminReceiver
+adb -d uninstall com.edusphere.agent
 adb -d shell dpm set-device-owner com.edusphere.agent/.receiver.MDMAdminReceiver
+adb install -r -t -d app\build\intermediates\apk\debug\app-debug.apk
 
 ---
 

@@ -56,6 +56,7 @@ class HeartbeatService : Service() {
                     deviceId = deviceInfo.deviceId
                 )
                 startHeartbeatLoop(deviceInfo.deviceId)
+                startAppBlockerLoop()
             }
         }
     }
@@ -124,8 +125,6 @@ class HeartbeatService : Service() {
                         val metrics = deviceMonitor.getDeviceMetrics()
                         val currentApp = deviceMonitor.getCurrentApp()
                         
-                        ruleDetector.checkForegroundApp(currentApp?.packageName)
-                        
                         val request = HeartbeatRequest(
                             deviceId = deviceId,
                             timestamp = System.currentTimeMillis(),
@@ -148,6 +147,23 @@ class HeartbeatService : Service() {
                     e.printStackTrace()
                 }
                 delay(30000) // Send heartbeat every 30 seconds
+            }
+        }
+    }
+
+    private fun startAppBlockerLoop() {
+        serviceScope.launch {
+            while (isActive) {
+                try {
+                    val isPaused = sharedPreferencesManager.isMdmPaused()
+                    if (!isPaused) {
+                        val currentApp = deviceMonitor.getCurrentApp()
+                        ruleDetector.checkForegroundApp(currentApp?.packageName)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                delay(1500) // Check foreground app every 1.5 seconds
             }
         }
     }
