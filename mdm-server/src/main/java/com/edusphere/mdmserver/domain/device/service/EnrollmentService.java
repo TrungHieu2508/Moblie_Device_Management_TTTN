@@ -8,6 +8,8 @@ import com.edusphere.mdmserver.domain.school.entity.Campus;
 import com.edusphere.mdmserver.domain.school.entity.School;
 import com.edusphere.mdmserver.domain.school.repository.CampusRepository;
 import com.edusphere.mdmserver.domain.school.repository.SchoolRepository;
+import com.edusphere.mdmserver.domain.school.entity.Classroom;
+import com.edusphere.mdmserver.domain.school.repository.ClassroomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,7 @@ public class EnrollmentService {
     private final EnrollmentProfileRepository enrollmentRepository;
     private final CampusRepository campusRepository;
     private final SchoolRepository schoolRepository;
+    private final ClassroomRepository classroomRepository;
 
     @Transactional
     public EnrollmentDto createEnrollmentProfile(CreateEnrollmentRequest request) {
@@ -32,6 +35,12 @@ public class EnrollmentService {
                 .orElseThrow(() -> new IllegalArgumentException("Campus not found"));
         School school = schoolRepository.findById(request.getSchoolId())
                 .orElseThrow(() -> new IllegalArgumentException("School not found"));
+        
+        Classroom classroom = null;
+        if (request.getClassroomId() != null) {
+            classroom = classroomRepository.findById(request.getClassroomId())
+                    .orElseThrow(() -> new IllegalArgumentException("Classroom not found"));
+        }
 
         int expiresDays = (request.getExpiresInDays() != null && request.getExpiresInDays() > 0) 
                 ? request.getExpiresInDays() : 7;
@@ -51,6 +60,7 @@ public class EnrollmentService {
                 .code(code)
                 .campus(campus)
                 .school(school)
+                .classroom(classroom)
                 .expiresAt(Instant.now().plus(expiresDays, ChronoUnit.DAYS))
                 .maxUses(maxUses)
                 .currentUses(0)
@@ -91,6 +101,8 @@ public class EnrollmentService {
                 .campusName(profile.getCampus().getName())
                 .schoolId(profile.getSchool().getId())
                 .schoolName(profile.getSchool().getName())
+                .classroomId(profile.getClassroom() != null ? profile.getClassroom().getId() : null)
+                .classroomName(profile.getClassroom() != null ? profile.getClassroom().getName() : null)
                 .expiresAt(profile.getExpiresAt())
                 .maxUses(profile.getMaxUses())
                 .currentUses(profile.getCurrentUses())

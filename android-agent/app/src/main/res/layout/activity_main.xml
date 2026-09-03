@@ -333,7 +333,8 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:orientation="horizontal">
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
                         <TextView
                             android:layout_width="120dp"
                             android:layout_height="wrap_content"
@@ -341,6 +342,27 @@
                             android:textColor="?android:attr/textColorSecondary" />
                         <TextView
                             android:id="@+id/tvSchool"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:gravity="end"
+                            android:text="Loading..."
+                            android:textColor="?android:attr/textColorPrimary"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Classroom Name -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+                        <TextView
+                            android:layout_width="120dp"
+                            android:layout_height="wrap_content"
+                            android:text="Lớp học:"
+                            android:textColor="?android:attr/textColorSecondary" />
+                        <TextView
+                            android:id="@+id/tvClassroom"
                             android:layout_width="0dp"
                             android:layout_weight="1"
                             android:layout_height="wrap_content"

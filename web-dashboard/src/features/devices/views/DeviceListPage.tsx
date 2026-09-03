@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axiosInstance, { API_BASE_URL } from '../../../config/axios';
 import { getDevices, updateDevice, deleteDevice } from '../../../services/deviceService';
 import { createEnrollmentProfile } from '../../../services/enrollmentService';
-import { getAllCampuses, getSchools } from '../../../services/schoolService';
+import { getAllCampuses, getSchools, getClassrooms } from '../../../services/schoolService';
 import { useAuthStore } from '../../../store/authStore';
 import type { DeviceDto } from '../../../services/deviceService';
 
@@ -59,8 +59,21 @@ const DeviceListPage = () => {
 
   const queryClient = useQueryClient();
   const selectedCampusIdForForm = Form.useWatch('campusId', registerForm);
+  const selectedSchoolIdForForm = Form.useWatch('schoolId', registerForm);
   const selectedCampusIdForEditForm = Form.useWatch('campusId', editForm);
+  const selectedSchoolIdForEditForm = Form.useWatch('schoolId', editForm);
   
+  const { data: classroomsForForm = [], isLoading: isClassroomsLoadingForm } = useQuery({
+    queryKey: ['classrooms', selectedSchoolIdForForm],
+    queryFn: () => getClassrooms(selectedSchoolIdForForm),
+    enabled: !!selectedSchoolIdForForm
+  });
+
+  const { data: classroomsForEdit = [], isLoading: isClassroomsLoadingEdit } = useQuery({
+    queryKey: ['classrooms', selectedSchoolIdForEditForm],
+    queryFn: () => getClassrooms(selectedSchoolIdForEditForm),
+    enabled: !!selectedSchoolIdForEditForm
+  });
   // Advanced filters state
   const [advancedFilters, setAdvancedFilters] = useState<{
     minBattery?: number;
@@ -117,7 +130,7 @@ const DeviceListPage = () => {
   };
 
   const updateDeviceMutation = useMutation({
-    mutationFn: (data: { id: string, payload: { deviceName?: string, notes?: string, campusId?: string, schoolId?: string } }) => updateDevice(data.id, data.payload),
+    mutationFn: (data: { id: string, payload: { deviceName?: string, notes?: string, campusId?: string, schoolId?: string, classroomId?: string } }) => updateDevice(data.id, data.payload),
     onSuccess: () => {
       message.success('Cập nhật thiết bị thành công!');
       setIsEditModalVisible(false);
@@ -228,7 +241,8 @@ const DeviceListPage = () => {
               editForm.setFieldsValue({ 
                 deviceName: record.deviceName, 
                 campusId: record.campus?.id,
-                schoolId: record.school?.id
+                schoolId: record.school?.id,
+                classroomId: record.classroom?.id
               });
               setIsEditModalVisible(true);
             }}
@@ -389,6 +403,13 @@ const DeviceListPage = () => {
                 ))}
               </Select>
             </Form.Item>
+            <Form.Item name="classroomId" label="Lớp học (Tùy chọn)">
+              <Select placeholder="Chọn lớp học (nếu có)" disabled={!selectedSchoolIdForForm} loading={isClassroomsLoadingForm} allowClear>
+                {classroomsForForm?.map((classroom: any) => (
+                  <Select.Option key={classroom.id} value={classroom.id}>{classroom.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
             <Form.Item name="expiresInDays" label="Số ngày hiệu lực" initialValue={7}>
               <Input type="number" min={1} max={30} suffix="Ngày" />
             </Form.Item>
@@ -429,6 +450,13 @@ const DeviceListPage = () => {
                 .filter((school: any) => school.campusId === selectedCampusIdForEditForm)
                 .map((school: any) => (
                 <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item name="classroomId" label="Lớp học - Tùy chọn chuyển">
+            <Select placeholder="Chọn lớp học" disabled={!selectedSchoolIdForEditForm} loading={isClassroomsLoadingEdit} allowClear>
+              {classroomsForEdit?.map((cr: any) => (
+                <Select.Option key={cr.id} value={cr.id}>{cr.name}</Select.Option>
               ))}
             </Select>
           </Form.Item>

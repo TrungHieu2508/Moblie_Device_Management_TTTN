@@ -97,6 +97,9 @@ public class DeviceService {
             // Assign device
             device.setSchool(profile.getSchool());
             device.setCampus(profile.getCampus());
+            if (profile.getClassroom() != null) {
+                device.setClassroom(profile.getClassroom());
+            }
             device.setStatus(DeviceStatus.ONLINE);
             
             // Increment uses
@@ -203,12 +206,22 @@ public class DeviceService {
             Campus campus = campusRepository.findById(request.getCampusId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Cơ sở (Campus)"));
             
+            
             if (school.getCampus() == null || !school.getCampus().getId().equals(campus.getId())) {
                 throw new IllegalArgumentException("Trường học đã chọn không thuộc Cơ sở này");
             }
             
             device.setSchool(school);
             device.setCampus(campus);
+        }
+
+        if (request.getClassroomId() != null) {
+            Classroom classroom = classroomRepository.findById(request.getClassroomId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Lớp học"));
+            if (!classroom.getSchool().getId().equals(device.getSchool().getId())) {
+                throw new IllegalArgumentException("Lớp học đã chọn không thuộc Trường học này");
+            }
+            device.setClassroom(classroom);
         }
 
         return mapToDto(deviceRepository.save(device));

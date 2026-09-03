@@ -55,7 +55,8 @@ class MainViewModel @Inject constructor(
                 deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
                 osVersion = "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
                 campusName = deviceInfo?.campusName ?: "Chưa xác định",
-                schoolName = deviceInfo?.schoolName ?: "Chưa xác định"
+                schoolName = deviceInfo?.schoolName ?: "Chưa xác định",
+                classroomName = deviceInfo?.classroomName ?: "Chưa xác định"
             )
         }
     }
@@ -165,6 +166,7 @@ data class MainUiState(
     val osVersion: String = "Loading...",
     val campusName: String = "Loading...",
     val schoolName: String = "Loading...",
+    val classroomName: String = "Loading...",
     val isLoading: Boolean = false,
     val error: String? = null
 )

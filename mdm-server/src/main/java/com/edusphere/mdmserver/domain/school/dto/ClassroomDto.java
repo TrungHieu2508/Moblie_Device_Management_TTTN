@@ -10,6 +10,8 @@ import java.util.UUID;
 public class ClassroomDto {
     private UUID id;
     private UUID schoolId;
+    private String schoolName;
+    private String campusName;
     private String name;
     private String code;
 }

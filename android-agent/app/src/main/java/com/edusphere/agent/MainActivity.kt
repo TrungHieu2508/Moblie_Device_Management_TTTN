@@ -165,6 +165,7 @@ class MainActivity : AppCompatActivity() {
         tvOsVersion = findViewById(R.id.tvOsVersion)
         tvCampus = findViewById(R.id.tvCampus)
         tvSchool = findViewById(R.id.tvSchool)
+        val tvClassroom = findViewById<TextView>(R.id.tvClassroom)
         btnForceSync = findViewById(R.id.btnForceSync)
         
         val cardRegistration = findViewById<View>(R.id.cardRegistration)
@@ -178,6 +179,7 @@ class MainActivity : AppCompatActivity() {
                 tvOsVersion.text = state.osVersion
                 tvCampus.text = state.campusName
                 tvSchool.text = state.schoolName
+                tvClassroom.text = state.classroomName
 
                 // Update MDM Status
                 if (state.isDeviceOwner) {

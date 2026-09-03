@@ -4,7 +4,7 @@ import { CopyOutlined, QrcodeOutlined, PlusOutlined, DeleteOutlined } from '@ant
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QRCodeSVG } from 'qrcode.react';
 import axiosInstance, { API_BASE_URL } from '../../../config/axios';
-import { getAllCampuses, getSchools } from '../../../services/schoolService';
+import { getAllCampuses, getSchools, getClassrooms } from '../../../services/schoolService';
 import { createEnrollmentProfile, deleteEnrollmentProfile } from '../../../services/enrollmentService';
 
 const { Title, Text } = Typography;
@@ -38,6 +38,13 @@ const EnrollmentListPage = () => {
   const [createdCode, setCreatedCode] = useState<string | null>(null);
   const [registerForm] = Form.useForm();
   const selectedCampusIdForForm = Form.useWatch('campusId', registerForm);
+  const selectedSchoolIdForForm = Form.useWatch('schoolId', registerForm);
+
+  const { data: classrooms = [], isLoading: isClassroomsLoading } = useQuery({
+    queryKey: ['classrooms', selectedSchoolIdForForm],
+    queryFn: () => getClassrooms(selectedSchoolIdForForm),
+    enabled: !!selectedSchoolIdForForm
+  });
 
   const createEnrollmentMutation = useMutation({
     mutationFn: createEnrollmentProfile,
@@ -266,6 +273,15 @@ const EnrollmentListPage = () => {
                 ))}
               </Select>
             </Form.Item>
+            
+            <Form.Item name="classroomId" label="Lớp học (Tùy chọn)">
+              <Select placeholder="Chọn lớp học (nếu có)" disabled={!selectedSchoolIdForForm} loading={isClassroomsLoading}>
+                {classrooms?.map((classroom: any) => (
+                  <Select.Option key={classroom.id} value={classroom.id}>{classroom.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+
             <Form.Item name="expiresInDays" label="Số ngày hiệu lực" initialValue={7}>
               <Input type="number" min={1} max={30} suffix="Ngày" />
             </Form.Item>

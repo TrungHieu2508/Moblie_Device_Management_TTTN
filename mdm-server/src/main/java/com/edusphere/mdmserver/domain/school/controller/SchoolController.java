@@ -35,18 +35,19 @@ public class SchoolController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'IT_ADMIN')")
     public ResponseEntity<ApiResponse<Page<SchoolDto>>> getAllSchools(
+            @RequestParam(required = false) UUID campusId,
             Pageable pageable, 
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         
-        UUID campusId = null;
+        UUID filterCampusId = campusId;
         if (userDetails.getUser().getRole() == UserRole.IT_ADMIN) {
             if (userDetails.getUser().getCampus() == null) {
                 return ResponseEntity.ok(ApiResponse.success(Page.empty(), "IT_ADMIN hasn't been assigned to a campus"));
             }
-            campusId = userDetails.getUser().getCampus().getId();
+            filterCampusId = userDetails.getUser().getCampus().getId();
         }
         
-        Page<SchoolDto> response = schoolService.getAllSchools(pageable, campusId);
+        Page<SchoolDto> response = schoolService.getAllSchools(pageable, filterCampusId);
         return ResponseEntity.ok(ApiResponse.success(response, "Success"));
     }
 

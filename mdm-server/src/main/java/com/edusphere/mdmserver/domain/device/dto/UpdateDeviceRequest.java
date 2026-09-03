@@ -14,4 +14,6 @@ public class UpdateDeviceRequest {
     private UUID campusId;
     
     private UUID schoolId;
+    
+    private UUID classroomId;
 }

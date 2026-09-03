@@ -13,6 +13,8 @@ public class CreateEnrollmentRequest {
     @NotNull(message = "Campus ID is required")
     private UUID campusId;
 
+    private UUID classroomId;
+
     private Integer expiresInDays; // Default can be 7
     private Integer maxUses;       // Default can be 0 (unlimited)
 }

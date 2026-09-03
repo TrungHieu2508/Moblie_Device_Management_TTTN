@@ -16,7 +16,7 @@ export interface SchoolDto {
   address: string;
 }
 
-export const getSchools = async (params?: { page?: number, size?: number }) => {
+export const getSchools = async (params?: { page?: number, size?: number, campusId?: string }) => {
   const { data } = await axiosInstance.get('/schools', { params });
   return data.data; // Page<SchoolDto>
 };
@@ -63,6 +63,11 @@ export const getAllCampuses = async () => {
 
 export const createCampus = async (campusData: { name: string, code: string, address: string }) => {
   const { data } = await axiosInstance.post(`/campuses`, campusData);
+  return data.data;
+};
+
+export const updateCampus = async (id: string, campusData: { name: string, code: string, address: string }) => {
+  const { data } = await axiosInstance.put(`/campuses/${id}`, campusData);
   return data.data;
 };
 

@@ -42,6 +42,7 @@ public class ClassroomService {
         return mapToDto(classroomRepository.save(classroom));
     }
 
+    @Transactional(readOnly = true)
     public List<ClassroomDto> getClassroomsBySchoolId(UUID schoolId, CustomUserDetails userDetails) {
         School school = schoolRepository.findById(schoolId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy trường học"));
@@ -92,6 +93,8 @@ public class ClassroomService {
         return ClassroomDto.builder()
                 .id(classroom.getId())
                 .schoolId(classroom.getSchool().getId())
+                .schoolName(classroom.getSchool().getName())
+                .campusName(classroom.getSchool().getCampus() != null ? classroom.getSchool().getCampus().getName() : null)
                 .name(classroom.getName())
                 .code(classroom.getCode())
                 .build();
@@ -119,3 +122,4 @@ public class ClassroomService {
         }
     }
 }
+

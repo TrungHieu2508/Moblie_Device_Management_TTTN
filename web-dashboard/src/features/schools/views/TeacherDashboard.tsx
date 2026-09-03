@@ -209,25 +209,23 @@ const TeacherDashboard = () => {
           </Title>
           <Text className="text-gray-400">Quản lý và giám sát thiết bị trong giờ học</Text>
         </div>
-        {!isSuperAdmin && (
-          <div className="flex gap-4">
-            <Button 
-              icon={<SettingOutlined />} 
-              className="h-10 px-6 font-medium text-white border-gray-600 bg-[#1f2028] hover:border-purple-500 hover:text-purple-400"
-              onClick={() => setIsClassroomDrawerVisible(true)}
-            >
-              Quản lý Lớp học
-            </Button>
-            <Button 
-              type="primary"
-              icon={<CalendarOutlined />} 
-              className="h-10 px-6 font-medium border-0 bg-blue-600 hover:bg-blue-500"
-              onClick={() => setIsScheduleModalVisible(true)}
-            >
-              Lên lịch học
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-4">
+          <Button 
+            icon={<SettingOutlined />} 
+            className="h-10 px-6 font-medium text-white border-gray-600 bg-[#1f2028] hover:border-purple-500 hover:text-purple-400"
+            onClick={() => setIsClassroomDrawerVisible(true)}
+          >
+            Quản lý Lớp học
+          </Button>
+          <Button 
+            type="primary"
+            icon={<CalendarOutlined />} 
+            className="h-10 px-6 font-medium border-0 bg-blue-600 hover:bg-blue-500"
+            onClick={() => setIsScheduleModalVisible(true)}
+          >
+            Lên lịch học
+          </Button>
+        </div>
       </div>
 
       <Title level={4} className="!text-gray-200 mb-4 border-b border-[#2e303a] pb-2">Lớp đang diễn ra</Title>

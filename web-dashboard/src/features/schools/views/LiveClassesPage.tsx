@@ -98,7 +98,7 @@ const LiveClassesPage = () => {
             Giám sát: {session.classroomName}
             <Tag color="success" className="animate-pulse">Live</Tag>
           </Title>
-          <Text className="text-gray-400">Giáo viên: {session.teacherName} | Bắt đầu lúc: {new Date(session.startedAt).toLocaleTimeString()}</Text>
+          <Text className="text-gray-400">Giáo viên: {session.teacherName} | Bắt đầu lúc: {new Date(session.startedAt || '').toLocaleTimeString()}</Text>
         </div>
       </div>
 

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Table, Button, Modal, Form, Input, Card, Typography, message, Space, Popconfirm, Tooltip } from 'antd';
-import { PlusOutlined, EnvironmentOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EnvironmentOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllCampuses, createCampus, deleteCampus } from '../../../services/schoolService';
+import { getAllCampuses, createCampus, deleteCampus, updateCampus } from '../../../services/schoolService';
 const { Title } = Typography;
 
 const CampusListPage = () => {
   const queryClient = useQueryClient();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   const { data, isLoading } = useQuery({
@@ -19,12 +20,24 @@ const CampusListPage = () => {
     mutationFn: (values: any) => createCampus(values),
     onSuccess: () => {
       message.success('Đã thêm khu vực/cơ sở mới!');
-      setIsModalVisible(false);
-      form.resetFields();
+      handleModalClose();
       queryClient.invalidateQueries({ queryKey: ['campuses'] });
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || 'Không thể tạo khu vực/cơ sở';
+      message.error(errorMsg);
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (values: any) => updateCampus(editingId as string, values),
+    onSuccess: () => {
+      message.success('Đã cập nhật khu vực/cơ sở!');
+      handleModalClose();
+      queryClient.invalidateQueries({ queryKey: ['campuses'] });
+    },
+    onError: (error: any) => {
+      const errorMsg = error.response?.data?.message || 'Không thể cập nhật khu vực/cơ sở';
       message.error(errorMsg);
     }
   });
@@ -40,6 +53,22 @@ const CampusListPage = () => {
       message.error(errorMsg);
     }
   });
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setEditingId(null);
+    form.resetFields();
+  };
+
+  const handleEdit = (record: any) => {
+    setEditingId(record.id);
+    form.setFieldsValue({
+      name: record.name,
+      code: record.code,
+      address: record.address,
+    });
+    setIsModalVisible(true);
+  };
 
   const columns = [
     {
@@ -61,23 +90,33 @@ const CampusListPage = () => {
       align: 'center' as const,
       width: 100,
       render: (_: any, record: any) => (
-        <Popconfirm
-          title="Bạn có chắc chắn muốn xóa cơ sở này?"
-          description="Hành động này không thể hoàn tác."
-          onConfirm={() => deleteMutation.mutate(record.id)}
-          okText="Xóa"
-          cancelText="Hủy"
-          okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
-        >
-          <Tooltip title="Xóa cơ sở">
+        <Space>
+          <Tooltip title="Sửa cơ sở">
             <Button
               type="text"
-              danger
-              icon={<DeleteOutlined />}
-              className="hover:bg-red-500/10"
+              icon={<EditOutlined />}
+              className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+              onClick={() => handleEdit(record)}
             />
           </Tooltip>
-        </Popconfirm>
+          <Popconfirm
+            title="Bạn có chắc chắn muốn xóa cơ sở này?"
+            description="Hành động này không thể hoàn tác."
+            onConfirm={() => deleteMutation.mutate(record.id)}
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+          >
+            <Tooltip title="Xóa cơ sở">
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                className="hover:bg-red-500/10"
+              />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -110,8 +149,23 @@ const CampusListPage = () => {
         />
       </Card>
 
-      <Modal title="Thêm Khu vực (Campus) mới" open={isModalVisible} onCancel={() => setIsModalVisible(false)} footer={null} className="dark-modal">
-        <Form form={form} layout="vertical" onFinish={(v) => createMutation.mutate(v)} className="mt-4">
+      <Modal
+        title={editingId ? 'Cập nhật Khu vực (Campus)' : 'Thêm Khu vực (Campus) mới'}
+        open={isModalVisible}
+        onOk={() => form.submit()}
+        onCancel={handleModalClose}
+        confirmLoading={createMutation.isPending || updateMutation.isPending}
+        className="dark-modal"
+        okText={editingId ? 'Cập nhật' : 'Thêm mới'}
+        cancelText="Hủy"
+      >
+        <Form form={form} layout="vertical" onFinish={(values) => {
+          if (editingId) {
+            updateMutation.mutate(values);
+          } else {
+            createMutation.mutate(values);
+          }
+        }} className="mt-4">
           <Form.Item name="name" label="Tên khu vực" rules={[{ required: true }]}><Input placeholder="VD: Quận Gò Vấp" /></Form.Item>
           <Form.Item name="code" label="Mã khu vực" rules={[{ required: true }]}><Input placeholder="VD: Q_GV" /></Form.Item>
           <Form.Item name="address" label="Địa chỉ" rules={[{ required: true }]}><Input /></Form.Item>

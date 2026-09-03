@@ -8,6 +8,7 @@ data class RegistrationResponse(
     @SerializedName("tokenExpiresAt") val tokenExpiresAt: String,
     @SerializedName("campusName") val campusName: String?,
     @SerializedName("schoolName") val schoolName: String?,
+    @SerializedName("classroomName") val classroomName: String?,
     @SerializedName("serverConfig") val serverConfig: ServerConfig
 )
 

@@ -15,6 +15,8 @@ public class EnrollmentDto {
     private String campusName;
     private UUID schoolId;
     private String schoolName;
+    private UUID classroomId;
+    private String classroomName;
     private Instant expiresAt;
     private int maxUses;
     private int currentUses;

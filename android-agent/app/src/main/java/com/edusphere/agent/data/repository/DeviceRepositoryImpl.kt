@@ -37,6 +37,7 @@ class DeviceRepositoryImpl @Inject constructor(
                         serverUrl = data.serverConfig.websocketUrl,
                         campusName = data.campusName,
                         schoolName = data.schoolName,
+                        classroomName = data.classroomName,
                         isRegistered = true
                     )
                     deviceDao.insertDeviceInfo(entity)

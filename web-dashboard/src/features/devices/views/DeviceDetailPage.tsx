@@ -233,8 +233,10 @@ const DeviceDetailPage = () => {
                 <Text className="text-white font-medium text-base">Android {deviceInfo?.androidVersion}</Text>
               </div>
               <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
-                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Cơ sở / Trường</Text>
-                <Text className="text-white font-medium text-base">{deviceInfo?.school?.name || 'Chưa gán'}</Text>
+                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Cơ sở / Trường / Lớp</Text>
+                <Text className="text-white font-medium text-base">
+                  {deviceInfo?.school?.name || 'Chưa gán'} {deviceInfo?.classroom ? `- Lớp ${deviceInfo.classroom.name}` : ''}
+                </Text>
               </div>
               <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
                 <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Model / Serial</Text>

@@ -3,6 +3,7 @@ package com.edusphere.mdmserver.domain.device.entity;
 import com.edusphere.mdmserver.common.entity.BaseEntity;
 import com.edusphere.mdmserver.domain.school.entity.Campus;
 import com.edusphere.mdmserver.domain.school.entity.School;
+import com.edusphere.mdmserver.domain.school.entity.Classroom;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -27,6 +28,10 @@ public class EnrollmentProfile extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "campus_id", nullable = false)
     private Campus campus;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "classroom_id")
+    private Classroom classroom;
 
     @Column(name = "expires_at")
     private Instant expiresAt;

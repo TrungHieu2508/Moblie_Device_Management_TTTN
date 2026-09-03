@@ -12,6 +12,8 @@ const UserListPage = () => {
   const queryClient = useQueryClient();
   const [searchText, setSearchText] = useState('');
   const [page, setPage] = useState(0);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -19,8 +21,8 @@ const UserListPage = () => {
   const [editForm] = Form.useForm();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['users', page, searchText],
-    queryFn: () => getUsers({ page, size: 10, search: searchText || undefined }),
+    queryKey: ['users', page, searchText, selectedRole, selectedCampus],
+    queryFn: () => getUsers({ page, size: 10, search: searchText || undefined, role: selectedRole || undefined, campusId: selectedCampus || undefined }),
   });
 
   const { data: campusesData } = useQuery({
@@ -229,8 +231,37 @@ const UserListPage = () => {
           <Input 
             placeholder="Tìm kiếm tài khoản, email..." 
             prefix={<SearchOutlined className="text-gray-500" />}
-            className="max-w-md bg-[#1f2028] border-[#2e303a] text-white hover:border-gray-500 focus:border-[var(--color-primary)]"
-            onChange={(e) => setSearchText(e.target.value)}
+            className="max-w-xs bg-[#1f2028] border-[#2e303a] text-white hover:border-gray-500 focus:border-[var(--color-primary)]"
+            onChange={(e) => {
+              setSearchText(e.target.value);
+              setPage(0);
+            }}
+          />
+          <Select
+            allowClear
+            placeholder="Lọc theo Vai trò"
+            className="w-48 custom-select"
+            value={selectedRole}
+            onChange={(val) => {
+              setSelectedRole(val);
+              setPage(0);
+            }}
+            options={[
+              { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
+              { value: 'IT_ADMIN', label: 'IT_ADMIN' },
+              { value: 'TEACHER', label: 'TEACHER' },
+            ]}
+          />
+          <Select
+            allowClear
+            placeholder="Lọc theo Khu vực"
+            className="w-64 custom-select"
+            value={selectedCampus}
+            onChange={(val) => {
+              setSelectedCampus(val);
+              setPage(0);
+            }}
+            options={campusesData?.map((c: any) => ({ value: c.id, label: c.name })) || []}
           />
         </div>
 

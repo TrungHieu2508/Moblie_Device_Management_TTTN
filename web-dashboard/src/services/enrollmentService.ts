@@ -7,13 +7,15 @@ export interface EnrollmentDto {
   campusName: string;
   schoolId: string;
   schoolName: string;
+  classroomId?: string;
+  classroomName?: string;
   expiresAt: string;
   maxUses: number;
   currentUses: number;
   isActive: boolean;
 }
 
-export const createEnrollmentProfile = async (data: { schoolId: string, campusId: string, expiresInDays?: number, maxUses?: number }) => {
+export const createEnrollmentProfile = async (data: { schoolId: string, campusId: string, classroomId?: string, expiresInDays?: number, maxUses?: number }) => {
   const response = await axiosInstance.post('/enrollments', data);
   return response.data.data;
 };

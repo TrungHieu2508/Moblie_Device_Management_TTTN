@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Table, Button, Modal, Form, Input, Card, Typography, message, Space, Select, Popconfirm, Tooltip } from 'antd';
-import { PlusOutlined, BankOutlined, EnvironmentOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, BankOutlined, EnvironmentOutlined, DeleteOutlined, EyeOutlined, EditOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSchools, createSchool, getAllCampuses, deleteSchool } from '../../../services/schoolService';
+import { getSchools, createSchool, getAllCampuses, deleteSchool, updateSchool } from '../../../services/schoolService';
 import { useAuthStore } from '../../../store/authStore';
 const { Title } = Typography;
 
@@ -15,25 +15,38 @@ const SchoolListPage = () => {
   const role = user?.role;
 
   const [isSchoolModalVisible, setIsSchoolModalVisible] = useState(false);
-
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedCampusFilter, setSelectedCampusFilter] = useState<string | null>(null);
   
   const [schoolForm] = Form.useForm();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['schools', page],
-    queryFn: () => getSchools({ page, size: 10 }),
+    queryKey: ['schools', page, selectedCampusFilter],
+    queryFn: () => getSchools({ page, size: 10, campusId: selectedCampusFilter || undefined }),
   });
 
   const createSchoolMutation = useMutation({
     mutationFn: createSchool,
     onSuccess: () => {
       message.success('Đã thêm trường học mới!');
-      setIsSchoolModalVisible(false);
-      schoolForm.resetFields();
+      handleModalClose();
       queryClient.invalidateQueries({ queryKey: ['schools'] });
     },
     onError: (error: any) => {
       const errorMsg = error.response?.data?.message || 'Không thể tạo trường học';
+      message.error(errorMsg);
+    }
+  });
+
+  const updateSchoolMutation = useMutation({
+    mutationFn: (values: any) => updateSchool(editingId as string, values),
+    onSuccess: () => {
+      message.success('Đã cập nhật trường học!');
+      handleModalClose();
+      queryClient.invalidateQueries({ queryKey: ['schools'] });
+    },
+    onError: (error: any) => {
+      const errorMsg = error.response?.data?.message || 'Không thể cập nhật trường học';
       message.error(errorMsg);
     }
   });
@@ -56,7 +69,19 @@ const SchoolListPage = () => {
 
   const handleModalClose = () => {
     setIsSchoolModalVisible(false);
+    setEditingId(null);
     schoolForm.resetFields();
+  };
+
+  const handleEdit = (record: any) => {
+    setEditingId(record.id);
+    schoolForm.setFieldsValue({
+      name: record.name,
+      code: record.code,
+      campusId: record.campusId,
+      address: record.address,
+    });
+    setIsSchoolModalVisible(true);
   };
 
   const { data: campusesData } = useQuery({
@@ -106,7 +131,14 @@ const SchoolListPage = () => {
           </Tooltip>
           {role === 'SUPER_ADMIN' && (
             <>
-
+              <Tooltip title="Sửa trường học">
+                <Button 
+                  type="text" 
+                  icon={<EditOutlined />} 
+                  className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                  onClick={() => handleEdit(record)}
+                />
+              </Tooltip>
               <Popconfirm
                 title="Xóa trường học"
                 description="Bạn có chắc chắn muốn xóa trường học này không?"
@@ -152,7 +184,25 @@ const SchoolListPage = () => {
         )}
       </div>
 
-      <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg">
+      <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg body-no-padding overflow-hidden flex flex-col">
+        {role === 'SUPER_ADMIN' && (
+          <div className="p-4 border-b border-[#2e303a] flex items-center justify-between">
+            <Space>
+              <span className="text-gray-300">Lọc theo Khu vực:</span>
+              <Select
+                allowClear
+                placeholder="Tất cả Khu vực"
+                className="w-64 custom-select"
+                value={selectedCampusFilter}
+                onChange={(val) => {
+                  setSelectedCampusFilter(val);
+                  setPage(0);
+                }}
+                options={campusesData?.map((c: any) => ({ value: c.id, label: c.name })) || []}
+              />
+            </Space>
+          </div>
+        )}
         <Table
           columns={columns}
           dataSource={data?.content || []}
@@ -171,7 +221,7 @@ const SchoolListPage = () => {
 
       {/* Modal Thêm Trường */}
       <Modal 
-        title="Thêm Trường học" 
+        title={editingId ? 'Cập nhật Trường học' : 'Thêm Trường học mới'} 
         open={isSchoolModalVisible} 
         onCancel={handleModalClose} 
         footer={null} 
@@ -180,7 +230,13 @@ const SchoolListPage = () => {
         <Form 
           form={schoolForm} 
           layout="vertical" 
-          onFinish={(v) => createSchoolMutation.mutate(v)} 
+          onFinish={(v) => {
+            if (editingId) {
+              updateSchoolMutation.mutate(v);
+            } else {
+              createSchoolMutation.mutate(v);
+            }
+          }} 
           className="mt-4"
         >
           <Form.Item name="campusId" label="Khu vực (Campus)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
@@ -202,9 +258,9 @@ const SchoolListPage = () => {
             type="primary" 
             htmlType="submit" 
             className="w-full bg-[var(--color-primary)] border-0" 
-            loading={createSchoolMutation.isPending}
+            loading={createSchoolMutation.isPending || updateSchoolMutation.isPending}
           >
-            Tạo Trường học
+            {editingId ? 'Cập nhật Trường học' : 'Tạo Trường học'}
           </Button>
         </Form>
       </Modal>

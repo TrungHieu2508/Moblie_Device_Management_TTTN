@@ -26,6 +26,9 @@ public class SchoolService {
         if (schoolRepository.existsByCode(request.getCode())) {
             throw new IllegalArgumentException("Mã trường đã tồn tại: " + request.getCode());
         }
+        if (schoolRepository.existsByNameAndCampusId(request.getName(), request.getCampusId())) {
+            throw new IllegalArgumentException("Tên trường đã tồn tại trong khu vực này: " + request.getName());
+        }
 
         Campus campus = campusRepository.findById(request.getCampusId())
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khu vực/cơ sở"));
@@ -65,6 +68,9 @@ public class SchoolService {
         
         if (!school.getCode().equals(request.getCode()) && schoolRepository.existsByCode(request.getCode())) {
             throw new IllegalArgumentException("Mã trường đã tồn tại: " + request.getCode());
+        }
+        if (!school.getName().equals(request.getName()) && schoolRepository.existsByNameAndCampusId(request.getName(), request.getCampusId())) {
+            throw new IllegalArgumentException("Tên trường đã tồn tại trong khu vực này: " + request.getName());
         }
 
         if (!school.getCampus().getId().equals(request.getCampusId())) {

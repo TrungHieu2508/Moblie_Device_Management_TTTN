@@ -23,6 +23,9 @@ public class CampusService {
         if (campusRepository.existsByCode(request.getCode())) {
             throw new RuntimeException("Mã cơ sở đã tồn tại: " + request.getCode());
         }
+        if (campusRepository.existsByName(request.getName())) {
+            throw new RuntimeException("Tên cơ sở đã tồn tại: " + request.getName());
+        }
 
         Campus campus = Campus.builder()
                 .name(request.getName())
@@ -47,6 +50,9 @@ public class CampusService {
 
         if (!campus.getCode().equals(request.getCode()) && campusRepository.existsByCode(request.getCode())) {
             throw new RuntimeException("Mã cơ sở đã tồn tại: " + request.getCode());
+        }
+        if (!campus.getName().equals(request.getName()) && campusRepository.existsByName(request.getName())) {
+            throw new RuntimeException("Tên cơ sở đã tồn tại: " + request.getName());
         }
 
         campus.setName(request.getName());

@@ -12,5 +12,6 @@ data class DeviceEntity(
     val serverUrl: String,
     val campusName: String?,
     val schoolName: String?,
+    val classroomName: String?,
     val isRegistered: Boolean
 )
