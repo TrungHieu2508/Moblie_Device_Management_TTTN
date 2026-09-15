@@ -8,6 +8,8 @@ import { useAuthStore } from '../../store/authStore';
 import { Button, Typography, Spin } from 'antd';
 import { ArrowLeftOutlined, GlobalOutlined } from '@ant-design/icons';
 import * as THREE from 'three';
+import { Campus3DPin } from '../../components/3d/Campus3DPin';
+import { SchoolBuilding3D } from '../../components/3d/SchoolBuilding3D';
 
 const { Title, Text: AntText } = Typography;
 
@@ -34,121 +36,74 @@ const Starfield = () => {
   );
 };
 
-// ─── Hex Grid ──────────────────────────────────────────────────────
-const HexGrid = () => {
+// ─── Ground grid ──────────────────────────────────────────────────
+const GroundGrid = ({ level }: { level: string }) => {
+  const gridColor = level === 'CAMPUS' ? '#0a2a1a' : level === 'SCHOOL' ? '#0a1a0a' : '#0d0718';
+  const planeColor = level === 'CAMPUS' ? '#040a06' : level === 'SCHOOL' ? '#050a05' : '#050507';
   return (
     <group position={[0, -0.02, 0]}>
-      <gridHelper args={[120, 60, '#1a0a2e', '#0d0718']} />
+      <gridHelper args={[140, 70, gridColor, gridColor]} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[140, 140]} />
+        <meshStandardMaterial color={planeColor} transparent opacity={0.9} />
+      </mesh>
+    </group>
+  );
+};
+
+// ─── Campus map ground (Google Maps style for CAMPUS level) ────────
+const CampusMapGround = () => {
+  // Road rows/cols in world space
+  const roadLines = [-24, -16, -8, 0, 8, 16, 24];
+  return (
+    <group>
+      {/* Dark asphalt base */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <planeGeometry args={[120, 120]} />
-        <meshStandardMaterial color="#050507" transparent opacity={0.85} />
+        <meshStandardMaterial color="#454545" roughness={0.98} />
       </mesh>
-    </group>
-  );
-};
-
-// ─── Animated ring component ───────────────────────────────────────
-const AnimatedRing = ({ color, radius, speed = 1, y = 0 }: any) => {
-  const ref = useRef<THREE.Mesh>(null!);
-  useFrame((_, delta) => { if (ref.current) ref.current.rotation.y += delta * speed; });
-  return (
-    <mesh ref={ref} position={[0, y, 0]}>
-      <torusGeometry args={[radius, 0.03, 8, 64]} />
-      <meshStandardMaterial color={color} emissive={color} emissiveIntensity={2} transparent opacity={0.7} />
-    </mesh>
-  );
-};
-
-// ─── CampusModel — 3D Holographic Campus ──────────────────────────
-const CampusModel = ({ position, name, onClick }: any) => {
-  const [hovered, setHover] = useState(false);
-  const groupRef = useRef<THREE.Group>(null!);
-  useFrame(() => {
-    if (groupRef.current) {
-      groupRef.current.position.y = position[1] + Math.sin(Date.now() * 0.001) * 0.15;
-    }
-  });
-  return (
-    <group ref={groupRef} position={position} onClick={onClick}
-      onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { setHover(false); document.body.style.cursor = 'default'; }}>
-      {/* Base platform */}
-      <mesh position={[0, 0, 0]} castShadow>
-        <cylinderGeometry args={[2.8, 3.2, 0.4, 8]} />
-        <meshStandardMaterial color="#1a0a2e" emissive={hovered ? '#aa3bff' : '#3a1a6e'} emissiveIntensity={hovered ? 1.5 : 0.6} metalness={0.8} roughness={0.2} />
+      {/* Sidewalk/block zone */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} receiveShadow>
+        <planeGeometry args={[90, 90]} />
+        <meshStandardMaterial color="#d8cfc0" roughness={0.95} />
       </mesh>
-      {/* Main body */}
-      <mesh position={[0, 1.5, 0]} castShadow>
-        <boxGeometry args={[3, 2.5, 3]} />
-        <meshStandardMaterial color="#0d0720" emissive={hovered ? '#7b2ae8' : '#2d1460'} emissiveIntensity={hovered ? 1.2 : 0.5} metalness={0.9} roughness={0.1} />
-      </mesh>
-      {/* Top spire */}
-      <mesh position={[0, 3.3, 0]} castShadow>
-        <coneGeometry args={[0.8, 1.5, 6]} />
-        <meshStandardMaterial color="#aa3bff" emissive="#aa3bff" emissiveIntensity={hovered ? 3 : 1.5} />
-      </mesh>
-      {/* Glowing top orb */}
-      <mesh position={[0, 4.3, 0]}>
-        <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial color="#ffffff" emissive="#aa3bff" emissiveIntensity={4} />
-      </mesh>
-      {/* Rotating rings */}
-      <AnimatedRing color={hovered ? '#d4a0ff' : '#aa3bff'} radius={2.5} speed={0.8} y={1.5} />
-      <AnimatedRing color={hovered ? '#00d4ff' : '#6b28cc'} radius={3.2} speed={-0.5} y={0.8} />
-      {/* Point lights for glow */}
-      {hovered && <pointLight color="#aa3bff" intensity={4} distance={8} position={[0, 2, 0]} />}
-      {/* Label */}
-      <Text position={[0, 5.2, 0]} fontSize={0.55} color={hovered ? '#d4a0ff' : '#e2d4ff'} anchorX="center" anchorY="middle"
-        outlineColor="#000" outlineWidth={0.02}>{name}</Text>
-      {/* Hover tooltip */}
-      {hovered && (
-        <Html position={[0, 6.5, 0]} center distanceFactor={10}>
-          <div style={{ background: 'rgba(10,5,20,0.95)', border: '1px solid rgba(170,59,255,0.5)', borderRadius: 12, padding: '10px 16px', color: '#e2d4ff', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', boxShadow: '0 0 30px rgba(170,59,255,0.3)' }}>
-            🏛️ {name} — Click để xem trường học
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-};
-
-// ─── SchoolModel — 3D School Tower ────────────────────────────────
-const SchoolModel = ({ position, name, onClick }: any) => {
-  const [hovered, setHover] = useState(false);
-  const groupRef = useRef<THREE.Group>(null!);
-  useFrame(() => {
-    if (groupRef.current) groupRef.current.position.y = position[1] + Math.sin(Date.now() * 0.0012 + position[0]) * 0.12;
-  });
-  return (
-    <group ref={groupRef} position={position} onClick={onClick}
-      onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { setHover(false); document.body.style.cursor = 'default'; }}>
-      {/* Base */}
-      <mesh position={[0, 0, 0]} castShadow>
-        <boxGeometry args={[2.5, 0.35, 2.5]} />
-        <meshStandardMaterial color="#001a2e" emissive={hovered ? '#00d4ff' : '#003d6e'} emissiveIntensity={hovered ? 1.2 : 0.5} metalness={0.8} roughness={0.2} />
-      </mesh>
-      {/* Main cylinder */}
-      <mesh position={[0, 1.4, 0]} castShadow>
-        <cylinderGeometry args={[0.9, 1.1, 2.4, 12]} />
-        <meshStandardMaterial color="#001525" emissive={hovered ? '#0099cc' : '#005580'} emissiveIntensity={hovered ? 1.2 : 0.5} metalness={0.9} roughness={0.1} />
-      </mesh>
-      {/* Dome top */}
-      <mesh position={[0, 2.8, 0]} castShadow>
-        <sphereGeometry args={[0.95, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#00d4ff" emissive="#00d4ff" emissiveIntensity={hovered ? 2.5 : 1.2} transparent opacity={0.85} metalness={0.5} />
-      </mesh>
-      {/* Rotating ring */}
-      <AnimatedRing color={hovered ? '#80eaff' : '#00d4ff'} radius={1.6} speed={1.2} y={1.4} />
-      {hovered && <pointLight color="#00d4ff" intensity={3} distance={6} position={[0, 1.5, 0]} />}
-      <Text position={[0, 3.9, 0]} fontSize={0.42} color={hovered ? '#80eaff' : '#b0f0ff'} anchorX="center" anchorY="middle" outlineColor="#000" outlineWidth={0.02}>{name}</Text>
-      {hovered && (
-        <Html position={[0, 5, 0]} center distanceFactor={10}>
-          <div style={{ background: 'rgba(0,15,30,0.95)', border: '1px solid rgba(0,212,255,0.5)', borderRadius: 10, padding: '8px 14px', color: '#b0f0ff', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', boxShadow: '0 0 20px rgba(0,212,255,0.3)' }}>
-            🏫 {name} — Click để xem lớp học
-          </div>
-        </Html>
-      )}
+      {/* Roads horizontal */}
+      {roadLines.map(z => (
+        <mesh key={`rh-${z}`} position={[0, 0.005, z]} receiveShadow>
+          <boxGeometry args={[90, 0.01, 2.2]} />
+          <meshStandardMaterial color="#3a3a3a" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* Roads vertical */}
+      {roadLines.map(x => (
+        <mesh key={`rv-${x}`} position={[x, 0.005, 0]} receiveShadow>
+          <boxGeometry args={[2.2, 0.01, 90]} />
+          <meshStandardMaterial color="#3a3a3a" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* Park patches */}
+      {[[-16, -4, 5, 4], [6, 8, 6, 5], [14, -2, 5, 4], [-4, -18, 4, 3]].map(([x, z, w, d], i) => (
+        <mesh key={i} position={[x, 0.015, z]} receiveShadow>
+          <boxGeometry args={[w, 0.01, d]} />
+          <meshStandardMaterial color="#3a7d44" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* A few city block buildings for depth */}
+      {[
+        [-4, -4, 2, 2, 1.2, '#d4c5a0'], [4, -8, 1.8, 2, 0.8, '#c8b890'],
+        [-12, -2, 2.4, 1.8, 1.5, '#bfae88'], [6, -4, 2, 1.6, 1.0, '#ddd3b5'],
+        [-8, 4, 2.2, 2, 2.0, '#d4c5a0'], [12, 8, 1.8, 2.2, 0.7, '#c8b890'],
+        [-20, -8, 2, 2, 1.3, '#bfae88'], [20, -12, 2.4, 1.8, 1.8, '#d8cdb5'],
+        [4, 12, 1.6, 2, 0.9, '#ddd3b5'], [-8, -12, 2, 1.6, 1.4, '#c0b088'],
+        [10, 4, 2.2, 2.2, 2.2, '#d4c5a0'], [-18, 12, 1.8, 2, 0.6, '#b8a878'],
+      ].map(([x, z, w, d, h, col], i) => (
+        <group key={i} position={[x as number, 0, z as number]}>
+          <mesh position={[0, (h as number) / 2, 0]} castShadow receiveShadow>
+            <boxGeometry args={[w as number, h as number, d as number]} />
+            <meshStandardMaterial color={col as string} roughness={0.75} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 };
@@ -195,7 +150,7 @@ const ClassroomModel = ({ position, name, onClick }: any) => {
 };
 
 // ─── DeviceModel — Holographic Android ───────────────────────────
-const DeviceModel = ({ position, name, status, onClick }: any) => {
+const DeviceModel = ({ position, name, status }: any) => {
   const [hovered, setHover] = useState(false);
   const groupRef = useRef<THREE.Group>(null!);
   const colorMap: Record<string, string> = { ONLINE: '#22c55e', OFFLINE: '#64748b', WARNING: '#eab308', CRITICAL: '#ef4444' };
@@ -204,7 +159,7 @@ const DeviceModel = ({ position, name, status, onClick }: any) => {
     if (groupRef.current) groupRef.current.position.y = position[1] + Math.sin(Date.now() * 0.002 + position[0] * 3) * 0.15;
   });
   return (
-    <group ref={groupRef} position={position} onClick={onClick}
+    <group ref={groupRef} position={position}
       onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { setHover(false); document.body.style.cursor = 'default'; }}>
       {/* Phone body */}
@@ -268,8 +223,8 @@ const Map3DPage = () => {
   };
 
   const getGridLayout = (count: number, spacing: number) => {
-    const cols = Math.ceil(Math.sqrt(count));
-    const layout = [];
+    const cols = Math.max(1, Math.ceil(Math.sqrt(count)));
+    const layout: [number, number, number][] = [];
     for (let i = 0; i < count; i++) {
       const row = Math.floor(i / cols);
       const col = i % cols;
@@ -282,14 +237,27 @@ const Map3DPage = () => {
     if (viewLevel === 'CAMPUS') {
       const layout = getGridLayout((campuses as any[]).length, 12);
       return (campuses as any[]).map((c: any, i: number) => (
-        <CampusModel key={c.id} position={layout[i]} name={c.name} onClick={(e: any) => { e.stopPropagation(); setSelectedCampusId(c.id); setViewLevel('SCHOOL'); }} />
+        <Campus3DPin
+          key={c.id}
+          position={layout[i]}
+          name={c.name}
+          address={c.address}
+          schoolCount={schools.length > 0 ? schools.filter((s: any) => s.campusId === c.id).length : 0}
+          onClick={() => { setSelectedCampusId(c.id); setViewLevel('SCHOOL'); }}
+        />
       ));
     }
     if (viewLevel === 'SCHOOL') {
       const displaySchools = selectedCampusId ? schools.filter((s: any) => s.campusId === selectedCampusId) : schools;
-      const layout = getGridLayout(displaySchools.length, 10);
+      const layout = getGridLayout(displaySchools.length, 16);
       return displaySchools.map((s: any, i: number) => (
-        <SchoolModel key={s.id} position={layout[i]} name={s.name} onClick={(e: any) => { e.stopPropagation(); setSelectedSchoolId(s.id); setViewLevel('CLASSROOM'); }} />
+        <SchoolBuilding3D
+          key={s.id}
+          position={layout[i]}
+          name={s.name}
+          campusName={s.campusName}
+          onClick={() => { setSelectedSchoolId(s.id); setViewLevel('CLASSROOM'); }}
+        />
       ));
     }
     if (viewLevel === 'CLASSROOM') {
@@ -306,27 +274,28 @@ const Map3DPage = () => {
         : devices.filter((d: any) => d.classroom?.id === selectedClassroomId);
       const layout = getGridLayout(displayDevices.length, 2.5);
       return displayDevices.map((d: any, i: number) => (
-        <DeviceModel key={d.id} position={[layout[i][0], 0.5, layout[i][2]]} name={d.deviceName || d.model} status={d.status} onClick={(e: any) => { e.stopPropagation(); }} />
+        <DeviceModel key={d.id} position={[layout[i][0], 0.5, layout[i][2]]} name={d.deviceName || d.model} status={d.status} />
       ));
     }
     return null;
   };
 
   const isLoading = loadingCampuses || loadingSchools || loadingClassrooms || loadingDevices;
-  const levelLabels = { CAMPUS: '🏛️ Tất cả Cơ sở', SCHOOL: '🏫 Trường học', CLASSROOM: '📚 Lớp học', DEVICE: '📱 Thiết bị' };
+  const levelLabels = { CAMPUS: '📍 Bản đồ Khu vực', SCHOOL: '🏫 Trường học', CLASSROOM: '📚 Lớp học', DEVICE: '📱 Thiết bị' };
+  const levelColors: Record<string, string> = { CAMPUS: '#00d4a0', SCHOOL: '#ffd700', CLASSROOM: '#10b981', DEVICE: '#3b82f6' };
 
   return (
-    <div className="h-full w-full flex flex-col" style={{ minHeight: '100vh', background: '#050507' }}>
+    <div className="w-full flex flex-col" style={{ flex: 1, minHeight: 0, background: '#050507' }}>
       {/* Header bar */}
       <div className="flex items-center justify-between px-6 py-4"
-        style={{ borderBottom: '1px solid rgba(170,59,255,0.12)', background: 'rgba(5,5,7,0.8)', backdropFilter: 'blur(16px)' }}>
+        style={{ borderBottom: `1px solid ${levelColors[viewLevel]}20`, background: 'rgba(5,5,7,0.8)', backdropFilter: 'blur(16px)' }}>
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, rgba(0,212,255,0.2), rgba(170,59,255,0.2))', border: '1px solid rgba(0,212,255,0.3)' }}>
-              <GlobalOutlined style={{ color: '#00d4ff', fontSize: 16 }} />
+              style={{ background: `linear-gradient(135deg, ${levelColors[viewLevel]}33, ${levelColors[viewLevel]}15)`, border: `1px solid ${levelColors[viewLevel]}50` }}>
+              <GlobalOutlined style={{ color: levelColors[viewLevel], fontSize: 16 }} />
             </div>
-            <Title level={4} className="!m-0 !text-white" style={{ letterSpacing: '-0.02em' }}>Bản Đồ 3D Holographic</Title>
+            <Title level={4} className="!m-0 !text-white" style={{ letterSpacing: '-0.02em' }}>Bản Đồ 3D Tương tác</Title>
           </div>
           <AntText className="font-mono-data" style={{ color: '#4b5563', fontSize: 11 }}>MDM › {levelLabels[viewLevel]}</AntText>
         </div>
@@ -345,13 +314,14 @@ const Map3DPage = () => {
           <div className="flex items-center gap-2">
             {(['CAMPUS', 'SCHOOL', 'CLASSROOM', 'DEVICE'] as const).map((level) => {
               const isActive = viewLevel === level;
+              const color = levelColors[level];
               return (
                 <div key={level} className="text-[10px] font-mono-data px-2.5 py-1 rounded-lg font-bold transition-all duration-300"
                   style={{
-                    background: isActive ? 'rgba(170,59,255,0.2)' : 'rgba(20,21,30,0.6)',
-                    color: isActive ? '#aa3bff' : '#4b5563',
-                    border: `1px solid ${isActive ? 'rgba(170,59,255,0.4)' : 'rgba(46,48,58,0.4)'}`,
-                    boxShadow: isActive ? '0 0 12px rgba(170,59,255,0.25)' : 'none',
+                    background: isActive ? `${color}20` : 'rgba(20,21,30,0.6)',
+                    color: isActive ? color : '#4b5563',
+                    border: `1px solid ${isActive ? `${color}60` : 'rgba(46,48,58,0.4)'}`,
+                    boxShadow: isActive ? `0 0 12px ${color}30` : 'none',
                   }}>
                   {level}
                 </div>
@@ -366,10 +336,10 @@ const Map3DPage = () => {
         style={{ background: 'rgba(5,5,7,0.85)', border: '1px solid rgba(170,59,255,0.15)', backdropFilter: 'blur(16px)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
         <div className="text-[10px] font-mono-data font-bold mb-3" style={{ color: '#6b7280', letterSpacing: '0.1em' }}>LEGEND</div>
         {[
-          { color: '#aa3bff', label: 'Cơ sở' },
-          { color: '#00d4ff', label: 'Trường học' },
+          { color: '#00d4a0', label: 'Khu vực' },
+          { color: '#ffd700', label: 'Trường học' },
           { color: '#10b981', label: 'Lớp học' },
-          { color: '#94a3b8', label: 'Thiết bị' },
+          { color: '#3b82f6', label: 'Thiết bị' },
         ].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-2 mb-1.5">
             <div className="w-2.5 h-2.5 rounded-sm" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
@@ -379,40 +349,78 @@ const Map3DPage = () => {
       </div>
 
       {/* 3D Canvas */}
-      <div className="flex-1 relative" style={{ minHeight: 600 }}>
+      <div className="flex-1 relative" style={{ minHeight: 0 }}>
         {isLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20"
             style={{ background: 'rgba(5,5,7,0.85)', backdropFilter: 'blur(8px)' }}>
             <Spin size="large" />
-            <div className="mt-4 font-mono-data text-sm" style={{ color: '#aa3bff' }}>Loading 3D Scene...</div>
+            <div className="mt-4 font-mono-data text-sm" style={{ color: levelColors[viewLevel] }}>Loading 3D Scene...</div>
           </div>
         )}
         <Canvas
           shadows
-          camera={{ position: [0, 18, 25], fov: 45 }}
-          style={{ background: 'transparent', height: '100%', minHeight: 600 }}
+          camera={{ position: viewLevel === 'CAMPUS' ? [4, 32, 42] : [0, 20, 30], fov: viewLevel === 'CAMPUS' ? 42 : 42 }}
+          style={{ background: 'transparent', width: '100%', height: '100%' }}
           gl={{ antialias: true, alpha: true }}>
-          {/* Background */}
-          <color attach="background" args={['#020204']} />
-          <fog attach="fog" args={['#020204', 40, 120]} />
+          {/* Background — sky for CAMPUS, dark space for deeper levels */}
+          {viewLevel === 'CAMPUS' ? (
+            <>
+              <color attach="background" args={['#a8d4f0']} />
+              <fog attach="fog" args={['#c8e4f8', 65, 130]} />
+            </>
+          ) : (
+            <>
+              <color attach="background" args={['#020204']} />
+              <fog attach="fog" args={['#020204', 50, 150]} />
+            </>
+          )}
 
-          {/* Professional 3-point lighting */}
-          <ambientLight intensity={0.3} />
-          <directionalLight position={[15, 25, 10]} intensity={1.8} castShadow color="#ffffff" shadow-mapSize={[2048, 2048]} />
-          <pointLight position={[-15, 10, -10]} intensity={1.2} color="#aa3bff" />
-          <pointLight position={[10, 5, 15]} intensity={0.8} color="#00d4ff" />
-          <hemisphereLight args={['#0d0520', '#000000', 0.5]} />
+          {/* Lighting */}
+          {viewLevel === 'CAMPUS' ? (
+            <>
+              <ambientLight intensity={0.65} />
+              <directionalLight position={[20, 35, 15]} intensity={1.8} castShadow color="#fff8f0" shadow-mapSize={[2048, 2048]} shadow-camera-left={-60} shadow-camera-right={60} shadow-camera-top={60} shadow-camera-bottom={-60} />
+              <directionalLight position={[-15, 20, -20]} intensity={0.5} color="#c8e0ff" />
+              <hemisphereLight args={['#b8d4f0', '#6b8a50', 0.45]} />
+            </>
+          ) : (
+            <>
+              <ambientLight intensity={0.3} />
+              <directionalLight position={[15, 25, 10]} intensity={1.8} castShadow color="#ffffff" shadow-mapSize={[2048, 2048]} />
+              <pointLight position={[-15, 10, -10]} intensity={1.2} color={levelColors[viewLevel]} />
+              <pointLight position={[10, 5, 15]} intensity={0.8} color="#ffffff" />
+              <hemisphereLight args={['#0d0520', '#000000', 0.5]} />
+            </>
+          )}
 
           {/* Scene elements */}
-          <Starfield />
-          <HexGrid />
+          {viewLevel !== 'CAMPUS' && <Starfield />}
+          {viewLevel === 'CAMPUS' ? <CampusMapGround /> : <GroundGrid level={viewLevel} />}
           {renderContent()}
 
-          <OrbitControls makeDefault minDistance={3} maxDistance={60} maxPolarAngle={Math.PI / 2 - 0.05} enableDamping dampingFactor={0.05} />
+          <OrbitControls
+            makeDefault
+            minDistance={viewLevel === 'CAMPUS' ? 8 : 4}
+            maxDistance={viewLevel === 'CAMPUS' ? 75 : 70}
+            minPolarAngle={viewLevel === 'CAMPUS' ? 0.15 : 0}
+            maxPolarAngle={Math.PI / 2 - 0.02}
+            enableDamping
+            dampingFactor={0.07}
+            target={viewLevel === 'CAMPUS' ? [0, 0, -2] : [0, 0, 0]}
+          />
         </Canvas>
+
+        {/* Bottom instruction */}
+        <div style={{
+          position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(5,5,7,0.85)', border: `1px solid ${levelColors[viewLevel]}20`,
+          borderRadius: 20, padding: '6px 16px', color: '#6b7280', fontSize: 11,
+          backdropFilter: 'blur(12px)', fontFamily: 'monospace',
+        }}>
+          🖱️ Kéo để xoay · Cuộn để zoom · Click để drill-down
+        </div>
       </div>
     </div>
   );
 };
 export default Map3DPage;
-

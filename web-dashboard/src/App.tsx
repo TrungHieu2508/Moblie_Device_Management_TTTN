@@ -61,7 +61,7 @@ const MainLayout = () => {
   const roleColor = role === 'SUPER_ADMIN' ? '#aa3bff' : role === 'IT_ADMIN' ? '#00d4ff' : '#4ade80';
 
   return (
-    <Layout className="min-h-screen">
+    <Layout style={{ minHeight: '100vh', height: '100vh' }}>
       <Sider width={256} theme="dark">
         {/* Logo area */}
         <div className="h-16 flex items-center px-5 border-b border-[rgba(170,59,255,0.12)]"
@@ -175,7 +175,14 @@ const MainLayout = () => {
           </div>
         </Header>
 
-        <Content style={{ background: '#050507', overflowY: 'auto' }}>
+        <Content style={{
+          background: '#050507',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          minHeight: 0,
+        }}>
           <Outlet />
         </Content>
       </Layout>
