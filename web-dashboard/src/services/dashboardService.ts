@@ -8,6 +8,7 @@ export interface DashboardSummaryDto {
   criticalDevices: number;
   unresolvedAlerts: number;
   safetyIndex: number;
+  violationData?: { name: string; locked: number; gaming: number }[];
 }
 
 export const getDashboardSummary = async () => {

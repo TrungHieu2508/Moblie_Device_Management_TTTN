@@ -513,7 +513,7 @@ const Map3DPage = () => {
       return (campuses as any[]).map((c: any, i: number) => (
         <Campus3DPin
           key={c.id}
-          position={layout[i]}
+          position={layout[i] as [number, number, number]}
           name={c.name}
           address={c.address}
           schoolCount={allSchools.filter((s: any) => s.campusId === c.id).length}
@@ -527,7 +527,7 @@ const Map3DPage = () => {
       return displaySchools.map((s: any, i: number) => (
         <SchoolBuilding3D
           key={s.id}
-          position={layout[i]}
+          position={layout[i] as [number, number, number]}
           name={s.name}
           campusName={s.campusName}
           classroomCount={s.classroomCount}
@@ -541,7 +541,7 @@ const Map3DPage = () => {
       const displayClassrooms = hasUnassigned ? [...classrooms, { id: 'unassigned', name: 'Chưa phân lớp' }] : classrooms;
       const layout = getGridLayout(displayClassrooms.length, 6);
       return displayClassrooms.map((cr: any, i: number) => (
-        <ClassroomModel key={cr.id} position={layout[i]} name={cr.name} activeDeviceCount={cr.id === 'unassigned' ? devices.filter((d: any) => !d.classroom && d.status === 'ONLINE').length : devices.filter((d: any) => d.classroom?.id === cr.id && d.status === 'ONLINE').length} onClick={(e: any) => { e.stopPropagation(); setSelectedClassroomId(cr.id); setViewLevel('DEVICE'); }} />
+        <ClassroomModel key={cr.id} position={layout[i] as [number, number, number]} name={cr.name} activeDeviceCount={cr.id === 'unassigned' ? devices.filter((d: any) => !d.classroom && d.status === 'ONLINE').length : devices.filter((d: any) => d.classroom?.id === cr.id && d.status === 'ONLINE').length} onClick={(e: any) => { e.stopPropagation(); setSelectedClassroomId(cr.id); setViewLevel('DEVICE'); }} />
       ));
     }
     if (viewLevel === 'DEVICE') {

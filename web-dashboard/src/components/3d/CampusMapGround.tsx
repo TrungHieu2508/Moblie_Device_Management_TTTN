@@ -165,9 +165,9 @@ const DetailedBuilding = ({
       <meshBasicMaterial color="#00f3ff" wireframe transparent opacity={0.15} blending={THREE.AdditiveBlending} />
     </mesh>
     {/* Roof neon pad */}
-    <mesh position={[0, h + 0.01, 0]}>
+    <mesh position={[0, h + 0.01, 0]} rotation={[-Math.PI/2, 0, 0]}>
       <planeGeometry args={[w * 0.8, d * 0.8]} />
-      <meshBasicMaterial color="#0055ff" transparent opacity={0.4} rotation={[-Math.PI/2, 0, 0]} />
+      <meshBasicMaterial color="#0055ff" transparent opacity={0.4} />
     </mesh>
   </group>
 );
