@@ -6,9 +6,9 @@ spring:
   # DATABASE - PostgreSQL
   # ================================================================
   datasource:
-    url: jdbc:postgresql://localhost:5432/mdm_db?stringtype=unspecified
-    username: mdm_user
-    password: mdm_password
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mdm_db?stringtype=unspecified}
+    username: ${DB_USERNAME:mdm_user}
+    password: ${DB_PASSWORD:mdm_password}
     driver-class-name: org.postgresql.Driver
     hikari:
       connection-timeout: 30000
@@ -46,9 +46,9 @@ spring:
   # ================================================================
   data:
     redis:
-      host: localhost
-      port: 6379
-      password:                   # Để trống nếu không có password (dev)
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
       timeout: 2000ms
       lettuce:
         pool:
@@ -91,7 +91,7 @@ app:
   # ================================================================
   device:
     heartbeat-interval: 30
-    websocket-url: "ws://192.168.1.5:8081/api/ws-agent"
+    websocket-url: ${WS_URL:ws://192.168.1.5:8081/api/ws-agent}
 
   # ================================================================
   # HEARTBEAT CONFIGURATION
