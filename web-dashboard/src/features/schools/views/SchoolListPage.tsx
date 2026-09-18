@@ -225,8 +225,8 @@ const SchoolListPage = () => {
                     position={layout[i]}
                     name={school.name}
                     campusName={school.campusName}
-                    deviceCount={getSchoolDeviceCount(school.id)}
-                    classroomCount={0}
+                    deviceCount={school.deviceCount || getSchoolDeviceCount(school.id)}
+                    classroomCount={school.classroomCount || 0}
                     isSelected={selectedSchoolId === school.id}
                     onClick={() => setSelectedSchoolId(
                       selectedSchoolId === school.id ? null : school.id

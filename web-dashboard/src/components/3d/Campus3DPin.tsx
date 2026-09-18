@@ -13,76 +13,102 @@ interface Campus3DPinProps {
   color?: string;
 }
 
-// ─── Pulse ring on ground ──────────────────────────────────────────
-const PulseRing = ({ color }: { color: string }) => {
-  const ringRef = useRef<THREE.Mesh>(null!);
-  const scaleRef = useRef(0.5);
+// ─── Force Field Marker ──────────────────────────────────────────
+const ForceFieldMarker = ({ color, active }: { color: string; active: boolean }) => {
+  const ringsRef = useRef<THREE.Group>(null!);
+  const diamondRef = useRef<THREE.Group>(null!);
+  const domeRef = useRef<THREE.Mesh>(null!);
 
-  useFrame((_, dt) => {
-    if (!ringRef.current) return;
-    scaleRef.current += dt * 0.55;
-    const mat = ringRef.current.material as THREE.MeshBasicMaterial;
-    mat.opacity = Math.max(0, 0.55 * (1 - scaleRef.current / 2.5));
-    ringRef.current.scale.setScalar(scaleRef.current);
-    if (scaleRef.current > 2.5) scaleRef.current = 0.5;
+  const domeRadius = 4.0;
+  const targetOpacity = active ? 0.35 : 0.15;
+
+  useFrame((state, dt) => {
+    if (!ringsRef.current || !diamondRef.current || !domeRef.current) return;
+    
+    // Rotate rings and diamond
+    ringsRef.current.rotation.z -= dt * 0.5;
+    diamondRef.current.rotation.y += dt * 1.2;
+    
+    // Pulse animation for floating and glowing
+    const t = state.clock.getElapsedTime();
+    diamondRef.current.position.y = 7 + Math.sin(t * 2) * 0.5; // Float up and down
+    
+    const pulse = 1 + Math.sin(t * 3) * 0.1;
+    
+    // Smooth opacity transition for dome
+    const domeMat = domeRef.current.material as THREE.MeshStandardMaterial;
+    domeMat.opacity = THREE.MathUtils.lerp(domeMat.opacity, targetOpacity * pulse, 0.1);
   });
 
   return (
-    <mesh ref={ringRef} position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <ringGeometry args={[0.8, 1.1, 40]} />
-      <meshBasicMaterial color={color} transparent opacity={0.55} side={THREE.DoubleSide} />
-    </mesh>
-  );
-};
+    <group position={[0, 0.05, 0]}>
+      {/* 1. Ground Rings */}
+      <group rotation={[-Math.PI / 2, 0, 0]}>
+        <group ref={ringsRef}>
+          {/* Outer Ring */}
+          <mesh>
+            <ringGeometry args={[domeRadius - 0.2, domeRadius, 64]} />
+            <meshBasicMaterial color={color} transparent opacity={active ? 0.8 : 0.4} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+          </mesh>
+          {/* Inner dashed ring pattern */}
+          <mesh>
+            <ringGeometry args={[domeRadius - 0.8, domeRadius - 0.6, 32, 1, 0, Math.PI * 2]} />
+            <meshBasicMaterial color={color} transparent opacity={active ? 0.5 : 0.2} wireframe side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      </group>
 
-// ─── Teardrop pin — large Google Maps style ────────────────────────
-const TearDropPin = ({
-  color,
-  active,
-  elevation,
-}: {
-  color: string;
-  active: boolean;
-  elevation: number;
-}) => {
-  const groupRef = useRef<THREE.Group>(null!);
+      {/* 2. Floating Diamond (Crystal) Marker */}
+      <group ref={diamondRef} position={[0, 9, 0]}>
+        {/* Core Diamond */}
+        <mesh castShadow>
+          <octahedronGeometry args={[2.0, 0]} />
+          <meshStandardMaterial 
+            color={color} 
+            roughness={0.1} 
+            metalness={0.8} 
+            emissive={color} 
+            emissiveIntensity={active ? 1.0 : 0.6} 
+          />
+        </mesh>
+        {/* Wireframe Aura */}
+        <mesh>
+          <octahedronGeometry args={[2.3, 0]} />
+          <meshBasicMaterial 
+            color="#ffffff" 
+            wireframe 
+            transparent 
+            opacity={active ? 0.8 : 0.3} 
+            blending={THREE.AdditiveBlending} 
+          />
+        </mesh>
+      </group>
 
-  useFrame(({ clock }) => {
-    if (!groupRef.current) return;
-    const t = clock.getElapsedTime();
-    groupRef.current.position.y = elevation + Math.sin(t * 1.3) * 0.15;
-  });
-
-  const ei = active ? 0.8 : 0.3;
-
-  return (
-    <group ref={groupRef} position={[0, elevation, 0]}>
-      {/* Head — large balloon sphere */}
-      <mesh position={[0, 1.3, 0]} castShadow>
-        <sphereGeometry args={[1.0, 36, 36]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={ei} roughness={0.1} metalness={0.05} />
+      {/* 2.5 Laser Anchor Line pointing to ground */}
+      <mesh position={[0, 4.5, 0]}>
+        <cylinderGeometry args={[0.08, 0.08, 9, 8]} />
+        <meshBasicMaterial color={color} transparent opacity={0.4} blending={THREE.AdditiveBlending} />
       </mesh>
 
-      {/* White inner circle */}
-      <mesh position={[0, 1.3, 0.92]}>
-        <circleGeometry args={[0.42, 28]} />
-        <meshBasicMaterial color="#ffffff" />
+      {/* 3. Energy Dome (Hemisphere) */}
+      <mesh ref={domeRef} position={[0, 0, 0]}>
+        <sphereGeometry args={[domeRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <meshStandardMaterial 
+          color={color} 
+          emissive={color}
+          emissiveIntensity={1.5}
+          transparent 
+          opacity={0.2} 
+          roughness={0.1}
+          metalness={0.5}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
       </mesh>
-
-      {/* Neck */}
-      <mesh position={[0, 0.48, 0]} castShadow>
-        <cylinderGeometry args={[0.52, 0.10, 1.0, 24]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={ei} roughness={0.15} />
-      </mesh>
-
-      {/* Sharp tip */}
-      <mesh position={[0, 0.05, 0]} castShadow rotation={[Math.PI, 0, 0]}>
-        <coneGeometry args={[0.14, 0.25, 20]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={ei + 0.1} roughness={0.1} />
-      </mesh>
-
-      {/* Glow */}
-      {active && <pointLight color={color} intensity={16} distance={16} position={[0, 1.3, 0]} decay={2} />}
+      
+      {/* Core light at base */}
+      <pointLight color={color} intensity={active ? 20 : 10} distance={15} decay={2} position={[0, 1, 0]} />
     </group>
   );
 };
@@ -95,122 +121,133 @@ export const Campus3DPin = ({
   schoolCount = 0,
   isSelected = false,
   onClick,
-  color = '#EA4335',
+  color = '#00ff88', // Default to a cyber green/cyan if not provided
 }: Campus3DPinProps) => {
   const [hovered, setHover] = useState(false);
   const active = hovered || isSelected;
-  const pinElev = active ? 3.5 : 2.8;
-  const pinColor = isSelected ? '#1A73E8' : color;
+  // Use primary blue for selected, otherwise the provided color
+  const themeColor = isSelected ? '#1A73E8' : color;
 
   return (
     <group
       position={position}
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-      onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { setHover(false); document.body.style.cursor = 'default'; }}
+      onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={(e) => { e.stopPropagation(); setHover(false); document.body.style.cursor = 'default'; }}
     >
-      {/* Ground shadow */}
-      <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[1.4, 36]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.28} />
+      {/* Invisible hitbox for stable hover - covers the entire dome and pillar */}
+      <mesh position={[0, 6, 0]}>
+        <cylinderGeometry args={[8, 8, 20, 16]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {/* Pulse ring when active */}
-      {active && <PulseRing color={pinColor} />}
+      <ForceFieldMarker color={themeColor} active={active} />
 
-      {/* The pin */}
-      <TearDropPin color={pinColor} active={active} elevation={pinElev} />
-
-      {/* ─── Name label ─────────────────────────────────────────── */}
+      {/* ─── Glassmorphism Name Label ─────────────────────────────────────────── */}
       <Html
-        position={[0, pinElev + 2.8, 0]}
+        position={[0, 14, 0]}
         center
-        distanceFactor={10}
+        distanceFactor={22}
         zIndexRange={[100, 0]}
       >
         <div style={{
-          background: isSelected ? 'rgba(26,115,232,0.97)' : 'rgba(10,10,10,0.93)',
+          background: active ? 'rgba(26, 115, 232, 0.35)' : 'rgba(10, 15, 25, 0.6)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           color: '#ffffff',
-          fontSize: 22,
-          fontWeight: 800,
+          fontSize: 42,
+          fontWeight: 900,
           fontFamily: '"Google Sans", "Noto Sans", system-ui, sans-serif',
-          padding: '10px 24px',
-          borderRadius: 30,
+          padding: '20px 48px',
+          borderRadius: '28px',
           whiteSpace: 'nowrap',
-          border: `2.5px solid ${isSelected ? '#1A73E8' : 'rgba(255,255,255,0.22)'}`,
-          boxShadow: `0 6px 24px rgba(0,0,0,0.6)`,
-          letterSpacing: '0.01em',
+          border: `2px solid ${active ? 'rgba(255, 255, 255, 1)' : 'rgba(255, 255, 255, 0.3)'}`,
+          boxShadow: active 
+            ? `0 16px 50px rgba(26, 115, 232, 0.8), inset 0 0 24px rgba(255, 255, 255, 0.4)` 
+            : '0 12px 40px rgba(0,0,0,0.6)',
+          letterSpacing: '0.05em',
           userSelect: 'none',
           pointerEvents: 'none',
-          lineHeight: 1,
+          transition: 'all 0.3s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          opacity: active ? 0 : 1 // Hide this label when active to show the detailed card instead
         }}>
-          {name}
+          <div style={{
+            textTransform: 'uppercase',
+            textShadow: active ? `0 0 15px ${themeColor}, 0 0 30px ${themeColor}` : '0 2px 5px rgba(0,0,0,0.8)'
+          }}>
+            {name}
+          </div>
+          {schoolCount > 0 && (
+             <div style={{
+               fontSize: 24,
+               fontWeight: 700,
+               background: active ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.15)',
+               padding: '6px 20px',
+               borderRadius: '24px',
+               border: '1px solid rgba(255,255,255,0.2)',
+               boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+             }}>
+               {schoolCount} Trường học
+             </div>
+          )}
         </div>
       </Html>
 
-      {/* ─── School count badge ─────────────────────────────────── */}
-      {schoolCount > 0 && (
-        <Html
-          position={[1.5, pinElev + 1.8, 0]}
-          center
-          distanceFactor={10}
-          zIndexRange={[100, 0]}
-        >
-          <div style={{
-            background: '#34A853',
-            color: '#fff',
-            fontSize: 16,
-            fontWeight: 800,
-            padding: '6px 16px',
-            borderRadius: 20,
-            whiteSpace: 'nowrap',
-            border: '2.5px solid rgba(255,255,255,0.45)',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
-            fontFamily: 'system-ui',
-            userSelect: 'none',
-            pointerEvents: 'none',
-          }}>
-            🏫 {schoolCount} trường
-          </div>
-        </Html>
-      )}
-
-      {/* ─── Info card on hover ─────────────────────────────────── */}
+      {/* ─── Info card on hover (Detailed) ─────────────────────────────────── */}
       {hovered && !isSelected && (
         <Html
-          position={[2.5, pinElev + 1.5, 0]}
+          position={[0, 16, 0]}
           center
-          distanceFactor={9}
+          distanceFactor={28}
           zIndexRange={[200, 0]}
         >
           <div style={{
-            background: '#ffffff',
-            borderRadius: 16,
-            padding: '16px 20px',
-            minWidth: 230,
-            maxWidth: 270,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.15)',
+            background: 'rgba(15, 20, 30, 0.95)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            borderRadius: '24px',
+            padding: '30px',
+            minWidth: 360,
+            boxShadow: '0 24px 60px rgba(0,0,0,0.8), inset 0 0 6px rgba(255,255,255,0.3)',
             fontFamily: '"Google Sans", system-ui, sans-serif',
             pointerEvents: 'none',
-            border: '1px solid rgba(0,0,0,0.06)',
+            border: `2px solid rgba(255,255,255,0.3)`,
             overflow: 'hidden',
+            transition: 'opacity 0.2s',
           }}>
-            {/* Color strip */}
-            <div style={{ height: 5, borderRadius: '12px 12px 0 0', background: color, margin: '-16px -20px 12px' }} />
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#202124', marginBottom: 6 }}>{name}</div>
+            {/* Cyberpunk accent line */}
+            <div style={{ 
+              position: 'absolute', top: 0, left: 0, right: 0, height: '6px', 
+              background: `linear-gradient(90deg, transparent, ${themeColor}, transparent)` 
+            }} />
+            
+            <div style={{ fontSize: 32, fontWeight: 800, color: '#ffffff', marginBottom: 14, textShadow: '0 4px 8px rgba(0,0,0,0.6)' }}>
+              {name}
+            </div>
             {address && (
-              <div style={{ fontSize: 12, color: '#5f6368', marginBottom: 10, lineHeight: 1.5 }}>📍 {address}</div>
+              <div style={{ fontSize: 18, color: '#e0e0e0', marginBottom: 20, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <span style={{opacity: 0.9, fontSize: '20px'}}>📍</span> {address}
+              </div>
             )}
             <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: '#E8F5E9', color: '#2E7D32',
-              fontSize: 13, fontWeight: 700,
-              padding: '5px 12px', borderRadius: 10,
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'rgba(255,255,255,0.15)', color: '#b9f6ca',
+              border: '2px solid rgba(165, 214, 167, 0.4)',
+              fontSize: 18, fontWeight: 700,
+              padding: '12px 24px', borderRadius: '16px',
             }}>
-              🏫 {schoolCount} trường học
+              🏫 Hệ thống có {schoolCount} trường
             </div>
-            <div style={{ fontSize: 11, color: '#9aa0a6', marginTop: 10, fontStyle: 'italic' }}>
-              Click để xem chi tiết →
+            <div style={{ 
+              fontSize: 16, color: themeColor, marginTop: 24, 
+              fontWeight: 700, letterSpacing: '0.05em',
+              textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 8
+            }}>
+              <span style={{ fontSize: '24px', lineHeight: 0 }}>⚲</span> Click để xem chi tiết
             </div>
           </div>
         </Html>

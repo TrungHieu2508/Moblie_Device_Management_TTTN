@@ -7,6 +7,8 @@ import com.edusphere.mdmserver.domain.school.entity.Classroom;
 import com.edusphere.mdmserver.domain.school.repository.SchoolRepository;
 import com.edusphere.mdmserver.domain.school.repository.ClassroomRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,12 +18,14 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ClassroomService {
 
     private final ClassroomRepository classroomRepository;
     private final SchoolRepository schoolRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional
     public ClassroomDto createClassroom(CreateClassroomRequest request, CustomUserDetails userDetails) {
@@ -85,7 +89,12 @@ public class ClassroomService {
         
         validateSchoolAccess(classroom.getSchool(), userDetails);
 
-        // TODO: check if devices exist in this classroom
+        // Cascade: unassign devices, delete class_sessions
+        jdbcTemplate.update("UPDATE devices SET classroom_id = NULL WHERE classroom_id = ?", id);
+        try { jdbcTemplate.update("DELETE FROM class_sessions WHERE classroom_id = ?", id); } catch (Exception e) {
+            log.debug("class_sessions: {}", e.getMessage());
+        }
+
         classroomRepository.deleteById(id);
     }
 

@@ -122,7 +122,8 @@ const EnrollmentListPage = () => {
           <Button 
             type="primary" 
             ghost 
-            size="small" 
+            size="small"
+            className="!text-white" 
             icon={<CopyOutlined />}
             onClick={() => {
               navigator.clipboard.writeText(record.code);

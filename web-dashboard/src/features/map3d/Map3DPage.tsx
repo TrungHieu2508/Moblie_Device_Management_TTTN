@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Html } from '@react-three/drei';
 import { useQuery } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { ArrowLeftOutlined, GlobalOutlined } from '@ant-design/icons';
 import * as THREE from 'three';
 import { Campus3DPin } from '../../components/3d/Campus3DPin';
 import { SchoolBuilding3D } from '../../components/3d/SchoolBuilding3D';
+import { CampusMapGround } from '../../components/3d/CampusMapGround';
 
 const { Title, Text: AntText } = Typography;
 
@@ -51,97 +52,230 @@ const GroundGrid = ({ level }: { level: string }) => {
   );
 };
 
-// ─── Campus map ground (Google Maps style for CAMPUS level) ────────
-const CampusMapGround = () => {
-  // Road rows/cols in world space
-  const roadLines = [-24, -16, -8, 0, 8, 16, 24];
-  return (
-    <group>
-      {/* Dark asphalt base */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[120, 120]} />
-        <meshStandardMaterial color="#454545" roughness={0.98} />
-      </mesh>
-      {/* Sidewalk/block zone */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} receiveShadow>
-        <planeGeometry args={[90, 90]} />
-        <meshStandardMaterial color="#d8cfc0" roughness={0.95} />
-      </mesh>
-      {/* Roads horizontal */}
-      {roadLines.map(z => (
-        <mesh key={`rh-${z}`} position={[0, 0.005, z]} receiveShadow>
-          <boxGeometry args={[90, 0.01, 2.2]} />
-          <meshStandardMaterial color="#3a3a3a" roughness={0.95} />
-        </mesh>
-      ))}
-      {/* Roads vertical */}
-      {roadLines.map(x => (
-        <mesh key={`rv-${x}`} position={[x, 0.005, 0]} receiveShadow>
-          <boxGeometry args={[2.2, 0.01, 90]} />
-          <meshStandardMaterial color="#3a3a3a" roughness={0.95} />
-        </mesh>
-      ))}
-      {/* Park patches */}
-      {[[-16, -4, 5, 4], [6, 8, 6, 5], [14, -2, 5, 4], [-4, -18, 4, 3]].map(([x, z, w, d], i) => (
-        <mesh key={i} position={[x, 0.015, z]} receiveShadow>
-          <boxGeometry args={[w, 0.01, d]} />
-          <meshStandardMaterial color="#3a7d44" roughness={0.95} />
-        </mesh>
-      ))}
-      {/* A few city block buildings for depth */}
-      {[
-        [-4, -4, 2, 2, 1.2, '#d4c5a0'], [4, -8, 1.8, 2, 0.8, '#c8b890'],
-        [-12, -2, 2.4, 1.8, 1.5, '#bfae88'], [6, -4, 2, 1.6, 1.0, '#ddd3b5'],
-        [-8, 4, 2.2, 2, 2.0, '#d4c5a0'], [12, 8, 1.8, 2.2, 0.7, '#c8b890'],
-        [-20, -8, 2, 2, 1.3, '#bfae88'], [20, -12, 2.4, 1.8, 1.8, '#d8cdb5'],
-        [4, 12, 1.6, 2, 0.9, '#ddd3b5'], [-8, -12, 2, 1.6, 1.4, '#c0b088'],
-        [10, 4, 2.2, 2.2, 2.2, '#d4c5a0'], [-18, 12, 1.8, 2, 0.6, '#b8a878'],
-      ].map(([x, z, w, d, h, col], i) => (
-        <group key={i} position={[x as number, 0, z as number]}>
-          <mesh position={[0, (h as number) / 2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[w as number, h as number, d as number]} />
-            <meshStandardMaterial color={col as string} roughness={0.75} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-};
+// (CampusMapGround imported from components/3d/CampusMapGround)
 
-// ─── ClassroomModel — 3D Room Box ────────────────────────────────
-const ClassroomModel = ({ position, name, onClick }: any) => {
+// ─── ClassroomModel — Detailed Miniature Classroom ─────────────────────
+
+// Mini Tablet on a desk
+const MiniTablet = ({ statusColor = '#22c55e' }: { statusColor?: string }) => (
+  <group position={[0, 0.39, -0.02]}>
+    {/* Tablet body */}
+    <mesh rotation={[-Math.PI / 6, 0, 0]} castShadow>
+      <boxGeometry args={[0.22, 0.14, 0.012]} />
+      <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.1} />
+    </mesh>
+    {/* Screen */}
+    <mesh position={[0, 0.003, 0.007]} rotation={[-Math.PI / 6, 0, 0]}>
+      <boxGeometry args={[0.19, 0.11, 0.003]} />
+      <meshStandardMaterial 
+        color={statusColor} 
+        emissive={statusColor} 
+        emissiveIntensity={2.5} 
+        transparent opacity={0.95} 
+      />
+    </mesh>
+  </group>
+);
+
+const MiniDesk = ({ position, hasTablet = false, tabletColor }: { position: [number, number, number]; hasTablet?: boolean; tabletColor?: string }) => (
+  <group position={position}>
+    {/* Desk surface */}
+    <mesh position={[0, 0.35, 0]} castShadow>
+      <boxGeometry args={[0.5, 0.04, 0.35]} />
+      <meshStandardMaterial color="#d4a373" roughness={0.8} />
+    </mesh>
+    {/* Desk legs */}
+    {[-0.2, 0.2].map(x => 
+      [-0.12, 0.12].map(z => (
+        <mesh key={`${x}-${z}`} position={[x, 0.175, z]} castShadow>
+          <cylinderGeometry args={[0.015, 0.015, 0.35]} />
+          <meshStandardMaterial color="#8a8a8a" metalness={0.8} />
+        </mesh>
+      ))
+    )}
+    {/* Chair seat */}
+    <mesh position={[0, 0.2, 0.3]} castShadow>
+      <boxGeometry args={[0.25, 0.03, 0.25]} />
+      <meshStandardMaterial color="#e9c46a" roughness={0.8} />
+    </mesh>
+    {/* Chair back */}
+    <mesh position={[0, 0.35, 0.41]} castShadow>
+      <boxGeometry args={[0.25, 0.25, 0.03]} />
+      <meshStandardMaterial color="#e9c46a" roughness={0.8} />
+    </mesh>
+    {/* Tablet on desk if active */}
+    {hasTablet && <MiniTablet statusColor={tabletColor} />}
+  </group>
+);
+
+const ClassroomModel = ({ position, name, onClick, activeDeviceCount = 0 }: any) => {
   const [hovered, setHover] = useState(false);
   const groupRef = useRef<THREE.Group>(null!);
-  useFrame(() => {
-    if (groupRef.current) groupRef.current.position.y = position[1] + Math.sin(Date.now() * 0.0015 + position[2]) * 0.1;
+
+  // Desk positions for 6 student desks
+  const deskPositions: [number, number, number][] = [
+    [-0.8, 0.05, -0.1], [0, 0.05, -0.1], [0.8, 0.05, -0.1],
+    [-0.8, 0.05, 0.7],  [0, 0.05, 0.7],  [0.8, 0.05, 0.7],
+  ];
+
+  // Determine which desks get tablets (seeded by name for consistency)
+  const tabletDesks = useMemo(() => {
+    if (activeDeviceCount <= 0) return new Set<number>();
+    // Simple hash from name to create a deterministic shuffle
+    let seed = 0;
+    for (let i = 0; i < (name || '').length; i++) seed += (name || '').charCodeAt(i) * (i + 1);
+    // Fisher-Yates-like shuffle of desk indices
+    const indices = [0, 1, 2, 3, 4, 5];
+    for (let i = indices.length - 1; i > 0; i--) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      const j = seed % (i + 1);
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return new Set(indices.slice(0, Math.min(activeDeviceCount, 6)));
+  }, [activeDeviceCount, name]);
+
+  useFrame((state) => {
+    // Subtle floating effect for the whole classroom
+    if (groupRef.current) {
+      groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime + position[0]) * 0.05;
+    }
   });
+
   return (
     <group ref={groupRef} position={position} onClick={onClick}
       onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { setHover(false); document.body.style.cursor = 'default'; }}>
-      {/* Main box */}
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <boxGeometry args={[1.6, 1.2, 1.6]} />
-        <meshStandardMaterial color="#001a10" emissive={hovered ? '#00ff88' : '#006644'} emissiveIntensity={hovered ? 1.2 : 0.4} metalness={0.6} roughness={0.3} />
+      
+      {/* Floor */}
+      <mesh position={[0, 0, 0]} receiveShadow>
+        <boxGeometry args={[3.2, 0.1, 3.2]} />
+        <meshStandardMaterial color="#a3b18a" roughness={0.9} />
       </mesh>
-      {/* Roof */}
-      <mesh position={[0, 1.55, 0]} castShadow>
-        <coneGeometry args={[1.2, 0.7, 4]} />
-        <meshStandardMaterial color="#10b981" emissive="#10b981" emissiveIntensity={hovered ? 2 : 0.8} />
+
+      {/* Back Wall */}
+      <mesh position={[0, 0.8, -1.55]} receiveShadow>
+        <boxGeometry args={[3.2, 1.6, 0.1]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
-      {/* Windows glow */}
-      {[-0.4, 0.4].map((x, i) => (
-        <mesh key={i} position={[x, 0.7, 0.82]}>
-          <boxGeometry args={[0.35, 0.35, 0.05]} />
-          <meshStandardMaterial color="#4ade80" emissive="#4ade80" emissiveIntensity={hovered ? 4 : 2} transparent opacity={0.9} />
+
+      {/* Side Walls (Low) */}
+      <mesh position={[-1.55, 0.4, 0]} receiveShadow>
+        <boxGeometry args={[0.1, 0.8, 3.2]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
+      </mesh>
+      <mesh position={[1.55, 0.4, 0]} receiveShadow>
+        <boxGeometry args={[0.1, 0.8, 3.2]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
+      </mesh>
+
+      {/* Blackboard */}
+      <mesh position={[0, 0.9, -1.49]}>
+        <boxGeometry args={[2.0, 0.8, 0.05]} />
+        <meshStandardMaterial color="#2b2d42" roughness={0.6} />
+      </mesh>
+      
+      {/* Board Frame */}
+      <mesh position={[0, 0.9, -1.5]}>
+        <boxGeometry args={[2.1, 0.9, 0.06]} />
+        <meshStandardMaterial color="#8b5a2b" roughness={0.7} />
+      </mesh>
+
+      {/* Teacher's Desk */}
+      <mesh position={[0, 0.4, -0.9]} castShadow>
+        <boxGeometry args={[1.0, 0.4, 0.4]} />
+        <meshStandardMaterial color="#bc6c25" roughness={0.7} />
+      </mesh>
+
+      {/* Student Desks (2 rows of 3) — tablets appear on active desks */}
+      {deskPositions.map((pos, idx) => (
+        <MiniDesk key={idx} position={pos} hasTablet={tabletDesks.has(idx)} tabletColor="#22c55e" />
+      ))}
+
+      {/* Overhead Lights */}
+      {[-0.8, 0.8].map(x => (
+        <mesh key={x} position={[x, 1.8, -0.5]}>
+          <boxGeometry args={[0.6, 0.05, 0.2]} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={hovered ? 2 : 1} />
         </mesh>
       ))}
-      {hovered && <pointLight color="#10b981" intensity={3} distance={5} position={[0, 1, 0]} />}
-      <Text position={[0, 2.6, 0]} fontSize={0.36} color={hovered ? '#86efac' : '#6ee7b7'} anchorX="center" anchorY="middle" outlineColor="#000" outlineWidth={0.02}>{name}</Text>
+
+      {/* Glowing Ground Selection Ring */}
       {hovered && (
-        <Html position={[0, 3.3, 0]} center distanceFactor={10}>
-          <div style={{ background: 'rgba(0,15,8,0.95)', border: '1px solid rgba(74,222,128,0.5)', borderRadius: 10, padding: '8px 14px', color: '#86efac', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', boxShadow: '0 0 20px rgba(74,222,128,0.3)' }}>
-            📚 {name} — Click để xem thiết bị
+        <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[2.2, 2.4, 32]} />
+          <meshBasicMaterial color="#10b981" transparent opacity={0.6} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+
+      {/* Name Label Floating Above */}
+      <Html position={[0, 2.8, 0]} center distanceFactor={14} zIndexRange={[100, 0]}>
+        <div style={{
+          background: hovered ? 'rgba(16, 185, 129, 0.35)' : 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: `2px solid ${hovered ? '#34d399' : 'rgba(16, 185, 129, 0.4)'}`,
+          borderRadius: '24px',
+          padding: '20px 48px',
+          color: '#ffffff',
+          fontSize: 34,
+          fontWeight: 900,
+          fontFamily: '"Google Sans", "Noto Sans", sans-serif',
+          whiteSpace: 'nowrap',
+          boxShadow: hovered ? '0 0 50px rgba(16, 185, 129, 0.8), inset 0 0 20px rgba(16, 185, 129, 0.4)' : '0 10px 40px rgba(0,0,0,0.8)',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <div style={{ 
+            textTransform: 'uppercase', 
+            letterSpacing: '2px', 
+            textShadow: hovered ? '0 0 20px #34d399' : '0 4px 8px rgba(0,0,0,0.9)' 
+          }}>
+            📚 {name}
+          </div>
+          {hovered && (
+            <div style={{ fontSize: 16, color: '#ecfdf5', fontWeight: 700, background: 'rgba(0,0,0,0.6)', padding: '6px 20px', borderRadius: '16px' }}>
+              Click xem thiết bị →
+            </div>
+          )}
+        </div>
+      </Html>
+    </group>
+  );
+};
+
+// ─── DeviceClassroomView — Large 3D Classroom with 40 desks ─────────
+const DeviceTablet = ({ position, name, status, isHovered, onHover, onUnhover }: any) => {
+  const colorMap: Record<string, string> = { ONLINE: '#22c55e', OFFLINE: '#64748b', WARNING: '#eab308', CRITICAL: '#ef4444' };
+  const statusColor = colorMap[status] || '#64748b';
+  return (
+    <group position={position}
+      onPointerOver={(e) => { e.stopPropagation(); onHover?.(); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { onUnhover?.(); document.body.style.cursor = 'default'; }}>
+      {/* Tablet body */}
+      <mesh rotation={[-Math.PI / 6, 0, 0]} castShadow>
+        <boxGeometry args={[0.35, 0.22, 0.015]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.1} />
+      </mesh>
+      {/* Screen */}
+      <mesh position={[0, 0.004, 0.009]} rotation={[-Math.PI / 6, 0, 0]}>
+        <boxGeometry args={[0.30, 0.18, 0.004]} />
+        <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={isHovered ? 4 : 2} transparent opacity={0.95} />
+      </mesh>
+      {/* Glow */}
+      {status === 'ONLINE' && <pointLight color={statusColor} intensity={0.5} distance={1.5} />}
+      {/* Tooltip */}
+      {isHovered && (
+        <Html position={[0, 0.5, 0]} center style={{ pointerEvents: 'none' }}>
+          <div style={{ background: 'rgba(10,12,20,0.95)', border: `1px solid ${statusColor}66`, borderRadius: 10, padding: '8px 14px', color: '#e2e8f0', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', boxShadow: `0 0 20px ${statusColor}33`, minWidth: 140 }}>
+            <div style={{ marginBottom: 4 }}>📱 {name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
+              <span style={{ color: statusColor, fontSize: 11 }}>{status}</span>
+            </div>
           </div>
         </Html>
       )}
@@ -149,48 +283,168 @@ const ClassroomModel = ({ position, name, onClick }: any) => {
   );
 };
 
-// ─── DeviceModel — Holographic Android ───────────────────────────
-const DeviceModel = ({ position, name, status }: any) => {
-  const [hovered, setHover] = useState(false);
-  const groupRef = useRef<THREE.Group>(null!);
-  const colorMap: Record<string, string> = { ONLINE: '#22c55e', OFFLINE: '#64748b', WARNING: '#eab308', CRITICAL: '#ef4444' };
-  const statusColor = colorMap[status] || '#64748b';
-  useFrame(() => {
-    if (groupRef.current) groupRef.current.position.y = position[1] + Math.sin(Date.now() * 0.002 + position[0] * 3) * 0.15;
-  });
+const DeviceClassroomView = ({ devices: displayDevices, classroomName }: { devices: any[]; classroomName: string }) => {
+  const [hoveredDevice, setHoveredDevice] = useState<string | null>(null);
+  const ROWS = 5;
+  const COLS = 8;
+  const TOTAL_DESKS = ROWS * COLS; // 40
+  const DESK_SPACING_X = 1.3;
+  const DESK_SPACING_Z = 1.6;
+  const roomW = COLS * DESK_SPACING_X + 3;
+  const roomD = ROWS * DESK_SPACING_Z + 4;
+
+  // Map devices to desk indices deterministically
+  const deviceDeskMap = useMemo(() => {
+    const map = new Map<number, any>(); // deskIndex -> device
+    if (displayDevices.length === 0) return map;
+    let seed = 42;
+    const indices = Array.from({ length: TOTAL_DESKS }, (_, i) => i);
+    // Fisher-Yates shuffle
+    for (let i = indices.length - 1; i > 0; i--) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      const j = seed % (i + 1);
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    displayDevices.forEach((device: any, idx: number) => {
+      if (idx < TOTAL_DESKS) map.set(indices[idx], device);
+    });
+    return map;
+  }, [displayDevices]);
+
   return (
-    <group ref={groupRef} position={position}
-      onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { setHover(false); document.body.style.cursor = 'default'; }}>
-      {/* Phone body */}
-      <mesh position={[0, 0, 0]} castShadow>
-        <boxGeometry args={[0.55, 0.95, 0.12]} />
-        <meshStandardMaterial color="#1a1f2e" emissive={hovered ? '#334155' : '#1e293b'} emissiveIntensity={0.6} metalness={0.9} roughness={0.1} />
+    <group>
+      {/* Floor */}
+      <mesh position={[0, -0.05, 0]} receiveShadow>
+        <boxGeometry args={[roomW, 0.1, roomD]} />
+        <meshStandardMaterial color="#b5baa0" roughness={0.9} />
       </mesh>
-      {/* Screen */}
-      <mesh position={[0, 0.05, 0.07]}>
-        <boxGeometry args={[0.45, 0.78, 0.01]} />
-        <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={hovered ? 3 : 1.5} transparent opacity={0.9} />
+
+      {/* Back Wall */}
+      <mesh position={[0, 2.5, -roomD / 2 + 0.05]} receiveShadow>
+        <boxGeometry args={[roomW, 5, 0.1]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
-      {/* Home button */}
-      <mesh position={[0, -0.42, 0.07]}>
-        <circleGeometry args={[0.05, 16]} />
-        <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={2} />
+
+      {/* Left Wall */}
+      <mesh position={[-roomW / 2 + 0.05, 2.5, 0]} receiveShadow>
+        <boxGeometry args={[0.1, 5, roomD]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
-      {/* Status halo */}
-      <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[0.55, 0.03, 8, 32]} />
-        <meshStandardMaterial color={statusColor} emissive={statusColor} emissiveIntensity={status === 'ONLINE' ? 3 : 1} transparent opacity={0.8} />
+
+      {/* Right Wall */}
+      <mesh position={[roomW / 2 - 0.05, 2.5, 0]} receiveShadow>
+        <boxGeometry args={[0.1, 5, roomD]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
-      {status === 'ONLINE' && <pointLight color={statusColor} intensity={1.5} distance={3} position={[0, 0, 0]} />}
-      {/* Tooltip */}
-      <Html position={[0, 1.3, 0]} center style={{ opacity: hovered ? 1 : 0, transition: 'opacity 0.2s', pointerEvents: 'none' }}>
-        <div style={{ background: 'rgba(10,12,20,0.95)', border: `1px solid ${statusColor}66`, borderRadius: 10, padding: '8px 14px', color: '#e2e8f0', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', boxShadow: `0 0 20px ${statusColor}33`, minWidth: 130 }}>
-          <div style={{ marginBottom: 4 }}>📱 {name}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
-            <span style={{ color: statusColor, fontSize: 11 }}>{status}</span>
-          </div>
+
+      {/* Blackboard */}
+      <mesh position={[0, 2.5, -roomD / 2 + 0.12]}>
+        <boxGeometry args={[5, 2, 0.06]} />
+        <meshStandardMaterial color="#8b5a2b" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 2.5, -roomD / 2 + 0.16]}>
+        <boxGeometry args={[4.6, 1.6, 0.05]} />
+        <meshStandardMaterial color="#2b2d42" roughness={0.5} />
+      </mesh>
+
+      {/* Teacher's Desk */}
+      <mesh position={[0, 0.45, -roomD / 2 + 1.8]} castShadow>
+        <boxGeometry args={[2.0, 0.8, 0.6]} />
+        <meshStandardMaterial color="#bc6c25" roughness={0.7} />
+      </mesh>
+
+      {/* Ceiling Lights */}
+      {[-3, 0, 3].map(x =>
+        [-2, 2].map(z => (
+          <mesh key={`${x}-${z}`} position={[x, 4.95, z]}>
+            <boxGeometry args={[1.2, 0.08, 0.3]} />
+            <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1.5} />
+          </mesh>
+        ))
+      )}
+
+      {/* Windows on left wall */}
+      {[-2, 0, 2].map((z, i) => (
+        <mesh key={i} position={[-roomW / 2 + 0.12, 2.8, z]}>
+          <boxGeometry args={[0.05, 1.5, 1.2]} />
+          <meshStandardMaterial color="#87ceeb" emissive="#87ceeb" emissiveIntensity={0.3} transparent opacity={0.6} />
+        </mesh>
+      ))}
+
+      {/* 40 Student Desks */}
+      {Array.from({ length: TOTAL_DESKS }).map((_, idx) => {
+        const row = Math.floor(idx / COLS);
+        const col = idx % COLS;
+        const x = (col - (COLS - 1) / 2) * DESK_SPACING_X;
+        const z = (row - (ROWS - 1) / 2) * DESK_SPACING_Z + 1;
+        const device = deviceDeskMap.get(idx);
+        return (
+          <group key={idx} position={[x, 0, z]}>
+            {/* Desk surface */}
+            <mesh position={[0, 0.45, 0]} castShadow>
+              <boxGeometry args={[0.7, 0.04, 0.5]} />
+              <meshStandardMaterial color="#d4a373" roughness={0.8} />
+            </mesh>
+            {/* Desk legs */}
+            {[-0.28, 0.28].map(lx =>
+              [-0.18, 0.18].map(lz => (
+                <mesh key={`${lx}-${lz}`} position={[lx, 0.225, lz]}>
+                  <cylinderGeometry args={[0.018, 0.018, 0.45]} />
+                  <meshStandardMaterial color="#8a8a8a" metalness={0.8} />
+                </mesh>
+              ))
+            )}
+            {/* Chair */}
+            <mesh position={[0, 0.25, 0.4]}>
+              <boxGeometry args={[0.35, 0.03, 0.35]} />
+              <meshStandardMaterial color="#e9c46a" roughness={0.8} />
+            </mesh>
+            <mesh position={[0, 0.42, 0.55]}>
+              <boxGeometry args={[0.35, 0.3, 0.03]} />
+              <meshStandardMaterial color="#e9c46a" roughness={0.8} />
+            </mesh>
+            {/* Chair legs */}
+            {[-0.14, 0.14].map(lx =>
+              [0.26, 0.54].map(lz => (
+                <mesh key={`chair-${lx}-${lz}`} position={[lx, 0.125, lz]}>
+                  <cylinderGeometry args={[0.015, 0.015, 0.25]} />
+                  <meshStandardMaterial color="#8a8a8a" metalness={0.8} />
+                </mesh>
+              ))
+            )}
+            {/* Tablet if device assigned */}
+            {device && (
+              <DeviceTablet
+                position={[0, 0.58, -0.05]}
+                name={device.deviceName || device.model}
+                status={device.status}
+                isHovered={hoveredDevice === device.id}
+                onHover={() => setHoveredDevice(device.id)}
+                onUnhover={() => setHoveredDevice(null)}
+              />
+            )}
+          </group>
+        );
+      })}
+
+      {/* Classroom Name Label */}
+      <Html position={[0, 6, 0]} center distanceFactor={18} zIndexRange={[100, 0]}>
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.9)',
+          backdropFilter: 'blur(16px)',
+          border: '2px solid rgba(59, 130, 246, 0.5)',
+          borderRadius: '20px',
+          padding: '16px 40px',
+          color: '#ffffff',
+          fontSize: 30,
+          fontWeight: 900,
+          fontFamily: '"Google Sans", "Noto Sans", sans-serif',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
+          textTransform: 'uppercase',
+          letterSpacing: '2px',
+        }}>
+          📚 {classroomName} &mdash; {displayDevices.filter((d: any) => d.status === 'ONLINE').length}/{displayDevices.length} Online
         </div>
       </Html>
     </group>
@@ -212,6 +466,11 @@ const Map3DPage = () => {
   const { data: campuses = [], isLoading: loadingCampuses } = useQuery({ queryKey: ['campuses'], queryFn: getAllCampuses, enabled: viewLevel === 'CAMPUS' });
   const { data: schoolsData, isLoading: loadingSchools } = useQuery({ queryKey: ['schools', { campusId: selectedCampusId, size: 100 }], queryFn: () => getSchools({ page: 0, size: 100, campusId: selectedCampusId || undefined }), enabled: viewLevel === 'SCHOOL' || (role !== 'SUPER_ADMIN' && role !== 'TEACHER') });
   const schools = schoolsData?.content || [];
+  
+  // Fetch all schools to count them for campuses
+  const { data: allSchoolsData } = useQuery({ queryKey: ['all_schools'], queryFn: () => getSchools({ page: 0, size: 500 }), enabled: viewLevel === 'CAMPUS' });
+  const allSchools = allSchoolsData?.content || [];
+
   const { data: classrooms = [], isLoading: loadingClassrooms } = useQuery({ queryKey: ['classrooms', selectedSchoolId], queryFn: () => getClassrooms(selectedSchoolId as string), enabled: (viewLevel === 'CLASSROOM' || role === 'TEACHER') && !!selectedSchoolId });
   const { data: devicesData, isLoading: loadingDevices } = useQuery({ queryKey: ['devices_map', selectedSchoolId], queryFn: () => getDevices({ page: 0, size: 500, schoolId: selectedSchoolId || undefined }), enabled: (viewLevel === 'CLASSROOM' || viewLevel === 'DEVICE') && !!selectedSchoolId });
   const devices = devicesData?.content || [];
@@ -233,16 +492,31 @@ const Map3DPage = () => {
     return layout;
   };
 
+  const getRadialLayout = (count: number, radius: number = 28) => {
+    const layout: [number, number, number][] = [];
+    if (count === 1) return [[0, 0, 25]]; // If only one campus, place it nicely in front
+    
+    // Distribute campuses evenly in a circle around the center
+    for (let i = 0; i < count; i++) {
+      // Offset by PI/4 so they start at nice angles instead of directly overlapping main roads
+      const angle = (i / count) * Math.PI * 2 + (Math.PI / 4);
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      layout.push([x, 0, z]);
+    }
+    return layout;
+  };
+
   const renderContent = () => {
     if (viewLevel === 'CAMPUS') {
-      const layout = getGridLayout((campuses as any[]).length, 12);
+      const layout = getRadialLayout((campuses as any[]).length);
       return (campuses as any[]).map((c: any, i: number) => (
         <Campus3DPin
           key={c.id}
           position={layout[i]}
           name={c.name}
           address={c.address}
-          schoolCount={schools.length > 0 ? schools.filter((s: any) => s.campusId === c.id).length : 0}
+          schoolCount={allSchools.filter((s: any) => s.campusId === c.id).length}
           onClick={() => { setSelectedCampusId(c.id); setViewLevel('SCHOOL'); }}
         />
       ));
@@ -256,6 +530,8 @@ const Map3DPage = () => {
           position={layout[i]}
           name={s.name}
           campusName={s.campusName}
+          classroomCount={s.classroomCount}
+          deviceCount={s.deviceCount}
           onClick={() => { setSelectedSchoolId(s.id); setViewLevel('CLASSROOM'); }}
         />
       ));
@@ -265,17 +541,15 @@ const Map3DPage = () => {
       const displayClassrooms = hasUnassigned ? [...classrooms, { id: 'unassigned', name: 'Chưa phân lớp' }] : classrooms;
       const layout = getGridLayout(displayClassrooms.length, 6);
       return displayClassrooms.map((cr: any, i: number) => (
-        <ClassroomModel key={cr.id} position={layout[i]} name={cr.name} onClick={(e: any) => { e.stopPropagation(); setSelectedClassroomId(cr.id); setViewLevel('DEVICE'); }} />
+        <ClassroomModel key={cr.id} position={layout[i]} name={cr.name} activeDeviceCount={cr.id === 'unassigned' ? devices.filter((d: any) => !d.classroom && d.status === 'ONLINE').length : devices.filter((d: any) => d.classroom?.id === cr.id && d.status === 'ONLINE').length} onClick={(e: any) => { e.stopPropagation(); setSelectedClassroomId(cr.id); setViewLevel('DEVICE'); }} />
       ));
     }
     if (viewLevel === 'DEVICE') {
       const displayDevices = selectedClassroomId === 'unassigned'
         ? devices.filter((d: any) => !d.classroom)
         : devices.filter((d: any) => d.classroom?.id === selectedClassroomId);
-      const layout = getGridLayout(displayDevices.length, 2.5);
-      return displayDevices.map((d: any, i: number) => (
-        <DeviceModel key={d.id} position={[layout[i][0], 0.5, layout[i][2]]} name={d.deviceName || d.model} status={d.status} />
-      ));
+      const crName = classrooms.find((c: any) => c.id === selectedClassroomId)?.name || (selectedClassroomId === 'unassigned' ? 'Chưa phân lớp' : 'Lớp học');
+      return <DeviceClassroomView devices={displayDevices} classroomName={crName} />;
     }
     return null;
   };

@@ -118,14 +118,18 @@ const DashboardPage = () => {
   const warningPercent = calculatePercent(summary?.warningDevices || 0, totalDevices);
   const criticalPercent = calculatePercent(summary?.criticalDevices || 0, totalDevices);
 
-  const violationData = [
-    { name: 'T2', 'Khóa máy': 12, 'Chơi Game': 18 },
-    { name: 'T3', 'Khóa máy': 19, 'Chơi Game': 23 },
-    { name: 'T4', 'Khóa máy': 15, 'Chơi Game': 20 },
-    { name: 'T5', 'Khóa máy': 22, 'Chơi Game': 35 },
-    { name: 'T6', 'Khóa máy': 30, 'Chơi Game': 45 },
-    { name: 'T7', 'Khóa máy': 10, 'Chơi Game': 15 },
-    { name: 'CN', 'Khóa máy': 5, 'Chơi Game': 8 },
+  const violationData = summary?.violationData?.map((item: any) => ({
+    name: item.name,
+    'Khóa máy': item.locked,
+    'Chơi Game': item.gaming
+  })) || [
+    { name: 'T2', 'Khóa máy': 0, 'Chơi Game': 0 },
+    { name: 'T3', 'Khóa máy': 0, 'Chơi Game': 0 },
+    { name: 'T4', 'Khóa máy': 0, 'Chơi Game': 0 },
+    { name: 'T5', 'Khóa máy': 0, 'Chơi Game': 0 },
+    { name: 'T6', 'Khóa máy': 0, 'Chơi Game': 0 },
+    { name: 'T7', 'Khóa máy': 0, 'Chơi Game': 0 },
+    { name: 'CN', 'Khóa máy': 0, 'Chơi Game': 0 },
   ];
 
   const statCards = [

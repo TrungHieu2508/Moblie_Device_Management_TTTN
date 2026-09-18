@@ -7,19 +7,24 @@ import com.edusphere.mdmserver.domain.school.entity.School;
 import com.edusphere.mdmserver.domain.school.repository.CampusRepository;
 import com.edusphere.mdmserver.domain.school.repository.SchoolRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SchoolService {
 
     private final SchoolRepository schoolRepository;
     private final CampusRepository campusRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional
     public SchoolDto createSchool(CreateSchoolRequest request) {
@@ -92,11 +97,42 @@ public class SchoolService {
     public void deleteSchool(UUID id) {
         School school = schoolRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy trường học"));
-        // TODO: Validate if school has devices or campuses before deleting
+
+        // Cascade: handle child data before delete
+        List<UUID> classroomIds = jdbcTemplate.queryForList(
+                "SELECT id FROM classrooms WHERE school_id = ?", UUID.class, id);
+
+        for (UUID classroomId : classroomIds) {
+            jdbcTemplate.update("UPDATE devices SET classroom_id = NULL WHERE classroom_id = ?", classroomId);
+            try { jdbcTemplate.update("DELETE FROM class_sessions WHERE classroom_id = ?", classroomId); } catch (Exception e) {
+                log.debug("class_sessions: {}", e.getMessage());
+            }
+        }
+
+        // Unassign devices from school
+        jdbcTemplate.update("UPDATE devices SET school_id = NULL, campus_id = NULL WHERE school_id = ?", id);
+        // Delete classrooms
+        jdbcTemplate.update("DELETE FROM classrooms WHERE school_id = ?", id);
+        // Delete enrollment_profiles
+        try { jdbcTemplate.update("DELETE FROM enrollment_profiles WHERE school_id = ?", id); } catch (Exception e) {
+            log.debug("enrollment_profiles: {}", e.getMessage());
+        }
+
         schoolRepository.delete(school);
     }
 
     private SchoolDto mapToDto(School school) {
+        Long classroomCount = 0L;
+        Long deviceCount = 0L;
+        try {
+            if (school.getId() != null) {
+                classroomCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM classrooms WHERE school_id = ?", Long.class, school.getId());
+                deviceCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM devices WHERE school_id = ?", Long.class, school.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Lỗi khi đếm số lớp/thiết bị cho trường {}: {}", school.getId(), e.getMessage());
+        }
+
         return SchoolDto.builder()
                 .id(school.getId())
                 .campusId(school.getCampus() != null ? school.getCampus().getId() : null)
@@ -106,6 +142,8 @@ public class SchoolService {
                 .address(school.getAddress())
                 .phone(school.getPhone())
                 .email(school.getEmail())
+                .classroomCount(classroomCount != null ? classroomCount : 0)
+                .deviceCount(deviceCount != null ? deviceCount : 0)
                 .build();
     }
 }

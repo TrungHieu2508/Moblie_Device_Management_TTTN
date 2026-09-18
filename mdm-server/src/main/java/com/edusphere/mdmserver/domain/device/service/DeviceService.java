@@ -44,6 +44,7 @@ public class DeviceService {
     private final EnrollmentProfileRepository enrollmentRepository;
     private final JwtService jwtService;
     private final org.springframework.data.redis.core.RedisTemplate<String, Object> redisTemplate;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     @Value("${app.jwt.device-token-expiration:31536000000}")
     private long deviceTokenExpiration;
@@ -232,12 +233,26 @@ public class DeviceService {
         Device device = deviceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Thiết bị không tồn tại"));
                 
-        // Cleanup Redis keys to prevent memory leaks
-        String deviceId = device.getDeviceId();
-        redisTemplate.delete("device:" + deviceId + ":status");
-        redisTemplate.delete("device:" + deviceId + ":metrics");
-        redisTemplate.delete("device:" + deviceId + ":commands:pending");
+        // Cleanup Redis keys - best-effort, do NOT fail if Redis is down
+        try {
+            String deviceId = device.getDeviceId();
+            redisTemplate.delete("device:" + deviceId + ":status");
+            redisTemplate.delete("device:" + deviceId + ":metrics");
+            redisTemplate.delete("device:" + deviceId + ":commands:pending");
+        } catch (Exception e) {
+            log.warn("Redis cleanup failed for device {} (Redis may be down), continuing with DB delete", device.getDeviceId());
+        }
         
+        // Manual Cascade Deletes to avoid Foreign Key Constraint Violations
+        jdbcTemplate.update("DELETE FROM device_metrics WHERE device_id = ?", id);
+        jdbcTemplate.update("DELETE FROM remote_commands WHERE device_id = ?", id);
+        try { jdbcTemplate.update("DELETE FROM device_commands WHERE device_id = ?", id); } catch(Exception e) {
+            log.debug("device_commands table may not exist: {}", e.getMessage());
+        }
+        jdbcTemplate.update("DELETE FROM alerts WHERE device_id = ?", id);
+        jdbcTemplate.update("DELETE FROM device_events WHERE device_id = ?", id);
+        jdbcTemplate.update("DELETE FROM heartbeat_logs WHERE device_id = ?", id);
+
         deviceRepository.delete(device);
     }
 

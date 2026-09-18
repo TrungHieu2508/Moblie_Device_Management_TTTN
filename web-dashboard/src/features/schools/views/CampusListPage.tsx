@@ -103,6 +103,8 @@ const MapTree = ({ x, z }: { x: number; z: number }) => (
   </group>
 );
 
+import { CampusMapGround } from '../../../components/3d/CampusMapGround';
+
 // ─── The City Map Scene ────────────────────────────────────────────
 const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
   campuses: any[];
@@ -112,72 +114,10 @@ const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
 }) => {
   const positions = useMemo(() => getMapPositions(campuses.length), [campuses.length]);
 
-  // Memoize random city data so it doesn't regenerate
-  const cityBlocks = useMemo(() => {
-    const blocks = [];
-    const buildingColors = ['#d4c5a0', '#c8b890', '#bfae88', '#ddd3b5', '#ccc2a0', '#e0d5ba', '#b8a878', '#d8cdb5'];
-    const roofColors = ['#b8a878', '#a89660', '#c0b088', '#b0a070', '#988a55'];
-    const rng = (seed: number, min: number, max: number) => {
-      const x = Math.sin(seed * 9301 + 49297) * 233280;
-      return min + ((x - Math.floor(x)) * (max - min));
-    };
-    // Generate city block grid
-    for (let row = -3; row <= 3; row++) {
-      for (let col = -4; col <= 4; col++) {
-        const blockX = col * 8;
-        const blockZ = row * 8;
-        // Skip some blocks for roads/parks
-        const seed = row * 100 + col;
-        const skip = rng(seed, 0, 1) < 0.12;
-        if (skip) continue;
-
-        // Subdivide block into 2-4 buildings
-        const numBuildings = Math.floor(rng(seed + 1, 2, 5));
-        for (let b = 0; b < numBuildings; b++) {
-          const bx = blockX + rng(seed + b * 7, -2.8, 2.8);
-          const bz = blockZ + rng(seed + b * 13, -2.8, 2.8);
-          const bw = rng(seed + b * 3, 1.0, 2.8);
-          const bd = rng(seed + b * 5, 1.0, 2.8);
-          const bh = rng(seed + b * 11, 0.4, 3.5);
-          const colorIdx = Math.floor(rng(seed + b * 17, 0, buildingColors.length));
-          const roofIdx = Math.floor(rng(seed + b * 19, 0, roofColors.length));
-          blocks.push({ x: bx, z: bz, w: bw, d: bd, h: bh, color: buildingColors[colorIdx], roofColor: roofColors[roofIdx] });
-        }
-      }
-    }
-    return blocks;
-  }, []);
-
-  const parks = useMemo(() => [
-    { x: -16, z: -4, w: 5, d: 4 },
-    { x: 6, z: 8, w: 6, d: 5 },
-    { x: -4, z: -18, w: 4, d: 3 },
-    { x: 14, z: -2, w: 5, d: 4 },
-    { x: -24, z: 10, w: 4, d: 4 },
-    { x: 20, z: 16, w: 6, d: 4 },
-  ], []);
-
-  const parkTrees = useMemo(() => {
-    const trees: { x: number; z: number }[] = [];
-    parks.forEach(p => {
-      const nx = Math.floor(p.w / 1.8);
-      const nz = Math.floor(p.d / 1.8);
-      for (let i = 0; i < nx; i++) {
-        for (let j = 0; j < nz; j++) {
-          trees.push({
-            x: p.x - p.w / 2 + 0.9 + i * 1.8,
-            z: p.z - p.d / 2 + 0.9 + j * 1.8,
-          });
-        }
-      }
-    });
-    return trees;
-  }, [parks]);
-
   return (
     <>
       {/* ── Lighting ── */}
-      <ambientLight intensity={0.65} />
+      <ambientLight intensity={0.7} />
       <directionalLight
         position={[20, 35, 15]} intensity={1.8}
         castShadow color="#fff8f0"
@@ -188,44 +128,10 @@ const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
         shadow-camera-bottom={-60}
       />
       <directionalLight position={[-15, 20, -20]} intensity={0.5} color="#c8e0ff" />
-      <hemisphereLight args={['#b8d4f0', '#6b8a50', 0.45]} />
+      <hemisphereLight args={['#b8d4f0', '#6b8a50', 0.5]} />
 
-      {/* ── Ground / road network ── */}
-      {/* Base ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[120, 120]} />
-        <meshStandardMaterial color="#454545" roughness={0.98} />
-      </mesh>
-
-      {/* Sidewalk/block zone base */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} receiveShadow>
-        <planeGeometry args={[90, 90]} />
-        <meshStandardMaterial color="#d8cfc0" roughness={0.95} />
-      </mesh>
-
-      {/* Main roads — horizontal */}
-      {[-24, -16, -8, 0, 8, 16, 24].map(z => (
-        <Road key={`hr-${z}`} x={0} z={z} w={90} d={2.2} />
-      ))}
-      {/* Main roads — vertical */}
-      {[-24, -16, -8, 0, 8, 16, 24].map(x => (
-        <Road key={`vr-${x}`} x={x} z={0} w={2.2} d={90} />
-      ))}
-
-      {/* Road center lines */}
-      {[-24, -16, -8, 0, 8, 16, 24].map(z => (
-        <RoadLine key={`hl-${z}`} x={0} z={z} length={88} horizontal />
-      ))}
-      {[-24, -16, -8, 0, 8, 16, 24].map(x => (
-        <RoadLine key={`vl-${x}`} x={x} z={0} length={88} horizontal={false} />
-      ))}
-
-      {/* ── Parks ── */}
-      {parks.map((p, i) => <Park key={i} {...p} />)}
-      {parkTrees.map((t, i) => <MapTree key={i} x={t.x} z={t.z} />)}
-
-      {/* ── City buildings ── */}
-      {cityBlocks.map((b, i) => <CityBlock key={i} {...b} />)}
+      {/* ── High-detail Procedural City Ground ── */}
+      <CampusMapGround />
 
       {/* ── Campus Pins ── */}
       {campuses.map((campus: any, i: number) => (

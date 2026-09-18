@@ -1,8 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { DeviceModel3D } from './DeviceModel3D';
 
 interface ClassroomScene3DProps {
   classroomName: string;
@@ -15,103 +14,106 @@ interface ClassroomScene3DProps {
   }>;
 }
 
-// ─── Desk (student desk + chair) ───────────────────────────────────
-const Desk = ({ x, z, hasDevice = false }: { x: number; z: number; hasDevice?: boolean }) => (
+// ─── Tablet on desk ────────────────────────────────────────────────
+const DeskTablet = ({ deviceName, model, status, currentApp }: any) => {
+  const [hovered, setHovered] = useState(false);
+  const colorMap: Record<string, string> = { ONLINE: '#22c55e', OFFLINE: '#64748b', WARNING: '#eab308', CRITICAL: '#ef4444' };
+  const statusColor = colorMap[status] || '#64748b';
+
+  return (
+    <group position={[0, 0.52, -0.02]}
+      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { setHovered(false); document.body.style.cursor = 'default'; }}>
+      {/* Tablet body */}
+      <mesh rotation={[-Math.PI / 7, 0, 0]} castShadow>
+        <boxGeometry args={[0.42, 0.28, 0.018]} />
+        <meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.1} />
+      </mesh>
+      {/* Screen */}
+      <mesh position={[0, 0.005, 0.01]} rotation={[-Math.PI / 7, 0, 0]}>
+        <boxGeometry args={[0.36, 0.22, 0.005]} />
+        <meshStandardMaterial
+          color={statusColor}
+          emissive={statusColor}
+          emissiveIntensity={hovered ? 4 : 2}
+          transparent opacity={0.95}
+        />
+      </mesh>
+      {/* Glow */}
+      {status === 'ONLINE' && <pointLight color={statusColor} intensity={0.4} distance={1.2} />}
+      {/* Tooltip */}
+      {hovered && (
+        <Html position={[0, 0.6, 0]} center style={{ pointerEvents: 'none' }}>
+          <div style={{
+            background: 'rgba(10,12,20,0.95)',
+            border: `1px solid ${statusColor}66`,
+            borderRadius: 10,
+            padding: '10px 16px',
+            color: '#e2e8f0',
+            fontSize: 13,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            boxShadow: `0 0 20px ${statusColor}33`,
+            minWidth: 150,
+          }}>
+            <div style={{ marginBottom: 4, fontSize: 14 }}>📱 {deviceName || model}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
+              <span style={{ color: statusColor, fontSize: 12 }}>{status}</span>
+            </div>
+            {currentApp?.appName && (
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>🔹 {currentApp.appName}</div>
+            )}
+          </div>
+        </Html>
+      )}
+    </group>
+  );
+};
+
+// ─── Student Desk + Chair ──────────────────────────────────────────
+const StudentDesk = ({ x, z, device }: { x: number; z: number; device?: any }) => (
   <group position={[x, 0, z]}>
     {/* Desk surface */}
     <mesh position={[0, 0.38, 0]} receiveShadow castShadow>
-      <boxGeometry args={[0.75, 0.04, 0.52]} />
-      <meshStandardMaterial color="#6b3a2a" emissive="#3d2010" emissiveIntensity={0.15} roughness={0.7} />
+      <boxGeometry args={[0.7, 0.04, 0.5]} />
+      <meshStandardMaterial color="#d4a373" roughness={0.8} />
     </mesh>
     {/* Desk legs */}
-    {[[-0.32, -0.24], [-0.32, 0.24], [0.32, -0.24], [0.32, 0.24]].map(([lx, lz], i) => (
-      <mesh key={i} position={[lx, 0.18, lz]}>
-        <cylinderGeometry args={[0.02, 0.02, 0.36, 6]} />
-        <meshStandardMaterial color="#4a2a1a" roughness={0.8} />
+    {[[-0.28, -0.18], [-0.28, 0.18], [0.28, -0.18], [0.28, 0.18]].map(([lx, lz], i) => (
+      <mesh key={i} position={[lx, 0.19, lz]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.38, 6]} />
+        <meshStandardMaterial color="#8a8a8a" metalness={0.8} />
       </mesh>
     ))}
-    {/* Chair */}
-    <mesh position={[0, 0.26, -0.42]} receiveShadow castShadow>
-      <boxGeometry args={[0.52, 0.04, 0.46]} />
-      <meshStandardMaterial color="#1e3a5f" emissive="#0a1a2e" emissiveIntensity={0.1} roughness={0.7} />
+    {/* Chair seat */}
+    <mesh position={[0, 0.25, 0.4]} receiveShadow castShadow>
+      <boxGeometry args={[0.35, 0.03, 0.35]} />
+      <meshStandardMaterial color="#e9c46a" roughness={0.8} />
     </mesh>
     {/* Chair back */}
-    <mesh position={[0, 0.52, -0.63]}>
-      <boxGeometry args={[0.5, 0.48, 0.04]} />
-      <meshStandardMaterial color="#1e3a5f" emissive="#0a1a2e" emissiveIntensity={0.1} roughness={0.7} />
+    <mesh position={[0, 0.42, 0.55]}>
+      <boxGeometry args={[0.35, 0.3, 0.03]} />
+      <meshStandardMaterial color="#e9c46a" roughness={0.8} />
     </mesh>
-    {/* Desk glow if no device (empty) */}
-    {!hasDevice && (
-      <mesh position={[0, 0.41, 0]}>
-        <planeGeometry args={[0.6, 0.4]} />
-        <meshStandardMaterial
-          color="#0a1a2e"
-          emissive="#001428"
-          emissiveIntensity={0.08}
-          transparent
-          opacity={0.3}
-          rotation={[-Math.PI / 2, 0, 0] as any}
-        />
-      </mesh>
+    {/* Chair legs */}
+    {[-0.14, 0.14].map(lx =>
+      [0.26, 0.54].map(lz => (
+        <mesh key={`chair-${lx}-${lz}`} position={[lx, 0.125, lz]}>
+          <cylinderGeometry args={[0.015, 0.015, 0.25]} />
+          <meshStandardMaterial color="#8a8a8a" metalness={0.8} />
+        </mesh>
+      ))
     )}
-  </group>
-);
-
-// ─── Blackboard ─────────────────────────────────────────────────────
-const Blackboard = () => (
-  <group position={[0, 1.6, -4.85]}>
-    {/* Frame */}
-    <mesh castShadow>
-      <boxGeometry args={[5.8, 2.2, 0.08]} />
-      <meshStandardMaterial color="#4a3000" roughness={0.9} />
-    </mesh>
-    {/* Board surface */}
-    <mesh position={[0, 0, 0.05]}>
-      <boxGeometry args={[5.4, 1.9, 0.02]} />
-      <meshStandardMaterial
-        color="#0d2b0d"
-        emissive="#0a2a10"
-        emissiveIntensity={0.2}
-        roughness={0.95}
+    {/* Tablet if device exists */}
+    {device && (
+      <DeskTablet
+        deviceName={device.deviceName}
+        model={device.model}
+        status={device.status}
+        currentApp={device.currentApp}
       />
-    </mesh>
-    {/* Chalk tray */}
-    <mesh position={[0, -1.15, 0.06]}>
-      <boxGeometry args={[5.4, 0.12, 0.12]} />
-      <meshStandardMaterial color="#3a2500" roughness={0.9} />
-    </mesh>
-  </group>
-);
-
-// ─── Teacher podium ─────────────────────────────────────────────────
-const Podium = () => (
-  <group position={[0, 0, -3.6]}>
-    <mesh castShadow receiveShadow>
-      <boxGeometry args={[1.2, 0.9, 0.7]} />
-      <meshStandardMaterial color="#4a2a10" emissive="#2a1505" emissiveIntensity={0.2} roughness={0.7} />
-    </mesh>
-    {/* Podium top */}
-    <mesh position={[0, 0.47, 0.05]}>
-      <boxGeometry args={[1.1, 0.06, 0.6]} />
-      <meshStandardMaterial color="#6b3a20" roughness={0.6} />
-    </mesh>
-  </group>
-);
-
-// ─── Ceiling light panel ────────────────────────────────────────────
-const CeilingLight = ({ x, z }: { x: number; z: number }) => (
-  <group position={[x, 2.95, z]}>
-    <mesh>
-      <boxGeometry args={[1.6, 0.04, 0.5]} />
-      <meshStandardMaterial
-        color="#ffffff"
-        emissive="#e0f0ff"
-        emissiveIntensity={2}
-        transparent
-        opacity={0.9}
-      />
-    </mesh>
-    <pointLight color="#e0f0ff" intensity={1.5} distance={5} />
+    )}
   </group>
 );
 
@@ -119,117 +121,122 @@ const CeilingLight = ({ x, z }: { x: number; z: number }) => (
 export const ClassroomScene3D = ({ classroomName, devices }: ClassroomScene3DProps) => {
   const roomRef = useRef<THREE.Group>(null!);
 
-  // Layout: 5 columns x 6 rows of desks
-  const COLS = 5;
-  const ROWS = 6;
-  const COL_SPACING = 1.4;
-  const ROW_SPACING = 1.3;
-  const COL_OFFSET = ((COLS - 1) * COL_SPACING) / 2;
-  const ROW_OFFSET = -0.8;
+  // Layout: 8 columns x 5 rows = 40 desks
+  const COLS = 8;
+  const ROWS = 5;
+  const COL_SPACING = 1.3;
+  const ROW_SPACING = 1.6;
 
-  const maxDevices = COLS * ROWS;
-  const displayDevices = devices.slice(0, maxDevices);
+  const roomW = COLS * COL_SPACING + 3;
+  const roomD = ROWS * ROW_SPACING + 4;
+  const TOTAL_DESKS = COLS * ROWS;
 
-  // Build desk grid
-  const deskPositions: [number, number, number][] = [];
-  for (let row = 0; row < ROWS; row++) {
-    for (let col = 0; col < COLS; col++) {
-      const x = col * COL_SPACING - COL_OFFSET;
-      const z = row * ROW_SPACING + ROW_OFFSET;
-      deskPositions.push([x, 0, z]);
+  // Map devices to desk indices deterministically
+  const deviceDeskMap = useMemo(() => {
+    const map = new Map<number, any>();
+    if (devices.length === 0) return map;
+    let seed = 42;
+    const indices = Array.from({ length: TOTAL_DESKS }, (_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      const j = seed % (i + 1);
+      [indices[i], indices[j]] = [indices[j], indices[i]];
     }
-  }
+    devices.forEach((device, idx) => {
+      if (idx < TOTAL_DESKS) map.set(indices[idx], device);
+    });
+    return map;
+  }, [devices]);
 
   return (
     <group ref={roomRef}>
-      {/* ── Room floor ── */}
+      {/* ── Floor ── */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
-        <planeGeometry args={[12, 13]} />
-        <meshStandardMaterial
-          color="#0a0e1a"
-          emissive="#04060f"
-          emissiveIntensity={0.3}
-          roughness={0.7}
-          metalness={0.1}
-        />
+        <planeGeometry args={[roomW, roomD]} />
+        <meshStandardMaterial color="#b5baa0" roughness={0.9} />
       </mesh>
 
-      {/* ── Floor grid lines ── */}
-      <gridHelper args={[12, 12, '#0d1a2e', '#08101e']} position={[0, 0.001, 0]} />
-
-      {/* ── Room walls ── */}
+      {/* ── Walls ── */}
       {/* Back wall */}
-      <mesh position={[0, 1.5, -5]} receiveShadow>
-        <boxGeometry args={[12, 3, 0.12]} />
-        <meshStandardMaterial color="#080e1c" emissive="#040810" emissiveIntensity={0.2} roughness={0.8} />
+      <mesh position={[0, 2.5, -roomD / 2 + 0.05]} receiveShadow>
+        <boxGeometry args={[roomW, 5, 0.1]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
       {/* Left wall */}
-      <mesh position={[-6, 1.5, 0.5]} receiveShadow>
-        <boxGeometry args={[0.12, 3, 13]} />
-        <meshStandardMaterial color="#060c18" emissive="#030608" emissiveIntensity={0.15} roughness={0.85} />
+      <mesh position={[-roomW / 2 + 0.05, 2.5, 0]} receiveShadow>
+        <boxGeometry args={[0.1, 5, roomD]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
       {/* Right wall */}
-      <mesh position={[6, 1.5, 0.5]} receiveShadow>
-        <boxGeometry args={[0.12, 3, 13]} />
-        <meshStandardMaterial color="#060c18" emissive="#030608" emissiveIntensity={0.15} roughness={0.85} />
+      <mesh position={[roomW / 2 - 0.05, 2.5, 0]} receiveShadow>
+        <boxGeometry args={[0.1, 5, roomD]} />
+        <meshStandardMaterial color="#dad7cd" roughness={0.9} />
       </mesh>
       {/* Ceiling */}
-      <mesh position={[0, 3, 0]} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[12, 13]} />
-        <meshStandardMaterial color="#050810" emissive="#030508" emissiveIntensity={0.1} roughness={0.9} />
+      <mesh position={[0, 5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[roomW, roomD]} />
+        <meshStandardMaterial color="#e8e4de" roughness={0.95} />
       </mesh>
 
-      {/* ── Wall accent strips (neon) ── */}
-      <mesh position={[0, 2.92, -4.9]}>
-        <boxGeometry args={[11.5, 0.05, 0.05]} />
-        <meshStandardMaterial color="#00d4ff" emissive="#00d4ff" emissiveIntensity={3} transparent opacity={0.8} />
-      </mesh>
-      <mesh position={[-5.9, 1.5, 0]}>
-        <boxGeometry args={[0.05, 0.05, 12]} />
-        <meshStandardMaterial color="#aa3bff" emissive="#aa3bff" emissiveIntensity={2} transparent opacity={0.6} />
-      </mesh>
-      <mesh position={[5.9, 1.5, 0]}>
-        <boxGeometry args={[0.05, 0.05, 12]} />
-        <meshStandardMaterial color="#aa3bff" emissive="#aa3bff" emissiveIntensity={2} transparent opacity={0.6} />
-      </mesh>
-
-      {/* ── Ceiling lights ── */}
-      <CeilingLight x={-2.5} z={-2.5} />
-      <CeilingLight x={2.5} z={-2.5} />
-      <CeilingLight x={-2.5} z={2} />
-      <CeilingLight x={2.5} z={2} />
-      <CeilingLight x={0} z={5.5} />
+      {/* ── Windows on left wall ── */}
+      {[-3, -1, 1, 3].map((z, i) => (
+        <mesh key={i} position={[-roomW / 2 + 0.12, 2.8, z]}>
+          <boxGeometry args={[0.05, 1.8, 1.4]} />
+          <meshStandardMaterial color="#87ceeb" emissive="#87ceeb" emissiveIntensity={0.3} transparent opacity={0.5} />
+        </mesh>
+      ))}
 
       {/* ── Blackboard ── */}
-      <Blackboard />
+      {/* Frame */}
+      <mesh position={[0, 2.5, -roomD / 2 + 0.12]}>
+        <boxGeometry args={[5.5, 2.2, 0.06]} />
+        <meshStandardMaterial color="#8b5a2b" roughness={0.7} />
+      </mesh>
+      {/* Board surface */}
+      <mesh position={[0, 2.5, -roomD / 2 + 0.16]}>
+        <boxGeometry args={[5.0, 1.8, 0.05]} />
+        <meshStandardMaterial color="#2b2d42" roughness={0.5} />
+      </mesh>
+      {/* Chalk tray */}
+      <mesh position={[0, 1.45, -roomD / 2 + 0.18]}>
+        <boxGeometry args={[5.0, 0.1, 0.12]} />
+        <meshStandardMaterial color="#6b4226" roughness={0.8} />
+      </mesh>
 
-      {/* ── Podium ── */}
-      <Podium />
+      {/* ── Teacher's desk ── */}
+      <mesh position={[0, 0.4, -roomD / 2 + 2]} castShadow>
+        <boxGeometry args={[2.0, 0.8, 0.6]} />
+        <meshStandardMaterial color="#bc6c25" roughness={0.7} />
+      </mesh>
 
-      {/* ── Desks + Devices ── */}
-      {deskPositions.map((pos, idx) => {
-        const device = displayDevices[idx];
-        return (
-          <group key={idx}>
-            <Desk x={pos[0]} z={pos[2]} hasDevice={!!device} />
-            {device && (
-              <DeviceModel3D
-                position={[pos[0], 0.48, pos[2] - 0.04]}
-                deviceName={device.deviceName}
-                model={device.model}
-                status={device.status}
-                currentApp={device.currentApp}
-              />
-            )}
+      {/* ── Ceiling Lights ── */}
+      {[-3.5, 0, 3.5].map(x =>
+        [-3, 0, 3].map(z => (
+          <group key={`${x}-${z}`} position={[x, 4.95, z]}>
+            <mesh>
+              <boxGeometry args={[1.2, 0.08, 0.3]} />
+              <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={1.5} />
+            </mesh>
+            <pointLight color="#fffaf0" intensity={1} distance={5} />
           </group>
-        );
+        ))
+      )}
+
+      {/* ── 40 Student Desks ── */}
+      {Array.from({ length: TOTAL_DESKS }).map((_, idx) => {
+        const row = Math.floor(idx / COLS);
+        const col = idx % COLS;
+        const x = (col - (COLS - 1) / 2) * COL_SPACING;
+        const z = (row - (ROWS - 1) / 2) * ROW_SPACING + 1;
+        const device = deviceDeskMap.get(idx);
+        return <StudentDesk key={idx} x={x} z={z} device={device} />;
       })}
 
       {/* ── Classroom name label ── */}
       <Text
-        position={[0, 2.65, -4.7]}
-        fontSize={0.3}
-        color="#4ade80"
+        position={[0, 3.2, -roomD / 2 + 0.2]}
+        fontSize={0.35}
+        color="#10b981"
         anchorX="center"
         anchorY="middle"
         outlineColor="#000"
@@ -239,16 +246,16 @@ export const ClassroomScene3D = ({ classroomName, devices }: ClassroomScene3DPro
       </Text>
 
       {/* ── Stats overlay ── */}
-      {devices.length > maxDevices && (
+      {devices.length > TOTAL_DESKS && (
         <Text
-          position={[3.8, 0.6, 6.5]}
+          position={[roomW / 2 - 1.5, 0.6, roomD / 2 - 0.5]}
           fontSize={0.25}
           color="#f59e0b"
           anchorX="center"
           outlineColor="#000"
           outlineWidth={0.01}
         >
-          {`+${devices.length - maxDevices} thiết bị khác`}
+          {`+${devices.length - TOTAL_DESKS} thiết bị khác`}
         </Text>
       )}
     </group>

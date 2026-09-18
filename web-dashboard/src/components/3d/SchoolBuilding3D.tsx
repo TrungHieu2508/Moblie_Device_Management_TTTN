@@ -91,6 +91,29 @@ const SchoolFlag = ({ x, z }: { x: number; z: number }) => {
     pos.needsUpdate = true;
   });
 
+  const flagTexture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 320;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(0, 0, 512, 320);
+      ctx.fillStyle = '#ffd700';
+      ctx.translate(256, 160);
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 100, -Math.sin((18 + i * 72) * Math.PI / 180) * 100);
+        ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 40, -Math.sin((54 + i * 72) * Math.PI / 180) * 40);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }, []);
+
   return (
     <group position={[x, 0, z]}>
       {/* Pole */}
@@ -107,10 +130,11 @@ const SchoolFlag = ({ x, z }: { x: number; z: number }) => {
       <mesh ref={flagRef} position={[0.4, 4.0, 0]}>
         <planeGeometry ref={geoRef as any} args={[0.8, 0.5, 10, 6]} />
         <meshStandardMaterial
-          color="#dc2626"
+          map={flagTexture}
           emissive="#991b1b"
-          emissiveIntensity={0.6}
+          emissiveIntensity={0.2}
           side={THREE.DoubleSide}
+          roughness={0.8}
         />
       </mesh>
     </group>
@@ -260,12 +284,12 @@ export const SchoolBuilding3D = ({
       </mesh>
 
       {/* ══════════════ Roof ══════════════ */}
-      {/* Main roof (red/terracotta hipped roof) */}
+      {/* Main roof (blue hipped roof) */}
       <mesh position={[0, 4.55, -0.8]} castShadow>
         <coneGeometry args={[4.5, 1.3, 4]} />
         <meshStandardMaterial
-          color="#b83030"
-          emissive={active ? '#8a1818' : '#3a0808'}
+          color="#1e40af"
+          emissive={active ? '#1e3a8a' : '#0f172a'}
           emissiveIntensity={active ? 0.6 : 0.2}
           roughness={0.6}
           metalness={0.15}
@@ -335,7 +359,7 @@ export const SchoolBuilding3D = ({
       {/* Left wing roof */}
       <mesh position={[-4.3, 1.3, -0.3]}>
         <boxGeometry args={[2.0, 0.12, 3.0]} />
-        <meshStandardMaterial color="#a03030" roughness={0.6} />
+        <meshStandardMaterial color="#1d4ed8" roughness={0.6} />
       </mesh>
 
       {/* Right wing */}
@@ -351,7 +375,7 @@ export const SchoolBuilding3D = ({
       {/* Right wing roof */}
       <mesh position={[4.3, 1.3, -0.3]}>
         <boxGeometry args={[2.0, 0.12, 3.0]} />
-        <meshStandardMaterial color="#a03030" roughness={0.6} />
+        <meshStandardMaterial color="#1d4ed8" roughness={0.6} />
       </mesh>
 
       {/* ══════════════ Landscape ══════════════ */}
@@ -435,47 +459,47 @@ export const SchoolBuilding3D = ({
 
       {/* ══════════════ Hover tooltip ══════════════ */}
       {hovered && (
-        <Html position={[0, 7.2, 0]} center distanceFactor={12}>
+        <Html position={[0, 8.0, 0]} center distanceFactor={14}>
           <div style={{
             background: 'linear-gradient(145deg, rgba(20,15,10,0.97), rgba(10,8,5,0.97))',
-            border: '1px solid rgba(255,215,0,0.4)',
-            borderRadius: 14,
-            padding: '14px 20px',
+            border: '2px solid rgba(255,215,0,0.5)',
+            borderRadius: 18,
+            padding: '20px 28px',
             color: '#e8d8c0',
-            fontSize: 12,
+            fontSize: 16,
             fontWeight: 600,
             whiteSpace: 'nowrap',
-            boxShadow: '0 4px 30px rgba(255,215,0,0.2)',
-            minWidth: 200,
-            backdropFilter: 'blur(12px)',
+            boxShadow: '0 8px 40px rgba(255,215,0,0.3)',
+            minWidth: 260,
+            backdropFilter: 'blur(16px)',
           }}>
-            <div style={{ fontSize: 15, marginBottom: 4, color: '#fff', fontWeight: 700 }}>🏫 {name}</div>
-            {campusName && <div style={{ color: '#8a7a60', fontSize: 11, marginBottom: 8 }}>📍 {campusName}</div>}
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ fontSize: 22, marginBottom: 6, color: '#fff', fontWeight: 800 }}>🏫 {name}</div>
+            {campusName && <div style={{ color: '#a09075', fontSize: 14, marginBottom: 14 }}>📍 {campusName}</div>}
+            <div style={{ display: 'flex', gap: 14 }}>
               <div style={{
-                background: 'rgba(16,185,129,0.1)',
-                border: '1px solid rgba(16,185,129,0.3)',
-                borderRadius: 8,
-                padding: '5px 12px',
+                background: 'rgba(16,185,129,0.15)',
+                border: '1px solid rgba(16,185,129,0.4)',
+                borderRadius: 12,
+                padding: '8px 16px',
                 textAlign: 'center',
                 flex: 1,
               }}>
-                <div style={{ color: '#10b981', fontSize: 18, fontWeight: 800 }}>{classroomCount}</div>
-                <div style={{ color: '#6b7a70', fontSize: 9 }}>Lớp học</div>
+                <div style={{ color: '#10b981', fontSize: 24, fontWeight: 900 }}>{classroomCount}</div>
+                <div style={{ color: '#8b9a90', fontSize: 12, marginTop: 4 }}>Lớp học</div>
               </div>
               <div style={{
-                background: 'rgba(59,130,246,0.1)',
-                border: '1px solid rgba(59,130,246,0.3)',
-                borderRadius: 8,
-                padding: '5px 12px',
+                background: 'rgba(59,130,246,0.15)',
+                border: '1px solid rgba(59,130,246,0.4)',
+                borderRadius: 12,
+                padding: '8px 16px',
                 textAlign: 'center',
                 flex: 1,
               }}>
-                <div style={{ color: '#3b82f6', fontSize: 18, fontWeight: 800 }}>{deviceCount}</div>
-                <div style={{ color: '#6b7a80', fontSize: 9 }}>Thiết bị</div>
+                <div style={{ color: '#3b82f6', fontSize: 24, fontWeight: 900 }}>{deviceCount}</div>
+                <div style={{ color: '#8b9aa0', fontSize: 12, marginTop: 4 }}>Thiết bị</div>
               </div>
             </div>
-            <div style={{ color: '#5a5040', fontSize: 10, marginTop: 8 }}>Click để xem chi tiết →</div>
+            <div style={{ color: '#7a6a50', fontSize: 13, marginTop: 14, textAlign: 'center' }}>Click để xem chi tiết →</div>
           </div>
         </Html>
       )}
