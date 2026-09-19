@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 import { useAuthStore } from '../store/authStore';
-
 import { API_BASE_URL } from '../config/axios';
 
-const WS_URL = `${API_BASE_URL}/ws-web`;
+const BROKER_URL = `${API_BASE_URL}/ws-agent`.replace(/^http/, 'ws');
 
 export const useWebSocket = (deviceId?: string) => {
   const [metrics, setMetrics] = useState<any>(null);
@@ -21,7 +19,7 @@ export const useWebSocket = (deviceId?: string) => {
     if (!token) return;
 
     const client = new Client({
-      webSocketFactory: () => new SockJS(WS_URL), // Use SockJS fallback if needed
+      brokerURL: BROKER_URL,
       connectHeaders: {
         Authorization: `Bearer ${token}`,
       },
