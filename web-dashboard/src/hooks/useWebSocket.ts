@@ -3,11 +3,9 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { useAuthStore } from '../store/authStore';
 
-const isProd = import.meta.env.PROD;
-const dynamicWsUrl = `http://${window.location.hostname}:8081/api/ws-web`;
-let WS_URL = isProd ? (import.meta.env.VITE_WS_URL || dynamicWsUrl) : dynamicWsUrl;
-if (WS_URL.startsWith('wss://')) WS_URL = WS_URL.replace('wss://', 'https://');
-if (WS_URL.startsWith('ws://')) WS_URL = WS_URL.replace('ws://', 'http://');
+import { API_BASE_URL } from '../config/axios';
+
+const WS_URL = `${API_BASE_URL}/ws-web`;
 
 export const useWebSocket = (deviceId?: string) => {
   const [metrics, setMetrics] = useState<any>(null);
