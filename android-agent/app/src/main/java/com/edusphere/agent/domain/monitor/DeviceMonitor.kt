@@ -66,7 +66,27 @@ class DeviceMonitor @Inject constructor(
                 } catch (e: Exception) {
                     currentPackageName
                 }
-                return CurrentApp(currentPackageName, appName)
+
+                var appIconBase64: String? = null
+                try {
+                    val packageManager = context.packageManager
+                    val icon = packageManager.getApplicationIcon(currentPackageName)
+                    val bitmap = if (icon is android.graphics.drawable.BitmapDrawable) {
+                        icon.bitmap
+                    } else {
+                        val bmp = android.graphics.Bitmap.createBitmap(icon.intrinsicWidth, icon.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                        val canvas = android.graphics.Canvas(bmp)
+                        icon.setBounds(0, 0, canvas.width, canvas.height)
+                        icon.draw(canvas)
+                        bmp
+                    }
+                    val outputStream = java.io.ByteArrayOutputStream()
+                    // Compress aggressive to save payload size
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 50, outputStream)
+                    appIconBase64 = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
+                } catch (e: Exception) {}
+
+                return CurrentApp(currentPackageName, appName, appIconBase64)
             }
         } catch (e: Exception) {
             e.printStackTrace()

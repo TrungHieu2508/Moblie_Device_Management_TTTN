@@ -23,10 +23,13 @@ class RuleDetector @Inject constructor(
         this.isWhitelistMode = isWhitelistMode
     }
 
-    suspend fun checkForegroundApp(packageName: String?) {
+    suspend fun checkForegroundApp(currentApp: com.edusphere.agent.data.remote.model.CurrentApp?) {
         if (sharedPreferencesManager.isMdmPaused()) {
             return // Skip checks if paused
         }
+
+        val packageName = currentApp?.packageName
+        val appName = currentApp?.appName ?: packageName
 
         if (packageName == null || packageName.isEmpty()) return
         // Ignore system UI, launchers, and device manufacturer packages
@@ -60,7 +63,8 @@ class RuleDetector @Inject constructor(
             
             // Push student out of the forbidden app immediately
             actionManager.clearRecents()
-            actionManager.showAlert("Ứng dụng này đã bị khóa do vi phạm nội quy học tập!")
+            val alertMsg = if (appName != null) "Bị chặn tự động do dùng ứng dụng: $appName" else "Ứng dụng này đã bị khóa do vi phạm nội quy học tập!"
+            actionManager.showAlert(alertMsg)
 
             val deviceInfo = deviceRepository.getDeviceInfo()
             if (deviceInfo != null) {

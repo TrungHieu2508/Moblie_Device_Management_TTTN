@@ -203,7 +203,8 @@ class CommandReceiver @Inject constructor(
         try {
             when (commandType) {
                 "LOCK_SCREEN" -> {
-                    actionManager.lockScreen()
+                    val message = payload?.optString("message")
+                    actionManager.lockScreen(message)
                 }
                 "RING_ALARM" -> {
                     actionManager.ringAlarm()
@@ -213,6 +214,11 @@ class CommandReceiver @Inject constructor(
                 }
                 "WIPE_DATA" -> {
                     actionManager.wipeData()
+                }
+                "FORCE_HEARTBEAT" -> {
+                    val intent = Intent(context, com.edusphere.agent.presentation.service.HeartbeatService::class.java)
+                    intent.action = "FORCE_HEARTBEAT"
+                    context.startService(intent)
                 }
                 "START_STREAM" -> {
                     val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)

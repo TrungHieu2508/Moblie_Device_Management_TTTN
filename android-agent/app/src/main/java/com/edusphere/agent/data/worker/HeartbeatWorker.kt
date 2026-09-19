@@ -32,7 +32,7 @@ class HeartbeatWorker @AssistedInject constructor(
         val currentApp = deviceMonitor.getCurrentApp()
         
         // Enforce rules on foreground app
-        ruleDetector.checkForegroundApp(currentApp?.packageName)
+        ruleDetector.checkForegroundApp(currentApp)
 
         val request = HeartbeatRequest(
             deviceId = deviceInfo.deviceId,

@@ -96,9 +96,18 @@ const DeviceDetailPage = () => {
               
               <div className="flex flex-col items-center gap-3">
                 {(currentApp || deviceInfo?.currentApp) ? (
-                  <Tag color="cyan" className="px-4 py-2 text-sm border border-cyan-500/30 rounded-lg text-lg">
-                    Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
-                  </Tag>
+                  <div className="flex flex-col items-center gap-2">
+                    {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) && (
+                      <img 
+                        src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
+                        alt="App Icon"
+                        className="w-12 h-12 rounded-lg shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.5)] border border-[#2e303a]"
+                      />
+                    )}
+                    <Tag color="cyan" className="px-4 py-2 text-sm border border-cyan-500/30 rounded-lg text-lg">
+                      Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
+                    </Tag>
+                  </div>
                 ) : (
                   <Tag color="default" className="px-4 py-2 text-sm border-0 rounded-lg text-gray-400">
                     Chưa xác định ứng dụng đang mở
@@ -108,9 +117,9 @@ const DeviceDetailPage = () => {
                 <Button 
                   type="primary" 
                   className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)] mt-4" 
-                  onClick={() => handleSendCommand('START_STREAM')}
+                  onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
                 >
-                  Yêu cầu Cập nhật Màn hình
+                  Làm mới thông tin Ứng dụng
                 </Button>
               </div>
             </div>
@@ -145,7 +154,15 @@ const DeviceDetailPage = () => {
                     
                     {/* App Display */}
                     <div className="flex-1 flex flex-col items-center justify-center opacity-80">
-                      <MobileOutlined className="text-4xl text-[var(--color-primary)] mb-2 drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)]" />
+                      {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) ? (
+                        <img 
+                          src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
+                          alt="App Icon"
+                          className="w-10 h-10 rounded-lg shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)] mb-2"
+                        />
+                      ) : (
+                        <MobileOutlined className="text-4xl text-[var(--color-primary)] mb-2 drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)]" />
+                      )}
                       <div className="text-white text-sm font-bold text-center truncate w-full px-2">
                         {deviceInfo?.deviceName || deviceInfo?.model || 'Android Device'}
                       </div>

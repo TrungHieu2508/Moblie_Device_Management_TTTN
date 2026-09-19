@@ -22,7 +22,7 @@ class DeviceActionManager @Inject constructor(
     private fun isAdminActive(): Boolean = dpm.isAdminActive(adminComponent)
     private fun isDeviceOwner(): Boolean = dpm.isDeviceOwnerApp(context.packageName)
 
-    fun lockScreen() {
+    fun lockScreen(customMessage: String? = null) {
         if (isAdminActive()) {
             dpm.lockNow()
             Log.d("DeviceActionManager", "Screen locked")
@@ -33,7 +33,7 @@ class DeviceActionManager @Inject constructor(
         // Hiện thông báo khóa màn hình
         val intent = Intent(context, com.edusphere.agent.presentation.main.LockActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        intent.putExtra("LOCK_MESSAGE", "Sử dụng điện thoại ngoài việc học nha")
+        intent.putExtra("LOCK_MESSAGE", customMessage ?: "Sử dụng điện thoại ngoài việc học nha")
         context.startActivity(intent)
     }
 
