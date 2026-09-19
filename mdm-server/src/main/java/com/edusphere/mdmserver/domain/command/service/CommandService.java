@@ -64,7 +64,8 @@ public class CommandService {
         String cmdType = request.getCommandType().name();
         if ("LOCK_SCREEN".equals(cmdType) || 
             "RING_ALARM".equals(cmdType) || 
-            "WIPE_DATA".equals(cmdType)) {
+            "WIPE_DATA".equals(cmdType) ||
+            "CLEAR_BACKGROUND_APPS".equals(cmdType)) {
             alertService.createManualAlert(device, cmdType, user);
         }
 

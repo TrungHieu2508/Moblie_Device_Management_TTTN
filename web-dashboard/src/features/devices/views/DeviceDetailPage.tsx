@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined } from '@ant-design/icons';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import axiosInstance from '../../../config/axios';
 import { useQuery } from '@tanstack/react-query';
@@ -211,9 +211,17 @@ const DeviceDetailPage = () => {
               <Divider className="border-[#2e303a] my-2" />
               <Button 
                 size="large" 
+                icon={<ClearOutlined />} 
+                className="bg-purple-500/10 text-purple-500 border-purple-500/30 hover:bg-purple-500 hover:text-white transition-all text-left flex justify-start items-center"
+                onClick={() => handleSendCommand('CLEAR_BACKGROUND_APPS')}
+              >
+                Dọn dẹp RAM (Xóa ứng dụng nền)
+              </Button>
+              <Button 
+                size="large" 
                 icon={<DeleteOutlined />} 
                 danger 
-                className="text-left flex justify-start items-center"
+                className="text-left flex justify-start items-center mt-2"
                 onClick={() => handleSendCommand('WIPE_DATA')}
               >
                 Xóa dữ liệu (Factory Reset)

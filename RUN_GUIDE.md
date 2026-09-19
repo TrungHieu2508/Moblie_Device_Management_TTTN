@@ -94,6 +94,7 @@ adb -d shell dpm remove-active-admin com.edusphere.agent/.receiver.MDMAdminRecei
 adb -d uninstall com.edusphere.agent
 adb -d shell dpm set-device-owner com.edusphere.agent/.receiver.MDMAdminReceiver
 adb install -r -t -d app\build\intermediates\apk\debug\app-debug.apk
+adb shell appops set com.edusphere.agent GET_USAGE_STATS allow
 
 ---
 

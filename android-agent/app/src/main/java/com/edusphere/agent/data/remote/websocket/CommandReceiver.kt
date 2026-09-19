@@ -208,6 +208,9 @@ class CommandReceiver @Inject constructor(
                 "RING_ALARM" -> {
                     actionManager.ringAlarm()
                 }
+                "CLEAR_BACKGROUND_APPS" -> {
+                    actionManager.clearRam()
+                }
                 "WIPE_DATA" -> {
                     actionManager.wipeData()
                 }

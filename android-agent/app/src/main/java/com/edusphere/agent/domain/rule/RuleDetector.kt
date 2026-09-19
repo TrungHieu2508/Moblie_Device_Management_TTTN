@@ -53,6 +53,11 @@ class RuleDetector @Inject constructor(
 
         if (isViolated) {
             Log.w("RuleDetector", "Violation detected: $details")
+            
+            // Push student out of the forbidden app immediately
+            actionManager.clearRecents()
+            actionManager.showAlert("Ứng dụng này đã bị khóa do vi phạm nội quy học tập!")
+
             val deviceInfo = deviceRepository.getDeviceInfo()
             if (deviceInfo != null) {
                 val request = ViolationRequest(
