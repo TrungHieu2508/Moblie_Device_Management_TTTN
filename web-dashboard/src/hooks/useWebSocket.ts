@@ -5,7 +5,9 @@ import { useAuthStore } from '../store/authStore';
 
 const isProd = import.meta.env.PROD;
 const dynamicWsUrl = `http://${window.location.hostname}:8081/api/ws-web`;
-const WS_URL = isProd ? (import.meta.env.VITE_WS_URL || dynamicWsUrl) : dynamicWsUrl;
+let WS_URL = isProd ? (import.meta.env.VITE_WS_URL || dynamicWsUrl) : dynamicWsUrl;
+if (WS_URL.startsWith('wss://')) WS_URL = WS_URL.replace('wss://', 'https://');
+if (WS_URL.startsWith('ws://')) WS_URL = WS_URL.replace('ws://', 'http://');
 
 export const useWebSocket = (deviceId?: string) => {
   const [metrics, setMetrics] = useState<any>(null);
