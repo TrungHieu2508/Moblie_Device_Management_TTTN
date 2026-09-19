@@ -15,8 +15,20 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import com.edusphere.agent.receiver.MDMAdminReceiver
 
+import android.widget.Toast
+import com.edusphere.agent.domain.repository.DeviceRepository
+import com.edusphere.agent.data.remote.model.ViolationRequest
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
 @AndroidEntryPoint
 class LockActivity : AppCompatActivity() {
+
+    @Inject
+    lateinit var deviceRepository: DeviceRepository
+
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -94,8 +106,37 @@ class LockActivity : AppCompatActivity() {
     // Emergency unlock logic for demo
     fun onUnlockCodeEntered(code: String) {
         if (code == "1234") {
-            stopLockTask()
+            try {
+                stopLockTask()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            Toast.makeText(this, "Đã mở khóa thiết bị", Toast.LENGTH_SHORT).show()
+            
+            // Báo cáo lên server là đã mở khóa thủ công
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val deviceInfo = deviceRepository.getDeviceInfo()
+                    if (deviceInfo != null) {
+                        val request = ViolationRequest(
+                            deviceId = deviceInfo.deviceId,
+                            eventType = "DEVICE_UNLOCKED_MANUALLY",
+                            timestamp = System.currentTimeMillis(),
+                            payload = mapOf(
+                                "method" to "PIN_CODE"
+                            )
+                        )
+                        deviceRepository.sendViolation(request)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+            
             finish()
+        } else {
+            Toast.makeText(this, "Mã mở khóa không chính xác!", Toast.LENGTH_SHORT).show()
         }
     }
 }

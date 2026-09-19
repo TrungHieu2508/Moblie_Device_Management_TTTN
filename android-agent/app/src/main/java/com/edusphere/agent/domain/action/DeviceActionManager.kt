@@ -85,6 +85,35 @@ class DeviceActionManager @Inject constructor(
         Log.d("DeviceActionManager", "Navigated to Home (simulate clear recents)")
     }
 
+    fun clearRam() {
+        if (isDeviceOwner()) {
+            val pm = context.packageManager
+            val packages = pm.getInstalledPackages(0)
+            val toSuspend = mutableListOf<String>()
+            for (pkg in packages) {
+                // Ignore system apps and ourselves
+                if (pkg.packageName != context.packageName &&
+                    (pkg.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_SYSTEM)) == 0) {
+                    toSuspend.add(pkg.packageName)
+                }
+            }
+            if (toSuspend.isNotEmpty()) {
+                val pkgArray = toSuspend.toTypedArray()
+                try {
+                    // Suspending and unsuspending forces the OS to kill the processes
+                    dpm.setPackagesSuspended(adminComponent, pkgArray, true)
+                    dpm.setPackagesSuspended(adminComponent, pkgArray, false)
+                    Log.d("DeviceActionManager", "Cleared RAM for ${toSuspend.size} apps")
+                    showAlert("Đã dọn dẹp RAM thành công!")
+                } catch (e: Exception) {
+                    Log.e("DeviceActionManager", "Failed to clear RAM", e)
+                }
+            } else {
+                showAlert("Không có ứng dụng nào cần dọn dẹp")
+            }
+        }
+    }
+
     fun setAppHidden(packageName: String, hidden: Boolean) {
         if (isDeviceOwner()) {
             dpm.setApplicationHidden(adminComponent, packageName, hidden)

@@ -117,6 +117,11 @@ public class AlertService {
                 severity = com.edusphere.mdmserver.domain.alert.enums.AlertSeverity.CRITICAL;
                 device.setStatus(DeviceStatus.CRITICAL);
                 break;
+            case "CLEAR_BACKGROUND_APPS":
+                title = "Dọn dẹp RAM thủ công";
+                description = "Quản trị viên " + adminUser.getUsername() + " đã dọn dẹp RAM thiết bị.";
+                severity = com.edusphere.mdmserver.domain.alert.enums.AlertSeverity.WARNING;
+                break;
             default:
                 return; // Không tạo alert cho các lệnh khác (như UNLOCK_DEVICE)
         }
