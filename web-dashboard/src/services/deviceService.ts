@@ -14,8 +14,9 @@ export interface DeviceDto {
   classroom?: { id: string; name: string };
   lastHeartbeatAt: string;
   currentApp?: {
-    appName?: string;
     packageName?: string;
+    appName?: string;
+    appIconBase64?: string;
   };
 }
 
