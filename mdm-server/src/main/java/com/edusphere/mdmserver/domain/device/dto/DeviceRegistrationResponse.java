@@ -13,6 +13,7 @@ public class DeviceRegistrationResponse {
     private Instant tokenExpiresAt;
     private String campusName;
     private String schoolName;
+    private String classroomName;
     private ServerConfig serverConfig;
 
     @Data

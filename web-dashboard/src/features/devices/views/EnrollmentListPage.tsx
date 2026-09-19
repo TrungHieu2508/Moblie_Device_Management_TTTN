@@ -105,6 +105,12 @@ const EnrollmentListPage = () => {
       render: (text: string) => <Text className="text-gray-300">{text || '---'}</Text>,
     },
     {
+      title: 'Lớp học',
+      dataIndex: 'classroomName',
+      key: 'classroomName',
+      render: (text: string) => <Text className="text-gray-300">{text || '---'}</Text>,
+    },
+    {
       title: 'Ngày hết hạn',
       dataIndex: 'expiresAt',
       key: 'expiresAt',

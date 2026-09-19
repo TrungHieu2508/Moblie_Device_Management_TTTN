@@ -36,10 +36,7 @@ const DeviceDetailPage = () => {
   const { isConnected, metrics, deviceStatus, screenFrame, currentApp } = useWebSocket(deviceInfo?.deviceId);
 
   useEffect(() => {
-    if (isConnected && deviceInfo?.deviceId) {
-      // Auto-start stream when connected
-      handleSendCommand('START_STREAM');
-    }
+    // Không tự động gọi START_STREAM nữa vì không ổn định (Theo yêu cầu)
   }, [isConnected, deviceInfo?.deviceId]);
 
   const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
@@ -89,43 +86,33 @@ const DeviceDetailPage = () => {
         {/* Left Column: Live Metrics */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Live Incident View (MJPEG Stream) */}
+          {/* Live Incident View (App View) */}
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Live Incident View</span>}>
             <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative">
-              {screenFrame ? (
-                <>
-                  <img src={`data:image/jpeg;base64,${screenFrame}`} className="h-full w-full object-contain" alt="Live Screen" />
-                  <Button 
-                    type="primary" 
-                    ghost 
-                    className="absolute bottom-4 right-4 border-[var(--color-primary)] text-[var(--color-primary)] bg-black/60 hover:bg-black/80" 
-                    onClick={() => handleSendCommand('STOP_STREAM')}
-                  >
-                    Dừng xem
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <MobileOutlined className="text-6xl text-gray-600 mb-4" />
-                  <Text className="text-gray-500 mb-2">
-                    {isConnected ? 'Đang tải luồng video trực tiếp...' : 'Màn hình hiện đang tắt'}
-                  </Text>
-                  {(currentApp || deviceInfo?.currentApp) && (
-                    <Tag color="cyan" className="mb-4 px-3 py-1 text-sm border-0">
-                      Đang mở: {(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}
-                    </Tag>
-                  )}
-                  {!isConnected && (
-                    <Button 
-                      type="primary" 
-                      className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)]" 
-                      onClick={() => handleSendCommand('START_STREAM')}
-                    >
-                      Bắt đầu Xem trực tiếp
-                    </Button>
-                  )}
-                </>
-              )}
+              <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-4" />
+              <Text className="text-gray-400 mb-2 font-medium">
+                {isConnected ? 'Thiết bị đang trực tuyến' : 'Màn hình hiện đang tắt / Mất kết nối'}
+              </Text>
+              
+              <div className="flex flex-col items-center gap-3">
+                {(currentApp || deviceInfo?.currentApp) ? (
+                  <Tag color="cyan" className="px-4 py-2 text-sm border border-cyan-500/30 rounded-lg text-lg">
+                    Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
+                  </Tag>
+                ) : (
+                  <Tag color="default" className="px-4 py-2 text-sm border-0 rounded-lg text-gray-400">
+                    Chưa xác định ứng dụng đang mở
+                  </Tag>
+                )}
+
+                <Button 
+                  type="primary" 
+                  className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)] mt-4" 
+                  onClick={() => handleSendCommand('START_STREAM')}
+                >
+                  Yêu cầu Cập nhật Màn hình
+                </Button>
+              </div>
             </div>
           </Card>
           

@@ -28,9 +28,13 @@ class RuleDetector @Inject constructor(
             return // Skip checks if paused
         }
 
-        if (packageName == null) return
-        // Ignore system UI and launcher
-        if (packageName.contains("android.systemui") || packageName.contains("launcher")) return
+        if (packageName == null || packageName.isEmpty()) return
+        // Ignore system UI, launchers, and device manufacturer packages
+        if (packageName.contains("android.systemui") || 
+            packageName.contains("launcher") || 
+            packageName.startsWith("com.android.") ||
+            packageName.startsWith("com.sec.") ||
+            packageName.startsWith("com.samsung.")) return
 
         var isViolated = false
         var details = ""
