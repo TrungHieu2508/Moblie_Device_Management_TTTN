@@ -118,8 +118,7 @@ const DeviceDetailPage = () => {
                   {!isConnected && (
                     <Button 
                       type="primary" 
-                      ghost 
-                      className="border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-colors" 
+                      className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)]" 
                       onClick={() => handleSendCommand('START_STREAM')}
                     >
                       Bắt đầu Xem trực tiếp
