@@ -177,7 +177,7 @@ const MainLayout = () => {
 
         <Content style={{
           background: '#050507',
-          overflow: 'hidden',
+          overflow: 'auto',
           display: 'flex',
           flexDirection: 'column',
           flex: 1,
