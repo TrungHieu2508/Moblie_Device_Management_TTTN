@@ -62,6 +62,24 @@ class HeartbeatService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "FORCE_HEARTBEAT") {
+            serviceScope.launch {
+                val deviceInfo = deviceRepository.getDeviceInfo()
+                if (deviceInfo != null && deviceInfo.isRegistered) {
+                    val metrics = deviceMonitor.getDeviceMetrics()
+                    val currentApp = deviceMonitor.getCurrentApp()
+                    val request = HeartbeatRequest(
+                        deviceId = deviceInfo.deviceId,
+                        timestamp = System.currentTimeMillis(),
+                        metrics = metrics,
+                        currentApp = currentApp
+                    )
+                    deviceRepository.sendHeartbeat(request)
+                }
+            }
+            return START_STICKY
+        }
+
         // This service runs continuously. Try to reconnect if dropped.
         serviceScope.launch {
             val deviceInfo = deviceRepository.getDeviceInfo()
@@ -158,7 +176,7 @@ class HeartbeatService : Service() {
                     val isPaused = sharedPreferencesManager.isMdmPaused()
                     if (!isPaused) {
                         val currentApp = deviceMonitor.getCurrentApp()
-                        ruleDetector.checkForegroundApp(currentApp?.packageName)
+                        ruleDetector.checkForegroundApp(currentApp)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

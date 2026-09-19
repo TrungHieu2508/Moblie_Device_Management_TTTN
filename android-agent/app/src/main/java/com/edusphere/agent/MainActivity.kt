@@ -47,6 +47,20 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.checkStatus()
+        checkUsageStatsPermission()
+    }
+
+    private fun checkUsageStatsPermission() {
+        val appOps = getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        } else {
+            appOps.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
+        }
+        if (mode != android.app.AppOpsManager.MODE_ALLOWED) {
+            android.widget.Toast.makeText(this, "Vui lòng cấp quyền Truy cập dữ liệu sử dụng để phát hiện ứng dụng", android.widget.Toast.LENGTH_LONG).show()
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
     }
 
     private fun startHeartbeatService() {

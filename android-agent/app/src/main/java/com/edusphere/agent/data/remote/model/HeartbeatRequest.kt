@@ -25,5 +25,6 @@ data class DeviceMetrics(
 
 data class CurrentApp(
     @SerializedName("packageName") val packageName: String,
-    @SerializedName("appName") val appName: String
+    @SerializedName("appName") val appName: String,
+    @SerializedName("appIconBase64") val appIconBase64: String? = null
 )

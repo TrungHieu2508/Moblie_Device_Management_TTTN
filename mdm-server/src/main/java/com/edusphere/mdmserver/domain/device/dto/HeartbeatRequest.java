@@ -30,5 +30,6 @@ public class HeartbeatRequest {
     public static class CurrentApp {
         private String packageName;
         private String appName;
+        private String appIconBase64;
     }
 }
