@@ -32,8 +32,9 @@ class RuleDetector @Inject constructor(
         val appName = currentApp?.appName ?: packageName
 
         if (packageName == null || packageName.isEmpty()) return
-        // Ignore system UI, launchers, and device manufacturer packages
-        if (packageName.contains("android.systemui") || 
+        // Ignore system UI, launchers, device manufacturer packages, and OUR OWN APP
+        if (packageName == "com.edusphere.agent" ||
+            packageName.contains("android.systemui") || 
             packageName.contains("launcher") || 
             packageName.startsWith("com.android.") ||
             packageName.startsWith("com.sec.") ||
@@ -61,8 +62,10 @@ class RuleDetector @Inject constructor(
         if (isViolated) {
             Log.w("RuleDetector", "Violation detected: $details")
             
-            // Push student out of the forbidden app immediately and lock screen
+            // Push student out of the forbidden app immediately, play warning sound, and lock screen
             actionManager.clearRecents()
+            actionManager.playAlarmSound(5) // Phát chuông 5 giây
+            
             val alertMsg = if (appName != null) "Bị chặn tự động do dùng ứng dụng: $appName" else "Ứng dụng này đã bị khóa do vi phạm nội quy học tập!"
             actionManager.lockScreen(alertMsg)
 

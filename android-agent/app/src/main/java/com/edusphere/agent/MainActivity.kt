@@ -55,19 +55,11 @@ class MainActivity : AppCompatActivity() {
 
         setupListeners()
         setupObservers()
-        requestMediaProjectionPermission()
         
         // Restore saved URL to UI
         val savedUrl = sharedPreferencesManager.getServerUrl()
         if (savedUrl != null) {
             findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).setText(savedUrl)
-        }
-    }
-
-    private fun requestMediaProjectionPermission() {
-        if (!MediaProjectionHolder.isGranted) {
-            val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            mediaProjectionLauncher.launch(mpm.createScreenCaptureIntent())
         }
     }
 

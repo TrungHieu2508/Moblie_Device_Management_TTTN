@@ -154,8 +154,15 @@ class DeviceActionManager @Inject constructor(
         }
     }
 
-    fun ringAlarm() {
+    private var currentMediaPlayer: android.media.MediaPlayer? = null
+
+    fun playAlarmSound(durationSeconds: Int = 10) {
         try {
+            if (currentMediaPlayer?.isPlaying == true) {
+                // Đang phát rồi thì không cần phát chồng lên nhau
+                return
+            }
+
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             
@@ -170,34 +177,48 @@ class DeviceActionManager @Inject constructor(
                 alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             }
             
-            val mediaPlayer = android.media.MediaPlayer()
-            mediaPlayer.setDataSource(context, alarmUri)
-            mediaPlayer.setAudioAttributes(
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            mediaPlayer.isLooping = true
-            mediaPlayer.prepare()
-            mediaPlayer.start()
+            currentMediaPlayer = android.media.MediaPlayer().apply {
+                setDataSource(context, alarmUri)
+                setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                isLooping = true
+                prepare()
+                start()
+            }
             
             Log.d("DeviceActionManager", "Playing alarm sound at max volume")
-            showAlert("Sử dụng điện thoại ngoài việc học nha")
             
-            // Auto stop after 10 seconds
+            // Auto stop after specified duration
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                try {
-                    if (mediaPlayer.isPlaying) {
-                        mediaPlayer.stop()
-                        mediaPlayer.release()
-                    }
-                } catch (e: Exception) {}
-            }, 10000)
+                stopAlarmSound()
+            }, durationSeconds * 1000L)
             
         } catch (e: Exception) {
             Log.e("DeviceActionManager", "Failed to play alarm", e)
         }
+    }
+
+    fun stopAlarmSound() {
+        try {
+            currentMediaPlayer?.let {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+                it.release()
+            }
+            currentMediaPlayer = null
+        } catch (e: Exception) {
+            Log.e("DeviceActionManager", "Error stopping alarm", e)
+        }
+    }
+
+    fun ringAlarm() {
+        playAlarmSound(10)
+        showAlert("Sử dụng điện thoại ngoài việc học nha")
     }
 
     fun wipeData() {
