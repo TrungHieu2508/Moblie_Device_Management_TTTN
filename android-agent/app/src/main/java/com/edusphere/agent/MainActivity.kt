@@ -36,18 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPauseMdm: MaterialButton
     private lateinit var btnUnenroll: MaterialButton
 
-    private val mediaProjectionLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            // Store the permission grant globally so ScreenCaptureService can use it anytime
-            MediaProjectionHolder.resultCode = result.resultCode
-            MediaProjectionHolder.resultData = result.data
-            android.util.Log.i("MainActivity", "MediaProjection permission granted and stored")
-        } else {
-            android.util.Log.w("MainActivity", "MediaProjection permission denied by user")
-        }
-    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +56,20 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         viewModel.checkStatus()
         checkUsageStatsPermission()
+        checkSystemAlertWindowPermission()
+    }
+
+    private fun checkSystemAlertWindowPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                android.widget.Toast.makeText(this, "Vui lòng cấp quyền Hiển thị trên các ứng dụng khác để hiển thị cảnh báo", android.widget.Toast.LENGTH_LONG).show()
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+            }
+        }
     }
 
     private fun checkUsageStatsPermission() {

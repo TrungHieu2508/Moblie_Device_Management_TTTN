@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".AgentApplication"
@@ -81,7 +82,7 @@
             
         <activity
             android:name=".presentation.main.AlertActivity"
-            android:theme="@style/Theme.AppCompat.Dialog"
+            android:theme="@style/Theme.EduSphereAgent.TransparentDialog"
             android:excludeFromRecents="true"
             android:showOnLockScreen="true"
             android:exported="false" />

@@ -221,20 +221,9 @@ class CommandReceiver @Inject constructor(
                     context.startService(intent)
                 }
                 "START_STREAM" -> {
-                    if (com.edusphere.agent.data.local.MediaProjectionHolder.isGranted) {
-                        val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)
-                        intent.action = "START"
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                            context.startForegroundService(intent)
-                        } else {
-                            context.startService(intent)
-                        }
-                    } else {
-                        // Fallback: Need permission again (e.g. process was killed)
-                        val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    }
+                    val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    context.startActivity(intent)
                 }
                 "STOP_STREAM" -> {
                     val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)

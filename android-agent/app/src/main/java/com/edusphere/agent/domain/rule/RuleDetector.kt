@@ -63,7 +63,6 @@ class RuleDetector @Inject constructor(
             Log.w("RuleDetector", "Violation detected: $details")
             
             // Push student out of the forbidden app immediately, play warning sound, and lock screen
-            actionManager.clearRecents()
             actionManager.playAlarmSound(5) // Phát chuông 5 giây
             
             val alertMsg = if (appName != null) "Bị chặn tự động do dùng ứng dụng: $appName" else "Ứng dụng này đã bị khóa do vi phạm nội quy học tập!"
