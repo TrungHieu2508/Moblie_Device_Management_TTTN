@@ -164,7 +164,7 @@ class HeartbeatService : Service() {
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
-                delay(30000) // Send heartbeat every 30 seconds
+                delay(20000) // Send heartbeat every 20 seconds
             }
         }
     }

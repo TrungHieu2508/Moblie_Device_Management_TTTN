@@ -1,13 +1,19 @@
 package com.edusphere.agent
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.edusphere.agent.data.local.MediaProjectionHolder
 import com.edusphere.agent.presentation.viewmodel.MainViewModel
 import com.google.android.material.button.MaterialButton
 import dagger.hilt.android.AndroidEntryPoint
@@ -30,17 +36,38 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPauseMdm: MaterialButton
     private lateinit var btnUnenroll: MaterialButton
 
+    private val mediaProjectionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            // Store the permission grant globally so ScreenCaptureService can use it anytime
+            MediaProjectionHolder.resultCode = result.resultCode
+            MediaProjectionHolder.resultData = result.data
+            android.util.Log.i("MainActivity", "MediaProjection permission granted and stored")
+        } else {
+            android.util.Log.w("MainActivity", "MediaProjection permission denied by user")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         setupListeners()
         setupObservers()
+        requestMediaProjectionPermission()
         
         // Restore saved URL to UI
         val savedUrl = sharedPreferencesManager.getServerUrl()
         if (savedUrl != null) {
             findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.etServerUrl).setText(savedUrl)
+        }
+    }
+
+    private fun requestMediaProjectionPermission() {
+        if (!MediaProjectionHolder.isGranted) {
+            val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            mediaProjectionLauncher.launch(mpm.createScreenCaptureIntent())
         }
     }
 

@@ -43,7 +43,7 @@ class RuleDetector @Inject constructor(
         var details = ""
 
         // Check hardcoded forbidden apps
-        if (packageName == "com.facebook.katana" || packageName == "com.google.android.youtube") {
+        if (packageName == "com.facebook.katana" || packageName == "com.google.android.youtube" || packageName.contains("tiktok") || packageName.contains("zhiliao")) {
             isViolated = true
             details = "App $packageName is explicitly forbidden for studying."
         } else if (isWhitelistMode) {
@@ -61,10 +61,10 @@ class RuleDetector @Inject constructor(
         if (isViolated) {
             Log.w("RuleDetector", "Violation detected: $details")
             
-            // Push student out of the forbidden app immediately
+            // Push student out of the forbidden app immediately and lock screen
             actionManager.clearRecents()
             val alertMsg = if (appName != null) "Bị chặn tự động do dùng ứng dụng: $appName" else "Ứng dụng này đã bị khóa do vi phạm nội quy học tập!"
-            actionManager.showAlert(alertMsg)
+            actionManager.lockScreen(alertMsg)
 
             val deviceInfo = deviceRepository.getDeviceInfo()
             if (deviceInfo != null) {

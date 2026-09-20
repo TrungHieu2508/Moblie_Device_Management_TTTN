@@ -37,7 +37,19 @@ const DeviceDetailPage = () => {
 
   useEffect(() => {
     // Không tự động gọi START_STREAM nữa vì không ổn định (Theo yêu cầu)
-  }, [isConnected, deviceInfo?.deviceId]);
+    
+    // Tự động gửi lệnh Dừng xem khi thoát khỏi trang để tiết kiệm pin thiết bị
+    return () => {
+      if (id) {
+        axiosInstance.post(`/devices/${id}/commands`, {
+          commandType: 'STOP_STREAM',
+          payload: {}
+        }).catch(() => {
+          // Ignore error on unmount
+        });
+      }
+    };
+  }, [id]);
 
   const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
     try {
@@ -179,6 +191,57 @@ const DeviceDetailPage = () => {
                 {/* Shadow */}
                 <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-8 bg-black/50 blur-xl rounded-[100%] -z-20" style={{ transform: 'rotateX(90deg) translateZ(-40px)' }}></div>
               </div>
+            </div>
+          </Card>
+          
+          {/* Live Screen Stream */}
+          <Card 
+            className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6" 
+            title={
+              <div className="flex items-center justify-between w-full">
+                <span className="text-[var(--color-primary)] font-bold">📺 Giám sát màn hình trực tiếp</span>
+                {screenFrame && (
+                  <span className="text-xs text-green-400 flex items-center gap-1 animate-pulse">
+                    <span className="w-2 h-2 bg-green-500 rounded-full inline-block"></span>
+                    LIVE
+                  </span>
+                )}
+              </div>
+            }
+          >
+            <div className="flex justify-center gap-4 mb-4">
+              <Button 
+                type="primary" 
+                className="bg-green-600 border-none hover:bg-green-500 font-semibold"
+                onClick={() => handleSendCommand('START_STREAM')}
+              >
+                ▶ Bắt đầu xem
+              </Button>
+              <Button 
+                danger
+                onClick={() => handleSendCommand('STOP_STREAM')}
+              >
+                ⏹ Dừng xem
+              </Button>
+            </div>
+            <div className="text-xs text-gray-500 text-center mb-3">
+              ⚠️ Thiết bị cần phải đã cấp quyền chiếu màn hình trong lần mở app đầu tiên. Nếu chưa có, bảo học sinh mở app MDM Agent và chấp nhận yêu cầu.
+            </div>
+            <div className="bg-[#0a0a0f] border border-[#2e303a] rounded-lg overflow-hidden flex items-center justify-center relative min-h-[420px] max-h-[700px]">
+              {screenFrame ? (
+                <img 
+                  src={`data:image/jpeg;base64,${screenFrame}`} 
+                  alt="Live Screen" 
+                  className="max-h-full max-w-full object-contain" 
+                  style={{ imageRendering: 'auto' }}
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-3 opacity-50 p-8 text-center">
+                  <MobileOutlined className="text-5xl text-gray-500" />
+                  <Text className="text-gray-500 text-base">Chưa có dữ liệu màn hình</Text>
+                  <Text className="text-gray-600 text-xs">Nhấn "Bắt đầu xem" để gửi lệnh cho thiết bị bắt đầu stream màn hình</Text>
+                </div>
+              )}
             </div>
           </Card>
         </div>
