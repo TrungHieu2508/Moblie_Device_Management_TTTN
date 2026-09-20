@@ -32,7 +32,7 @@ class DeviceActionManager @Inject constructor(
         
         // Hiện thông báo khóa màn hình
         val intent = Intent(context, com.edusphere.agent.presentation.main.LockActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         intent.putExtra("LOCK_MESSAGE", customMessage ?: "Sử dụng điện thoại ngoài việc học nha")
         context.startActivity(intent)
     }
@@ -232,7 +232,7 @@ class DeviceActionManager @Inject constructor(
 
     fun showAlert(message: String) {
         val intent = Intent(context, com.edusphere.agent.presentation.main.AlertActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         intent.putExtra("ALERT_MESSAGE", message)
         context.startActivity(intent)
         Log.d("DeviceActionManager", "Showing alert: $message")
