@@ -4,16 +4,25 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_lock"
+    android:background="#121212"
     tools:context=".presentation.main.LockActivity">
+
+    <!-- Subtle Red Gradient/Glow at the top (simulated with a View) -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:background="#20FF3B30"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <ImageView
         android:id="@+id/ivLockIcon"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
         android:src="@android:drawable/ic_secure"
-        app:tint="@android:color/white"
-        android:layout_marginBottom="32dp"
+        app:tint="#FF3B30"
+        android:layout_marginBottom="24dp"
         app:layout_constraintBottom_toTopOf="@+id/tvLockTitle"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -26,11 +35,12 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="32dp"
         android:layout_marginEnd="32dp"
-        android:text="THIẾT BỊ BỊ KHÓA"
+        android:text="THIẾT BỊ ĐANG BỊ KHÓA"
         android:textAlignment="center"
-        android:textColor="@android:color/white"
-        android:textSize="28sp"
+        android:textColor="#FFFFFF"
+        android:textSize="26sp"
         android:textStyle="bold"
+        android:letterSpacing="0.05"
         app:layout_constraintBottom_toTopOf="@+id/tvLockMessage"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -41,55 +51,82 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="40dp"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="12dp"
         android:layout_marginEnd="40dp"
-        android:text="Thiết bị này đã bị khóa do vi phạm kỷ luật. Vui lòng liên hệ Giáo viên hoặc Quản trị viên để được hỗ trợ mở khóa."
+        android:text="Không được sử dụng thiết bị ngoài việc học."
         android:textAlignment="center"
-        android:textColor="@android:color/white"
-        android:textSize="18sp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:textColor="#A0A0A5"
+        android:textSize="16sp"
+        android:lineSpacingExtra="4dp"
+        app:layout_constraintBottom_toTopOf="@+id/cardInput"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/tvLockTitle" />
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/tilUnlockCode"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-        android:layout_width="0dp"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardInput"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="64dp"
-        android:layout_marginTop="32dp"
-        android:layout_marginEnd="64dp"
-        android:hint="Mã mở khóa"
-        app:boxStrokeColor="@android:color/white"
-        app:hintTextColor="@android:color/white"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="48dp"
+        android:layout_marginEnd="32dp"
+        app:cardBackgroundColor="#1E1E1E"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeColor="#333333"
+        app:strokeWidth="1dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tvLockMessage">
+        app:layout_constraintTop_toBottomOf="@+id/tvLockMessage"
+        app:layout_constraintBottom_toBottomOf="parent">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etUnlockCode"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="numberPassword"
-            android:textAlignment="center"
-            android:textColor="@android:color/white"
-            android:textSize="20sp" />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:orientation="vertical"
+            android:padding="24dp">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnUnlock"
-        android:layout_width="wrap_content"
-        android:layout_height="60dp"
-        android:layout_marginTop="24dp"
-        android:text="Mở khóa"
-        android:textColor="#D32F2F"
-        android:textSize="18sp"
-        app:backgroundTint="@android:color/white"
-        app:cornerRadius="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/tilUnlockCode" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilUnlockCode"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Nhập mã mở khóa"
+                app:boxBackgroundColor="#2C2C2E"
+                app:boxCornerRadiusBottomEnd="8dp"
+                app:boxCornerRadiusBottomStart="8dp"
+                app:boxCornerRadiusTopEnd="8dp"
+                app:boxCornerRadiusTopStart="8dp"
+                app:boxStrokeColor="#FF3B30"
+                app:boxStrokeWidthFocused="2dp"
+                app:boxStrokeWidth="0dp"
+                app:hintTextColor="#FF3B30">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etUnlockCode"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberPassword"
+                    android:textAlignment="center"
+                    android:textColor="#FFFFFF"
+                    android:textSize="20sp"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="16dp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnUnlock"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="20dp"
+                android:text="MỞ KHÓA"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1"
+                app:backgroundTint="#FF3B30"
+                app:cornerRadius="8dp" />
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
