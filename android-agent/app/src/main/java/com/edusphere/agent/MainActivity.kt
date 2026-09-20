@@ -1,13 +1,19 @@
 package com.edusphere.agent
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.edusphere.agent.data.local.MediaProjectionHolder
 import com.edusphere.agent.presentation.viewmodel.MainViewModel
 import com.google.android.material.button.MaterialButton
 import dagger.hilt.android.AndroidEntryPoint
@@ -30,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPauseMdm: MaterialButton
     private lateinit var btnUnenroll: MaterialButton
 
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -48,6 +56,20 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         viewModel.checkStatus()
         checkUsageStatsPermission()
+        checkSystemAlertWindowPermission()
+    }
+
+    private fun checkSystemAlertWindowPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                android.widget.Toast.makeText(this, "Vui lòng cấp quyền Hiển thị trên các ứng dụng khác để hiển thị cảnh báo", android.widget.Toast.LENGTH_LONG).show()
+                val intent = Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+            }
+        }
     }
 
     private fun checkUsageStatsPermission() {

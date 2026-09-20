@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined } from '@ant-design/icons';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import axiosInstance from '../../../config/axios';
 import { useQuery } from '@tanstack/react-query';
@@ -33,10 +33,13 @@ const DeviceDetailPage = () => {
   }, [deviceInfo?.deviceId]);
 
   // Connect to WebSocket to receive real-time metrics for this specific device
-  const { isConnected, metrics, deviceStatus, screenFrame, currentApp } = useWebSocket(deviceInfo?.deviceId);
+  const { isConnected, metrics, deviceStatus, screenFrame } = useWebSocket(deviceInfo?.deviceId);
 
   useEffect(() => {
-    // Không tự động gọi START_STREAM nữa vì không ổn định (Theo yêu cầu)
+    if (isConnected && deviceInfo?.deviceId) {
+      // Auto-start stream when connected
+      handleSendCommand('START_STREAM');
+    }
   }, [isConnected, deviceInfo?.deviceId]);
 
   const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
@@ -86,99 +89,14 @@ const DeviceDetailPage = () => {
         {/* Left Column: Live Metrics */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Live Incident View (App View) */}
+          {/* Live Incident View (Coming Soon) */}
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Live Incident View</span>}>
-            <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative">
-              <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-4" />
-              <Text className="text-gray-400 mb-2 font-medium">
-                {isConnected ? 'Thiết bị đang trực tuyến' : 'Màn hình hiện đang tắt / Mất kết nối'}
-              </Text>
-              
-              <div className="flex flex-col items-center gap-3">
-                {(currentApp || deviceInfo?.currentApp) ? (
-                  <div className="flex flex-col items-center gap-2">
-                    {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) && (
-                      <img 
-                        src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
-                        alt="App Icon"
-                        className="w-12 h-12 rounded-lg shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.5)] border border-[#2e303a]"
-                      />
-                    )}
-                    <Tag color="cyan" className="px-4 py-2 text-sm border border-cyan-500/30 rounded-lg text-lg">
-                      Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
-                    </Tag>
-                  </div>
-                ) : (
-                  <Tag color="default" className="px-4 py-2 text-sm border-0 rounded-lg text-gray-400">
-                    Chưa xác định ứng dụng đang mở
-                  </Tag>
-                )}
-
-                <Button 
-                  type="primary" 
-                  className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)] mt-4" 
-                  onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
-                >
-                  Làm mới thông tin Ứng dụng
-                </Button>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6 overflow-hidden p-0">
-            <div className="relative flex items-center justify-center bg-gradient-to-br from-[#1a1c23] to-[#0a0a0f]" style={{ height: '350px', perspective: '1000px' }}>
-              <div className="absolute top-4 left-4 bg-[var(--color-primary)] text-xs font-bold px-3 py-1 rounded-full z-10 shadow-lg flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-                Live 3D Digital Twin (Android)
-              </div>
-              
-              {/* CSS 3D Android Phone */}
-              <div className="relative w-48 h-96 transition-transform duration-1000 hover:rotate-y-12 hover:-rotate-x-12" style={{ transformStyle: 'preserve-3d', transform: 'rotateY(-15deg) rotateX(5deg)' }}>
-                {/* Phone Body */}
-                <div className="absolute inset-0 bg-[#2a2d36] rounded-[2rem] border-[4px] border-[#3e414c] shadow-2xl flex flex-col overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-tr before:from-transparent before:to-white/10 before:z-10" style={{ transform: 'translateZ(10px)' }}>
-                  
-                  {/* Camera hole */}
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 w-3 h-3 bg-black rounded-full z-20 shadow-inner border border-gray-800"></div>
-                  
-                  {/* Screen Content */}
-                  <div className="flex-1 bg-[#121318] m-1.5 rounded-[1.5rem] relative overflow-hidden flex flex-col p-4 z-0">
-                    {/* Status bar */}
-                    <div className="flex justify-between items-center text-[8px] text-gray-400 mb-4 px-1">
-                      <span>12:00</span>
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                      </div>
-                    </div>
-                    
-                    {/* App Display */}
-                    <div className="flex-1 flex flex-col items-center justify-center opacity-80">
-                      {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) ? (
-                        <img 
-                          src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
-                          alt="App Icon"
-                          className="w-10 h-10 rounded-lg shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)] mb-2"
-                        />
-                      ) : (
-                        <MobileOutlined className="text-4xl text-[var(--color-primary)] mb-2 drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)]" />
-                      )}
-                      <div className="text-white text-sm font-bold text-center truncate w-full px-2">
-                        {deviceInfo?.deviceName || deviceInfo?.model || 'Android Device'}
-                      </div>
-                      <div className="text-cyan-400 text-xs mt-2 bg-cyan-900/30 px-2 py-0.5 rounded border border-cyan-500/20 truncate max-w-full">
-                        {(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName) || 'Màn hình chính'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Phone Edge (3D effect) */}
-                <div className="absolute inset-0 bg-[#15161c] rounded-[2rem] -z-10" style={{ transform: 'translateZ(-5px)' }}></div>
-                
-                {/* Shadow */}
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-8 bg-black/50 blur-xl rounded-[100%] -z-20" style={{ transform: 'rotateX(90deg) translateZ(-40px)' }}></div>
-              </div>
+            <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative opacity-50">
+                <MobileOutlined className="text-6xl text-gray-600 mb-4" />
+                <Text className="text-gray-500 mb-4">
+                  Tính năng xem màn hình thời gian thực đang được phát triển
+                </Text>
+                <Tag color="cyan">COMING SOON</Tag>
             </div>
           </Card>
         </div>
@@ -215,17 +133,9 @@ const DeviceDetailPage = () => {
               <Divider className="border-[#2e303a] my-2" />
               <Button 
                 size="large" 
-                icon={<ClearOutlined />} 
-                className="bg-purple-500/10 text-purple-500 border-purple-500/30 hover:bg-purple-500 hover:text-white transition-all text-left flex justify-start items-center"
-                onClick={() => handleSendCommand('CLEAR_BACKGROUND_APPS')}
-              >
-                Dọn dẹp RAM (Xóa ứng dụng nền)
-              </Button>
-              <Button 
-                size="large" 
                 icon={<DeleteOutlined />} 
                 danger 
-                className="text-left flex justify-start items-center mt-2"
+                className="text-left flex justify-start items-center"
                 onClick={() => handleSendCommand('WIPE_DATA')}
               >
                 Xóa dữ liệu (Factory Reset)
@@ -244,10 +154,8 @@ const DeviceDetailPage = () => {
                 <Text className="text-white font-medium text-base">Android {deviceInfo?.androidVersion}</Text>
               </div>
               <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
-                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Cơ sở / Trường / Lớp</Text>
-                <Text className="text-white font-medium text-base">
-                  {deviceInfo?.school?.name || 'Chưa gán'} {deviceInfo?.classroom ? `- Lớp ${deviceInfo.classroom.name}` : ''}
-                </Text>
+                <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Cơ sở / Trường</Text>
+                <Text className="text-white font-medium text-base">{deviceInfo?.school?.name || 'Chưa gán'}</Text>
               </div>
               <div className="bg-[#1f2028] p-4 rounded-lg border border-[#2e303a]">
                 <Text className="text-gray-500 text-xs uppercase tracking-wider block mb-1">Model / Serial</Text>
