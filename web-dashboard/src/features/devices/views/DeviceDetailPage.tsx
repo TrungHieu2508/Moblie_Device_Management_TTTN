@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined } from '@ant-design/icons';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, CpuOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import axiosInstance from '../../../config/axios';
 import { useQuery } from '@tanstack/react-query';
@@ -71,9 +71,28 @@ const DeviceDetailPage = () => {
             {currentStatus === 'WARNING' && <Tag color="warning" className="ml-2">WARNING</Tag>}
             {currentStatus === 'CRITICAL' && <Tag color="error" className="ml-2 animate-bounce">CRITICAL</Tag>}
           </Title>
-          <Text className="text-gray-400 block mt-2">
+          <Text className="text-gray-400 block mt-2 mb-4">
             Android {deviceInfo?.androidVersion} | {deviceInfo?.school?.name || 'Chưa gán'} {deviceInfo?.classroom ? `- Lớp ${deviceInfo.classroom.name}` : ''}
           </Text>
+          
+          {/* Real-time System Metrics */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Tag color="purple" icon={<DatabaseOutlined />} className="px-3 py-1 border border-purple-500/30">
+              RAM: {metrics?.ramUsedMb || deviceInfo?.metrics?.ramUsedMb || 0} / {metrics?.ramTotalMb || deviceInfo?.metrics?.ramTotalMb || 0} MB
+            </Tag>
+            <Tag color="green" icon={<HddOutlined />} className="px-3 py-1 border border-green-500/30">
+              Lưu trữ: {(metrics?.storageUsedGb ?? deviceInfo?.metrics?.storageUsedGb ?? 0).toFixed(1)} / {(metrics?.storageTotalGb ?? deviceInfo?.metrics?.storageTotalGb ?? 0).toFixed(1)} GB
+            </Tag>
+            <Tag color={(metrics?.batteryLevel ?? deviceInfo?.metrics?.batteryLevel ?? 100) < 20 ? "error" : "gold"} icon={<ThunderboltOutlined />} className="px-3 py-1 border border-yellow-500/30">
+                Pin: {metrics?.batteryLevel ?? deviceInfo?.metrics?.batteryLevel ?? 0}% {(metrics?.batteryCharging ?? deviceInfo?.metrics?.batteryCharging) ? '(Đang sạc)' : ''}
+            </Tag>
+            <Tag color="blue" icon={<WifiOutlined />} className="px-3 py-1 border border-blue-500/30">
+              WiFi: {metrics?.wifiSsid || deviceInfo?.metrics?.wifiSsid || 'Không có'}
+            </Tag>
+            <Tag color="default" icon={<CpuOutlined />} className="px-3 py-1 opacity-60 border-0">
+              CPU: Không khả dụng (Bảo mật Android)
+            </Tag>
+          </div>
         </div>
         <div>
           <Tag color={isConnected ? "processing" : "default"} className="border-0">
