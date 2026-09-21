@@ -8,30 +8,30 @@
 ## ERD Diagram (Text Format)
 
 ```
-schools
+campuses
 ├── id (UUID PK)
 ├── name
 ├── code (UNIQUE)
 ├── address
-├── phone
-├── email
 ├── is_active
 ├── created_at
 └── updated_at
     │
-    └──< campuses
+    └──< schools
          ├── id (UUID PK)
-         ├── school_id (FK → schools.id)
+         ├── campus_id (FK → campuses.id)
          ├── name
          ├── code (UNIQUE)
          ├── address
+         ├── phone
+         ├── email
          ├── is_active
          ├── created_at
          └── updated_at
               │
               └──< classrooms
                    ├── id (UUID PK)
-                   ├── campus_id (FK → campuses.id)
+                   ├── school_id (FK → schools.id)
                    ├── name
                    ├── code (UNIQUE)
                    ├── capacity
@@ -68,8 +68,8 @@ devices
 ├── model
 ├── android_version
 ├── agent_version
-├── school_id (FK → schools.id, nullable)
 ├── campus_id (FK → campuses.id, nullable)
+├── school_id (FK → schools.id, nullable)
 ├── classroom_id (FK → classrooms.id, nullable)
 ├── status (ENUM: PENDING, ONLINE, OFFLINE, WARNING, CRITICAL)
 ├── registration_token
@@ -107,7 +107,7 @@ devices
     │   ├── processed
     │   └── processed_at
     │
-    └──< remote_commands (1-N)
+    └──< device_commands (1-N)
         ├── id (UUID PK)
         ├── device_id (FK → devices.id)
         ├── issued_by (FK → users.id)
@@ -209,7 +209,7 @@ audit_logs
 | alerts | status | Filter new/processing alerts |
 | alerts | severity | Filter critical alerts |
 | alerts | created_at DESC | Lấy alert mới nhất |
-| remote_commands | device_id, status | Pending commands for device |
+| device_commands | device_id, status | Pending commands for device |
 | refresh_tokens | token | Token validation |
 
 ---
@@ -245,4 +245,4 @@ device:{deviceId}:session      → sessionId
 | device_events | 6 tháng | Scheduled DELETE |
 | audit_logs | 1 năm | Archive to cold storage |
 | alerts | 1 năm | Keep all, archive resolved |
-| remote_commands | 6 tháng | Scheduled DELETE |
+| device_commands | 6 tháng | Scheduled DELETE |
