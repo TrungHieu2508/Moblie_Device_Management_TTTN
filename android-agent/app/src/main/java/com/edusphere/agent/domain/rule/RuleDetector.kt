@@ -1,13 +1,19 @@
 package com.edusphere.agent.domain.rule
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import com.edusphere.agent.data.remote.model.ViolationRequest
 import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.domain.action.DeviceActionManager
 import com.edusphere.agent.data.local.SharedPreferencesManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 class RuleDetector @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val deviceRepository: DeviceRepository,
     private val actionManager: DeviceActionManager,
     private val sharedPreferencesManager: SharedPreferencesManager
@@ -18,7 +24,7 @@ class RuleDetector @Inject constructor(
     private var isWhitelistMode = false
 
     private var violatingPackage: String? = null
-    private var violationStartTime: Long = 0L
+    private var lastViolationSentTime: Long = 0L
 
     fun updatePolicies(whitelist: List<String>, blacklist: List<String>, isWhitelistMode: Boolean) {
         this.whitelist = whitelist
@@ -47,17 +53,50 @@ class RuleDetector @Inject constructor(
             packageName.startsWith("com.miui.")
 
         if (isLauncherOrSystem) {
-            // Nếu đang ở màn hình chính thì reset bộ đếm vi phạm
             violatingPackage = null
-            violationStartTime = 0L
+            lastViolationSentTime = 0L
             return
         }
 
         var isViolated = false
         var details = ""
 
-        // Check hardcoded forbidden apps
-        if (packageName == "com.facebook.katana" || packageName == "com.google.android.youtube") {
+        // Cách 1: Đọc Category trực tiếp từ hệ điều hành Android (Android 8.0+)
+        var isCategoryBlocked = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+                when (appInfo.category) {
+                    ApplicationInfo.CATEGORY_GAME -> {
+                        isCategoryBlocked = true
+                        details = "App $packageName is a Game (CATEGORY_GAME)."
+                    }
+                    ApplicationInfo.CATEGORY_SOCIAL -> {
+                        isCategoryBlocked = true
+                        details = "App $packageName is Social Media (CATEGORY_SOCIAL)."
+                    }
+                    ApplicationInfo.CATEGORY_VIDEO -> {
+                        isCategoryBlocked = true
+                        details = "App $packageName is Video Entertainment (CATEGORY_VIDEO)."
+                    }
+                    ApplicationInfo.CATEGORY_AUDIO -> {
+                        isCategoryBlocked = true
+                        details = "App $packageName is Audio Entertainment (CATEGORY_AUDIO)."
+                    }
+                }
+            } catch (e: PackageManager.NameNotFoundException) {
+                // Ignore if package not found
+            }
+        }
+
+        if (isCategoryBlocked) {
+            isViolated = true
+        }
+        // Check hardcoded forbidden apps (Fallback)
+        else if (packageName == "com.facebook.katana" || 
+            packageName == "com.google.android.youtube" ||
+            packageName == "com.zhiliaoapp.musically" || 
+            packageName == "com.ss.android.ugc.trill") {
             isViolated = true
             details = "App $packageName is explicitly forbidden for studying."
         } else if (isWhitelistMode) {
@@ -73,47 +112,37 @@ class RuleDetector @Inject constructor(
         }
 
         if (isViolated) {
-            if (violatingPackage != packageName) {
-                // Bắt đầu đếm thời gian vi phạm mới
+            Log.w("RuleDetector", "Violation detected: $details")
+            
+            // LUÔN LUÔN khoá/đẩy học sinh ra khỏi app NGAY LẬP TỨC
+            actionManager.clearRecents()
+            val alertMsg = if (appName != null) "Bị chặn do dùng ứng dụng giải trí: $appName!" else "Ứng dụng bị khóa do vi phạm nội quy!"
+            actionManager.showAlert("Cảnh Báo Vi Phạm!", alertMsg, "WARNING")
+
+            // Gửi log lên server, có chống spam (chỉ gửi mỗi 10 giây cho cùng 1 app)
+            val now = System.currentTimeMillis()
+            if (violatingPackage != packageName || (now - lastViolationSentTime > 10_000)) {
                 violatingPackage = packageName
-                violationStartTime = System.currentTimeMillis()
-                Log.d("RuleDetector", "Bắt đầu tính giờ vi phạm: $packageName")
-            } else {
-                // Đang tiếp tục vi phạm, kiểm tra xem đã quá 20s chưa
-                val duration = System.currentTimeMillis() - violationStartTime
-                if (duration >= 20_000) {
-                    Log.w("RuleDetector", "Violation detected for over 20 seconds: $details")
-                    
-                    // Khoá / đẩy học sinh ra khỏi app
-                    actionManager.clearRecents()
-                    val alertMsg = if (appName != null) "Bị chặn do dùng ứng dụng: $appName quá 20 giây!" else "Ứng dụng bị khóa do dùng quá 20 giây trong giờ học!"
-                    actionManager.showAlert("Cảnh Báo Vi Phạm!", alertMsg, "WARNING")
-
-                    // Gửi log lên server
-                    val deviceInfo = deviceRepository.getDeviceInfo()
-                    if (deviceInfo != null) {
-                        val request = ViolationRequest(
-                            deviceId = deviceInfo.deviceId,
-                            eventType = "BLACKLIST_APP_DETECTED",
-                            timestamp = System.currentTimeMillis(),
-                            payload = mapOf(
-                                "packageName" to packageName,
-                                "details" to details,
-                                "duration" to duration
-                            )
+                lastViolationSentTime = now
+                
+                val deviceInfo = deviceRepository.getDeviceInfo()
+                if (deviceInfo != null) {
+                    val request = ViolationRequest(
+                        deviceId = deviceInfo.deviceId,
+                        eventType = "BLACKLIST_APP_DETECTED",
+                        timestamp = now,
+                        payload = mapOf(
+                            "packageName" to packageName,
+                            "details" to details
                         )
-                        deviceRepository.sendViolation(request)
-                    }
-
-                    // Reset lại để nếu học sinh lại cố tình vào, nó sẽ cho thêm 20s nữa rồi mới khoá tiếp.
-                    violatingPackage = null
-                    violationStartTime = 0L
+                    )
+                    deviceRepository.sendViolation(request)
                 }
             }
         } else {
-            // Không vi phạm (mở app hợp lệ), reset bộ đếm
+            // Không vi phạm (mở app hợp lệ), reset trạng thái
             violatingPackage = null
-            violationStartTime = 0L
+            lastViolationSentTime = 0L
         }
     }
 }
