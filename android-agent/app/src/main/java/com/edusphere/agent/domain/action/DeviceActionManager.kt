@@ -104,12 +104,12 @@ class DeviceActionManager @Inject constructor(
                     dpm.setPackagesSuspended(adminComponent, pkgArray, true)
                     dpm.setPackagesSuspended(adminComponent, pkgArray, false)
                     Log.d("DeviceActionManager", "Cleared RAM for ${toSuspend.size} apps")
-                    showAlert("Đã dọn dẹp RAM thành công!")
+                    showAlert("Dọn Dẹp RAM", "Đã dọn dẹp RAM thành công!", "SUCCESS")
                 } catch (e: Exception) {
                     Log.e("DeviceActionManager", "Failed to clear RAM", e)
                 }
             } else {
-                showAlert("Không có ứng dụng nào cần dọn dẹp")
+                showAlert("Dọn Dẹp RAM", "Không có ứng dụng nào cần dọn dẹp", "SUCCESS")
             }
         }
     }
@@ -183,7 +183,7 @@ class DeviceActionManager @Inject constructor(
             mediaPlayer.start()
             
             Log.d("DeviceActionManager", "Playing alarm sound at max volume")
-            showAlert("Sử dụng điện thoại ngoài việc học nha")
+            showAlert("Cảnh Báo Vi Phạm!", "Vui lòng tập trung và không sử dụng thiết bị trong giờ học!", "WARNING")
             
             // Auto stop after 10 seconds
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
@@ -209,11 +209,13 @@ class DeviceActionManager @Inject constructor(
         }
     }
 
-    fun showAlert(message: String) {
+    fun showAlert(title: String, message: String, type: String = "WARNING") {
         val intent = Intent(context, com.edusphere.agent.presentation.main.AlertActivity::class.java)
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        intent.putExtra("ALERT_TITLE", title)
         intent.putExtra("ALERT_MESSAGE", message)
+        intent.putExtra("ALERT_TYPE", type)
         context.startActivity(intent)
-        Log.d("DeviceActionManager", "Showing alert: $message")
+        Log.d("DeviceActionManager", "Showing alert: $title - $message")
     }
 }

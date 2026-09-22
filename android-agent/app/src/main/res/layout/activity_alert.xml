@@ -21,6 +21,7 @@
 
         <!-- Lottie Animation for Warning -->
         <ImageView
+            android:id="@+id/ivAlertIcon"
             android:layout_width="80dp"
             android:layout_height="80dp"
             android:src="@android:drawable/ic_dialog_alert"
