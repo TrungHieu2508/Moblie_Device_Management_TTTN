@@ -6,6 +6,7 @@ import com.edusphere.mdmserver.domain.school.entity.Classroom;
 import com.edusphere.mdmserver.domain.school.repository.ClassSessionRepository;
 import com.edusphere.mdmserver.domain.school.repository.ClassroomRepository;
 import com.edusphere.mdmserver.domain.user.entity.User;
+import com.edusphere.mdmserver.domain.user.enums.UserRole;
 import com.edusphere.mdmserver.domain.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import com.edusphere.mdmserver.domain.school.entity.School;
@@ -106,7 +107,7 @@ public class ClassSessionService {
 
     @Transactional(readOnly = true)
     public List<ClassSessionDto> getScheduledSessions(UUID requestedSchoolId, CustomUserDetails userDetails) {
-        if (userDetails.getUser().getRole() == com.edusphere.mdmserver.domain.user.entity.Role.TEACHER) {
+        if (userDetails.getUser().getRole() == UserRole.TEACHER) {
             return classSessionRepository.findByTeacherIdAndStatus(userDetails.getUser().getId(), "SCHEDULED")
                     .stream().map(this::mapToDto).collect(Collectors.toList());
         }
@@ -124,7 +125,7 @@ public class ClassSessionService {
 
     @Transactional(readOnly = true)
     public List<ClassSessionDto> getActiveSessions(UUID requestedSchoolId, CustomUserDetails userDetails) {
-        if (userDetails.getUser().getRole() == com.edusphere.mdmserver.domain.user.entity.Role.TEACHER) {
+        if (userDetails.getUser().getRole() == UserRole.TEACHER) {
             return classSessionRepository.findByTeacherIdAndStatus(userDetails.getUser().getId(), "ACTIVE")
                     .stream().map(this::mapToDto).collect(Collectors.toList());
         }
@@ -144,7 +145,7 @@ public class ClassSessionService {
     public List<ClassSessionDto> getHistorySessions(UUID requestedSchoolId, CustomUserDetails userDetails) {
         List<String> statuses = java.util.Arrays.asList("ENDED", "CANCELLED");
 
-        if (userDetails.getUser().getRole() == com.edusphere.mdmserver.domain.user.entity.Role.TEACHER) {
+        if (userDetails.getUser().getRole() == UserRole.TEACHER) {
             return classSessionRepository.findByTeacherIdAndStatusIn(userDetails.getUser().getId(), statuses)
                     .stream()
                     .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
