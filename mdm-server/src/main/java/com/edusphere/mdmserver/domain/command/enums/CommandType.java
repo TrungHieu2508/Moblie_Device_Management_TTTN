@@ -19,5 +19,6 @@ public enum CommandType {
     BLOCK_UNINSTALL,        // Cấm gỡ cài đặt
     DISABLE_CAMERA,         // Tắt camera
     DISABLE_FACTORY_RESET,  // Cấm khôi phục cài đặt gốc
-    START_STREAM            // Xem màn hình trực tiếp
+    START_STREAM,           // Xem màn hình trực tiếp
+    UPDATE_APP              // Cập nhật ngầm ứng dụng Android Agent
 }

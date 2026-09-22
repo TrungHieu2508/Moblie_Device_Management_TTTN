@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 @Singleton
 class CommandReceiver @Inject constructor(
     private val actionManager: DeviceActionManager,
+    private val otaUpdateManager: com.edusphere.agent.domain.action.OtaUpdateManager,
     private val sharedPreferencesManager: com.edusphere.agent.data.local.SharedPreferencesManager,
     @ApplicationContext private val context: Context
 ) {
@@ -247,10 +248,10 @@ class CommandReceiver @Inject constructor(
                     }
                 }
                 "SHOW_ALERT" -> {
-                    val message = payload?.optString("message", "Có thông báo mới từ hệ thống!")
-                    if (message != null) {
-                        actionManager.showAlert(message)
-                    }
+                    val title = payload?.optString("title", "Thông Báo Hệ Thống") ?: "Thông Báo Hệ Thống"
+                    val message = payload?.optString("message", "Có thông báo từ hệ thống!") ?: "Có thông báo từ hệ thống!"
+                    val type = payload?.optString("type", "INFO") ?: "INFO"
+                    actionManager.showAlert(title, message, type)
                 }
                 "HIDE_APP" -> {
                     val pkg = payload?.optString("packageName")
@@ -284,6 +285,15 @@ class CommandReceiver @Inject constructor(
                 "UNLOCK_DEVICE" -> {
                     val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE")
                     context.sendBroadcast(intent)
+                }
+                "UPDATE_APP" -> {
+                    val url = payload?.optString("url")
+                    if (!url.isNullOrBlank()) {
+                        otaUpdateManager.downloadAndInstallApk(url)
+                    } else {
+                        Log.e(TAG, "UPDATE_APP failed: URL is missing")
+                        actionManager.showAlert("Lỗi Cập Nhật", "Lệnh cập nhật không có đường dẫn tải file (URL) hợp lệ.", "WARNING")
+                    }
                 }
                 else -> {
                     Log.w(TAG, "Unknown command type: $commandType")

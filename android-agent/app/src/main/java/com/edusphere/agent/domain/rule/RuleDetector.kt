@@ -64,7 +64,7 @@ class RuleDetector @Inject constructor(
             // Push student out of the forbidden app immediately
             actionManager.clearRecents()
             val alertMsg = if (appName != null) "Bị chặn tự động do dùng ứng dụng: $appName" else "Ứng dụng này đã bị khóa do vi phạm nội quy học tập!"
-            actionManager.showAlert(alertMsg)
+            actionManager.showAlert("Cảnh Báo Vi Phạm!", alertMsg, "WARNING")
 
             val deviceInfo = deviceRepository.getDeviceInfo()
             if (deviceInfo != null) {
