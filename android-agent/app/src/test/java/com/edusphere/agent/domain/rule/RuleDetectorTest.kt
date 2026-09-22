@@ -23,12 +23,15 @@ class RuleDetectorTest {
     private lateinit var sharedPreferencesManager: SharedPreferencesManager
     private lateinit var ruleDetector: RuleDetector
 
+    private lateinit var context: android.content.Context
+
     @Before
     fun setup() {
+        context = mock()
         deviceRepository = mock()
         actionManager = mock()
         sharedPreferencesManager = mock()
-        ruleDetector = RuleDetector(deviceRepository, actionManager, sharedPreferencesManager)
+        ruleDetector = RuleDetector(context, deviceRepository, actionManager, sharedPreferencesManager)
     }
 
     @Test
