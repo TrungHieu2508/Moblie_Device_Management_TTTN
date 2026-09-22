@@ -72,6 +72,55 @@ public class AlertService {
         wsNotificationService.broadcastNewAlert(mapToDto(alert));
     }
 
+    @Transactional
+    public void createAgentGeneratedAlert(Device device, Object eventData) {
+        String alertCode = "BLACKLIST_APP_DETECTED";
+        
+        // DEBOUNCING: Tránh spam
+        boolean hasActiveAlert = alertRepository.existsByDeviceIdAndAlertCodeAndStatusIn(
+                device.getId(), alertCode, List.of(AlertStatus.NEW, AlertStatus.PROCESSING)
+        );
+
+        if (hasActiveAlert) {
+            log.debug("Active agent alert already exists for Device {}. Skipping duplication.", device.getDeviceId());
+            return;
+        }
+
+        String packageName = "Unknown";
+        String appName = "Unknown";
+        if (eventData instanceof java.util.Map) {
+            java.util.Map<String, Object> data = (java.util.Map<String, Object>) eventData;
+            packageName = (String) data.getOrDefault("packageName", "Unknown");
+            appName = (String) data.getOrDefault("appName", packageName);
+        }
+
+        String title = "Phát hiện ứng dụng bị cấm: " + appName;
+        String desc = "Agent đã tự động phát hiện và khóa thiết bị khi truy cập ứng dụng " + appName + " (" + packageName + ").";
+
+        log.warn("Agent Violated Rule! Generating Alert: {} for Device: {}", title, device.getDeviceId());
+
+        Alert alert = Alert.builder()
+                .alertCode(alertCode)
+                .title(title)
+                .description(desc)
+                .severity(com.edusphere.mdmserver.domain.alert.enums.AlertSeverity.CRITICAL)
+                .device(device)
+                .school(device.getSchool())
+                .campus(device.getCampus())
+                .classroom(device.getClassroom())
+                .rule(null)
+                .eventData(eventData)
+                .build();
+
+        alert = alertRepository.save(alert);
+        
+        device.setStatus(DeviceStatus.CRITICAL);
+        deviceRepository.save(device);
+
+        // Broadcast to Dashboard
+        wsNotificationService.broadcastNewAlert(mapToDto(alert));
+    }
+
     @Transactional(readOnly = true)
     public Page<com.edusphere.mdmserver.domain.alert.dto.AlertDto> getAlerts(UUID campusId, AlertStatus status, Pageable pageRequest) {
         Page<Alert> alerts;
@@ -92,6 +141,7 @@ public class AlertService {
         
         return alerts.map(this::mapToDto);
     }
+
     @Transactional
     public void createManualAlert(Device device, String commandType, User adminUser) {
         String title;
@@ -173,6 +223,32 @@ public class AlertService {
         alert = alertRepository.save(alert);
         wsNotificationService.broadcastAlertStatusChange(alert.getId().toString(), mapToDto(alert));
         return alert;
+    }
+
+    @Transactional
+    public void resolveAllAlerts(UUID campusId, User resolvedBy) {
+        List<Alert> activeAlerts;
+        if (campusId != null) {
+            activeAlerts = alertRepository.findByCampusIdAndStatusIn(campusId, List.of(AlertStatus.NEW, AlertStatus.PROCESSING));
+        } else {
+            activeAlerts = alertRepository.findByStatusIn(List.of(AlertStatus.NEW, AlertStatus.PROCESSING));
+        }
+
+        for (Alert alert : activeAlerts) {
+            alert.setStatus(AlertStatus.RESOLVED);
+            alert.setResolutionNote("Resolved all via bulk action");
+            alert.setResolvedAt(Instant.now());
+            alert.setResolvedBy(resolvedBy);
+            alertRepository.save(alert);
+            wsNotificationService.broadcastAlertStatusChange(alert.getId().toString(), mapToDto(alert));
+
+            Device device = alert.getDevice();
+            if (device != null) {
+                // If resolving all, device is ONLINE
+                device.setStatus(DeviceStatus.ONLINE);
+                deviceRepository.save(device);
+            }
+        }
     }
 
     private AlertDto mapToDto(Alert alert) {

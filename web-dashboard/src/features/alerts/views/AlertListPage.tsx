@@ -3,7 +3,7 @@ import { Table, Tag, Input, Select, Card, Typography, Space, Button } from 'antd
 import { SearchOutlined, CheckCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAlerts, updateAlertStatus } from '../../../services/alertService';
+import { getAlerts, updateAlertStatus, resolveAllAlerts } from '../../../services/alertService';
 import type { AlertDto } from '../../../services/alertService';
 
 const { Title, Text } = Typography;
@@ -64,6 +64,13 @@ const AlertListPage = () => {
   
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string, status: string }) => updateAlertStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    }
+  });
+
+  const resolveAllMutation = useMutation({
+    mutationFn: () => resolveAllAlerts(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
     }
@@ -149,6 +156,15 @@ const AlertListPage = () => {
           </Title>
           <p className="text-gray-400 mt-1">Giám sát các hành vi vi phạm chính sách của học sinh</p>
         </div>
+        <Button 
+          type="primary" 
+          className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] border-0 h-10 px-6 font-medium rounded-lg"
+          onClick={() => resolveAllMutation.mutate()}
+          loading={resolveAllMutation.isPending}
+          icon={<CheckCircleOutlined />}
+        >
+          Xử lý tất cả
+        </Button>
       </div>
 
       <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg">

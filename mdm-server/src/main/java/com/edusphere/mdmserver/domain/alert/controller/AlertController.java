@@ -92,4 +92,23 @@ public class AlertController {
         
         return ResponseEntity.ok(ApiResponse.success(mapToDto(alert), "Cập nhật Alert thành công"));
     }
+
+    @PutMapping("/resolve-all")
+    @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('IT_ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> resolveAllAlerts(Principal principal) {
+        User user = userRepository.findByUsername(principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException("User không tồn tại"));
+
+        UUID campusId = null;
+        if (user.getRole() == UserRole.IT_ADMIN) {
+            if (user.getCampus() != null) {
+                campusId = user.getCampus().getId();
+            } else {
+                return ResponseEntity.ok(ApiResponse.success(null, "Không có cơ sở để xử lý"));
+            }
+        }
+
+        alertService.resolveAllAlerts(campusId, user);
+        return ResponseEntity.ok(ApiResponse.success(null, "Đã xử lý tất cả cảnh báo"));
+    }
 }

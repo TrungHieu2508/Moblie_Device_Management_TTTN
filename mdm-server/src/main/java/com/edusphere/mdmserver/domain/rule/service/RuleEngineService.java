@@ -34,7 +34,9 @@ public class RuleEngineService {
         UUID schoolId = device.getSchool() != null ? device.getSchool().getId() : null;
 
         // 1. Phân loại theo EventType
-        if (eventType == EventType.BLACKLIST_APP_DETECTED || eventType == EventType.APP_OPENED) {
+        if (eventType == EventType.BLACKLIST_APP_DETECTED) {
+            alertService.createAgentGeneratedAlert(device, eventData);
+        } else if (eventType == EventType.APP_OPENED) {
             evaluateAppRules(device, eventData, schoolId);
         } else if (eventType == EventType.RAM_HIGH || eventType == EventType.CPU_HIGH) {
             evaluateMetricsRules(device, eventData, schoolId);

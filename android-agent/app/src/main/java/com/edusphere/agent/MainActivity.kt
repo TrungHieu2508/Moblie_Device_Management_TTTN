@@ -70,8 +70,39 @@ class MainActivity : AppCompatActivity() {
 
     private val barcodeLauncher = registerForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
         if (result.contents != null) {
+            val content = result.contents
+            
+            // Xử lý mã Admin
+            if (content == "MDM_REVOKE_ADMIN") {
+                showPinDialog {
+                    val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+                    val componentName = android.content.ComponentName(this, com.edusphere.agent.receiver.MDMAdminReceiver::class.java)
+                    if (dpm.isDeviceOwnerApp(packageName)) {
+                        try {
+                            dpm.clearDeviceOwnerApp(packageName)
+                            android.widget.Toast.makeText(this, "Đã xóa quyền Device Owner thành công", android.widget.Toast.LENGTH_LONG).show()
+                            viewModel.checkStatus()
+                        } catch (e: Exception) {
+                            android.widget.Toast.makeText(this, "Lỗi khi xóa quyền: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        android.widget.Toast.makeText(this, "Ứng dụng chưa có quyền Device Owner!", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                return@registerForActivityResult
+            }
+            
+            if (content == "MDM_GRANT_ADMIN") {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Hướng dẫn Cấp quyền Admin")
+                    .setMessage("Không thể tự động cấp quyền Device Owner. Vui lòng kết nối thiết bị với máy tính và chạy lệnh ADB sau:\n\nadb shell dpm set-device-owner com.edusphere.agent/.receiver.MDMAdminReceiver")
+                    .setPositiveButton("Đã hiểu", null)
+                    .show()
+                return@registerForActivityResult
+            }
+
             try {
-                val json = org.json.JSONObject(result.contents)
+                val json = org.json.JSONObject(content)
                 var serverUrl = json.optString("serverUrl")
                 val code = json.optString("code")
                 

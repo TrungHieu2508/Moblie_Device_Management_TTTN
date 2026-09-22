@@ -21,3 +21,8 @@ export const updateAlertStatus = async (id: string, status: string, resolutionNo
   const { data } = await axiosInstance.patch(`/alerts/${id}/status`, { status, resolutionNote });
   return data.data;
 };
+
+export const resolveAllAlerts = async () => {
+  const { data } = await axiosInstance.put('/alerts/resolve-all');
+  return data.data;
+};
