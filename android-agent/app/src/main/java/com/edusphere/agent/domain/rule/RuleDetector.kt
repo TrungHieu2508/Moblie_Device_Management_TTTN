@@ -17,6 +17,9 @@ class RuleDetector @Inject constructor(
     private var blacklist: List<String> = emptyList()
     private var isWhitelistMode = false
 
+    private var violatingPackage: String? = null
+    private var violationStartTime: Long = 0L
+
     fun updatePolicies(whitelist: List<String>, blacklist: List<String>, isWhitelistMode: Boolean) {
         this.whitelist = whitelist
         this.blacklist = blacklist
@@ -32,12 +35,23 @@ class RuleDetector @Inject constructor(
         val appName = currentApp?.appName ?: packageName
 
         if (packageName == null || packageName.isEmpty()) return
-        // Ignore system UI, launchers, and device manufacturer packages
-        if (packageName.contains("android.systemui") || 
-            packageName.contains("launcher") || 
+
+        // Ignore system UI, launchers, and device manufacturer packages (Home screens)
+        val isLauncherOrSystem = packageName.contains("launcher") || 
+            packageName.contains("home") || 
+            packageName.contains("trebuchet") ||
+            packageName.contains("systemui") ||
             packageName.startsWith("com.android.") ||
             packageName.startsWith("com.sec.") ||
-            packageName.startsWith("com.samsung.")) return
+            packageName.startsWith("com.samsung.") ||
+            packageName.startsWith("com.miui.")
+
+        if (isLauncherOrSystem) {
+            // Nếu đang ở màn hình chính thì reset bộ đếm vi phạm
+            violatingPackage = null
+            violationStartTime = 0L
+            return
+        }
 
         var isViolated = false
         var details = ""
@@ -59,26 +73,47 @@ class RuleDetector @Inject constructor(
         }
 
         if (isViolated) {
-            Log.w("RuleDetector", "Violation detected: $details")
-            
-            // Push student out of the forbidden app immediately
-            actionManager.clearRecents()
-            val alertMsg = if (appName != null) "Bị chặn tự động do dùng ứng dụng: $appName" else "Ứng dụng này đã bị khóa do vi phạm nội quy học tập!"
-            actionManager.showAlert("Cảnh Báo Vi Phạm!", alertMsg, "WARNING")
+            if (violatingPackage != packageName) {
+                // Bắt đầu đếm thời gian vi phạm mới
+                violatingPackage = packageName
+                violationStartTime = System.currentTimeMillis()
+                Log.d("RuleDetector", "Bắt đầu tính giờ vi phạm: $packageName")
+            } else {
+                // Đang tiếp tục vi phạm, kiểm tra xem đã quá 20s chưa
+                val duration = System.currentTimeMillis() - violationStartTime
+                if (duration >= 20_000) {
+                    Log.w("RuleDetector", "Violation detected for over 20 seconds: $details")
+                    
+                    // Khoá / đẩy học sinh ra khỏi app
+                    actionManager.clearRecents()
+                    val alertMsg = if (appName != null) "Bị chặn do dùng ứng dụng: $appName quá 20 giây!" else "Ứng dụng bị khóa do dùng quá 20 giây trong giờ học!"
+                    actionManager.showAlert("Cảnh Báo Vi Phạm!", alertMsg, "WARNING")
 
-            val deviceInfo = deviceRepository.getDeviceInfo()
-            if (deviceInfo != null) {
-                val request = ViolationRequest(
-                    deviceId = deviceInfo.deviceId,
-                    eventType = "BLACKLIST_APP_DETECTED",
-                    timestamp = System.currentTimeMillis(),
-                    payload = mapOf(
-                        "packageName" to packageName,
-                        "details" to details
-                    )
-                )
-                deviceRepository.sendViolation(request)
+                    // Gửi log lên server
+                    val deviceInfo = deviceRepository.getDeviceInfo()
+                    if (deviceInfo != null) {
+                        val request = ViolationRequest(
+                            deviceId = deviceInfo.deviceId,
+                            eventType = "BLACKLIST_APP_DETECTED",
+                            timestamp = System.currentTimeMillis(),
+                            payload = mapOf(
+                                "packageName" to packageName,
+                                "details" to details,
+                                "duration" to duration
+                            )
+                        )
+                        deviceRepository.sendViolation(request)
+                    }
+
+                    // Reset lại để nếu học sinh lại cố tình vào, nó sẽ cho thêm 20s nữa rồi mới khoá tiếp.
+                    violatingPackage = null
+                    violationStartTime = 0L
+                }
             }
+        } else {
+            // Không vi phạm (mở app hợp lệ), reset bộ đếm
+            violatingPackage = null
+            violationStartTime = 0L
         }
     }
 }
