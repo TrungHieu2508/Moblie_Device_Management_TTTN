@@ -270,7 +270,7 @@ const DeviceDetailPage = () => {
                 className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500 hover:text-white transition-all text-left flex justify-start items-center"
                 onClick={() => setIsUpdateModalVisible(true)}
               >
-                Cập nhật App (OTA)
+                Cập nhật App (OTA) (Thử nghiệm)
               </Button>
               <Button 
                 size="large" 
@@ -278,7 +278,7 @@ const DeviceDetailPage = () => {
                 className="bg-pink-500/10 text-pink-400 border-pink-500/30 hover:bg-pink-500 hover:text-white transition-all text-left flex justify-start items-center"
                 onClick={() => setIsAdminQrModalVisible(true)}
               >
-                Mã QR Quản lý Admin
+                Mã QR Quản lý Admin (Thử nghiệm)
               </Button>
             </div>
           </Card>
