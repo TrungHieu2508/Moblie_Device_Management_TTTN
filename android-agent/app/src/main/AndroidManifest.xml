@@ -47,6 +47,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".receiver.OtaReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.edusphere.agent.INSTALL_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

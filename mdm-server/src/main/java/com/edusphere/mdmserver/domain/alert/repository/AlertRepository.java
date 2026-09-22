@@ -20,4 +20,8 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
     boolean existsByDeviceIdAndStatusIn(UUID deviceId, List<AlertStatus> statuses);
     
     long countByStatus(AlertStatus status);
+
+    List<Alert> findByCampusIdAndStatusIn(UUID campusId, List<AlertStatus> statuses);
+    List<Alert> findByStatusIn(List<AlertStatus> statuses);
+    boolean existsByDeviceIdAndAlertCodeAndStatusIn(UUID deviceId, String alertCode, List<AlertStatus> statuses);
 }

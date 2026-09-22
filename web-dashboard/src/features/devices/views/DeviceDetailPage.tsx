@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin, Modal, Input } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined } from '@ant-design/icons';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { QRCodeSVG } from 'qrcode.react';
 import axiosInstance from '../../../config/axios';
 import { useQuery } from '@tanstack/react-query';
 import { getDeviceById } from '../../../services/deviceService';
@@ -15,6 +16,7 @@ const DeviceDetailPage = () => {
   const [initialMetrics, setInitialMetrics] = useState<any>(null);
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   const [updateApkUrl, setUpdateApkUrl] = useState('');
+  const [isAdminQrModalVisible, setIsAdminQrModalVisible] = useState(false);
 
   const { data: deviceInfo, isLoading: loading } = useQuery({
     queryKey: ['device', id],
@@ -270,6 +272,14 @@ const DeviceDetailPage = () => {
               >
                 Cập nhật App (OTA)
               </Button>
+              <Button 
+                size="large" 
+                icon={<QrcodeOutlined />} 
+                className="bg-pink-500/10 text-pink-400 border-pink-500/30 hover:bg-pink-500 hover:text-white transition-all text-left flex justify-start items-center"
+                onClick={() => setIsAdminQrModalVisible(true)}
+              >
+                Mã QR Quản lý Admin
+              </Button>
             </div>
           </Card>
 
@@ -326,6 +336,40 @@ const DeviceDetailPage = () => {
           size="large"
           className="mt-2"
         />
+      </Modal>
+
+      <Modal
+        title="Quản lý Quyền Admin bằng QR Code"
+        open={isAdminQrModalVisible}
+        onCancel={() => setIsAdminQrModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setIsAdminQrModalVisible(false)}>
+            Đóng
+          </Button>
+        ]}
+        width={700}
+      >
+        <div className="grid grid-cols-2 gap-8 py-4">
+          <div className="flex flex-col items-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <Title level={5} className="!text-red-500 !mb-4 text-center">MÃ HỦY QUYỀN ADMIN (REMOVE DEVICE OWNER)</Title>
+            <div className="bg-white p-2 rounded-lg shadow-sm">
+              <QRCodeSVG value="MDM_REVOKE_ADMIN" size={180} />
+            </div>
+            <Text className="text-gray-500 mt-4 text-center text-sm">
+              Sử dụng tính năng <b>Quét mã QR</b> trong ứng dụng Agent để quét mã này. Agent sẽ tự động gỡ quyền Admin của chính nó (Yêu cầu mã PIN).
+            </Text>
+          </div>
+          
+          <div className="flex flex-col items-center bg-gray-50 p-4 rounded-xl border border-gray-200">
+            <Title level={5} className="!text-green-600 !mb-4 text-center">MÃ CẤP QUYỀN ADMIN (GRANT DEVICE OWNER)</Title>
+            <div className="bg-white p-2 rounded-lg shadow-sm">
+              <QRCodeSVG value="MDM_GRANT_ADMIN" size={180} />
+            </div>
+            <Text className="text-gray-500 mt-4 text-center text-sm">
+              Quét mã này bằng Agent để xem hướng dẫn lệnh ADB. <b>Lưu ý:</b> Quyền Device Owner chỉ có thể được cấp qua lệnh ADB khi máy đã được cài đặt xong.
+            </Text>
+          </div>
+        </div>
       </Modal>
     </div>
   );
