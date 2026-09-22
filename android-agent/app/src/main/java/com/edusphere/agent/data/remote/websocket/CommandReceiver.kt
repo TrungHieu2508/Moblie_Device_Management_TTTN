@@ -22,6 +22,7 @@ class CommandReceiver @Inject constructor(
     private val actionManager: DeviceActionManager,
     private val otaUpdateManager: com.edusphere.agent.domain.action.OtaUpdateManager,
     private val sharedPreferencesManager: com.edusphere.agent.data.local.SharedPreferencesManager,
+    private val deviceRepository: com.edusphere.agent.domain.repository.DeviceRepository,
     @ApplicationContext private val context: Context
 ) {
 
@@ -191,10 +192,22 @@ class CommandReceiver @Inject constructor(
             val json = JSONObject(message)
             val commandType = json.optString("commandType", json.optString("command")) // Backend sends "commandType" usually, but sometimes "command"
             val payload = json.optJSONObject("payload")
+            val commandId = json.optString("id")
             
             Log.d(TAG, "Executing command: $commandType")
             
             executeCommand(commandType, payload)
+            
+            if (commandId.isNotEmpty()) {
+                scope.launch {
+                    try {
+                        deviceRepository.acknowledgeCommand(commandId, "ACKNOWLEDGED")
+                        Log.d(TAG, "Acknowledged command $commandId")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to acknowledge command", e)
+                    }
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse command", e)
         }
@@ -233,9 +246,6 @@ class CommandReceiver @Inject constructor(
                 }
                 "REBOOT_DEVICE" -> {
                     actionManager.reboot()
-                }
-                "CLEAR_BACKGROUND_APPS" -> {
-                    actionManager.clearRecents()
                 }
                 "OPEN_APP" -> {
                     payload?.optString("packageName")?.let {
