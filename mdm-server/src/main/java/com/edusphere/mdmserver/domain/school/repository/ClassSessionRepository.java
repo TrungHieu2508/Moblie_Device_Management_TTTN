@@ -15,6 +15,9 @@ public interface ClassSessionRepository extends JpaRepository<ClassSession, UUID
     List<ClassSession> findByStatus(String status);
     List<ClassSession> findByClassroomSchoolIdAndStatus(UUID schoolId, String status);
     List<ClassSession> findByClassroomSchoolIdAndStatusIn(UUID schoolId, List<String> statuses);
+    
+    List<ClassSession> findByTeacherIdAndStatus(UUID teacherId, String status);
+    List<ClassSession> findByTeacherIdAndStatusIn(UUID teacherId, List<String> statuses);
 
     @org.springframework.data.jpa.repository.Query(
         "SELECT CASE WHEN COUNT(cs) > 0 THEN true ELSE false END FROM ClassSession cs " +

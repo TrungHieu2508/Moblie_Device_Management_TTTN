@@ -106,6 +106,11 @@ public class ClassSessionService {
 
     @Transactional(readOnly = true)
     public List<ClassSessionDto> getScheduledSessions(UUID requestedSchoolId, CustomUserDetails userDetails) {
+        if (userDetails.getUser().getRole() == com.edusphere.mdmserver.domain.user.entity.Role.TEACHER) {
+            return classSessionRepository.findByTeacherIdAndStatus(userDetails.getUser().getId(), "SCHEDULED")
+                    .stream().map(this::mapToDto).collect(Collectors.toList());
+        }
+
         UUID effectiveSchoolId = determineEffectiveSchoolId(requestedSchoolId, userDetails);
         
         List<ClassSession> sessions = effectiveSchoolId != null 
@@ -119,6 +124,11 @@ public class ClassSessionService {
 
     @Transactional(readOnly = true)
     public List<ClassSessionDto> getActiveSessions(UUID requestedSchoolId, CustomUserDetails userDetails) {
+        if (userDetails.getUser().getRole() == com.edusphere.mdmserver.domain.user.entity.Role.TEACHER) {
+            return classSessionRepository.findByTeacherIdAndStatus(userDetails.getUser().getId(), "ACTIVE")
+                    .stream().map(this::mapToDto).collect(Collectors.toList());
+        }
+
         UUID effectiveSchoolId = determineEffectiveSchoolId(requestedSchoolId, userDetails);
         
         List<ClassSession> sessions = effectiveSchoolId != null 
@@ -132,9 +142,17 @@ public class ClassSessionService {
 
     @Transactional(readOnly = true)
     public List<ClassSessionDto> getHistorySessions(UUID requestedSchoolId, CustomUserDetails userDetails) {
-        UUID effectiveSchoolId = determineEffectiveSchoolId(requestedSchoolId, userDetails);
-        
         List<String> statuses = java.util.Arrays.asList("ENDED", "CANCELLED");
+
+        if (userDetails.getUser().getRole() == com.edusphere.mdmserver.domain.user.entity.Role.TEACHER) {
+            return classSessionRepository.findByTeacherIdAndStatusIn(userDetails.getUser().getId(), statuses)
+                    .stream()
+                    .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                    .map(this::mapToDto)
+                    .collect(Collectors.toList());
+        }
+
+        UUID effectiveSchoolId = determineEffectiveSchoolId(requestedSchoolId, userDetails);
         
         List<ClassSession> history = effectiveSchoolId != null
             ? classSessionRepository.findByClassroomSchoolIdAndStatusIn(effectiveSchoolId, statuses)
