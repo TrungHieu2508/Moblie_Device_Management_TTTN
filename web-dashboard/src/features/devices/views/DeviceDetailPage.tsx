@@ -42,9 +42,9 @@ const DeviceDetailPage = () => {
 
   const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
     try {
-      await axiosInstance.post(`/devices/${deviceInfo?.deviceId}/command`, {
+      await axiosInstance.post(`/devices/${id}/commands`, {
         commandType,
-        payloadData
+        payload: payloadData
       });
       message.success(`Đã gửi lệnh ${commandType} thành công!`);
     } catch (error) {
