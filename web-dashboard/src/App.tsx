@@ -103,7 +103,6 @@ const MainLayout = () => {
           ) : null}
           {role === 'TEACHER' ? (
             <>
-              <NavItem path="/map3d" icon={<GlobalOutlined />} label="Bản Đồ 3D" current={location.pathname} navigate={navigate} isCyan />
               <NavItem path="/teacher" icon={<DesktopOutlined />} label="Lớp học" current={location.pathname} navigate={navigate} />
             </>
           ) : null}

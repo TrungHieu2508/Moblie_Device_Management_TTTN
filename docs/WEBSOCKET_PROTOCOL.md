@@ -2,8 +2,8 @@
 
 > **Version:** 1.0.0
 > **Protocol:** STOMP over WebSocket
-> **Endpoint:** `ws://server:8080/api/ws`
-> **SockJS fallback:** `http://server:8080/api/ws`
+> **Endpoint:** `ws://server:8081/ws-web`
+> **SockJS fallback:** `http://server:8081/ws-web`
 
 ---
 
@@ -12,7 +12,7 @@
 ### Client (Dashboard) kết nối:
 ```javascript
 // SockJS + STOMP
-const socket = new SockJS('/api/ws');
+const socket = new SockJS('/ws-web');
 const stompClient = new Client({
   webSocketFactory: () => socket,
   connectHeaders: {
@@ -26,7 +26,7 @@ const stompClient = new Client({
 
 ### Android Agent kết nối:
 ```
-URL: ws://server:8080/api/ws/agent
+URL: ws://server:8081/ws-agent
 Header: Authorization: Device <registration_token>
 ```
 
@@ -163,7 +163,7 @@ Header: Authorization: Device <registration_token>
 ```json
 {
   "alertId": "uuid",
-  "alertCode": "BLACKLIST_APP_001",
+  "alertCode": "APP_BLACKLIST",
   "title": "Phát hiện ứng dụng bị cấm",
   "description": "Thiết bị Tablet 01 (Lớp A1) đang chạy Chrome",
   "severity": "CRITICAL",

@@ -202,12 +202,12 @@ const TeacherDashboard = () => {
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <Title level={3} className="!m-0 !text-white flex items-center gap-4">
-            {isSuperAdmin && urlSchoolId ? 'Bảng Điều Khiển Trường Học' : (isSuperAdmin ? 'Quản lý toàn bộ Lớp học' : 'Lớp học của tôi')}
-            {isSessionsError && <Tag color="error">Lỗi API Active: {String(sessionsError)}</Tag>}
-            {isScheduledError && <Tag color="error">Lỗi API Scheduled: {String(scheduledError)}</Tag>}
+          <Title level={3} className="!m-0 !text-white flex items-center gap-4 mb-2">
+            <span>{isSuperAdmin && urlSchoolId ? 'Bảng Điều Khiển Trường Học' : (isSuperAdmin ? 'Quản lý toàn bộ Lớp học' : 'Lớp học của tôi')}</span>
           </Title>
-          <Text className="text-gray-400">Quản lý và giám sát thiết bị trong giờ học</Text>
+          {isSessionsError && <div className="mb-2"><Tag color="error">Lỗi API Active: {String(sessionsError)}</Tag></div>}
+          {isScheduledError && <div className="mb-2"><Tag color="error">Lỗi API Scheduled: {String(scheduledError)}</Tag></div>}
+          <Text className="text-gray-400 block mt-2">Quản lý và giám sát thiết bị trong giờ học</Text>
         </div>
         <div className="flex gap-4">
           <Button 

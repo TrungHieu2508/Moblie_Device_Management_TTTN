@@ -10,7 +10,7 @@
 ```
 ┌─────────────────────────┐     ┌──────────────────────────┐     ┌──────────────────────┐
 │    Android Agent        │────▶│    MDM Server            │────▶│   IT Dashboard       │
-│    (Kotlin/Knox)        │◀────│    (Spring Boot)         │◀────│   (React/TypeScript) │
+│    (Kotlin/Device Owner)│◀────│    (Spring Boot)         │◀────│   (React/TypeScript) │
 │                         │     │                          │     │                      │
 │  • Foreground Service   │     │  • REST API              │     │  • Device Monitor    │
 │  • WorkManager          │     │  • WebSocket (STOMP)     │     │  • Alert Center      │
@@ -83,8 +83,8 @@ cd mdm-server
 ./mvnw spring-boot:run
 ```
 
-Backend sẽ chạy tại: `http://localhost:8080/api`
-Swagger UI: `http://localhost:8080/api/swagger-ui.html`
+Backend sẽ chạy tại: `http://localhost:8081/api`
+Swagger UI: `http://localhost:8081/api/swagger-ui.html`
 
 ### 3. Chạy Frontend
 
@@ -103,7 +103,7 @@ Frontend sẽ chạy tại: `http://localhost:5173`
 | Service | URL | Username | Password |
 |---------|-----|----------|---------|
 | IT Dashboard | http://localhost:5173 | admin | Admin@123456 |
-| Swagger UI | http://localhost:8080/api/swagger-ui.html | - | - |
+| Swagger UI | http://localhost:8081/api/swagger-ui.html | - | - |
 | pgAdmin | http://localhost:5050 | admin@eduguardian.vn | admin123 |
 | Redis Commander | http://localhost:8081 | - | - |
 
@@ -122,9 +122,9 @@ Frontend sẽ chạy tại: `http://localhost:5173`
 - **Lombok** + **MapStruct**
 
 ### Frontend
-- **React 18** + **TypeScript**
+- **React 19** + **TypeScript**
 - **Vite**
-- **Ant Design 5**
+- **Ant Design 6**
 - **Axios** + **React Query**
 - **SockJS** + **STOMP.js** (WebSocket)
 - **Recharts** (Charts)
@@ -148,5 +148,5 @@ Frontend sẽ chạy tại: `http://localhost:5173`
 
 | Thành viên | Trách nhiệm |
 |-----------|------------|
-| Thành viên A | Android Agent (Kotlin + Samsung Knox) |
+| Thành viên A | Android Agent (Kotlin + Device Owner) |
 | Thành viên B | Backend (Spring Boot) + IT Dashboard (React) |
