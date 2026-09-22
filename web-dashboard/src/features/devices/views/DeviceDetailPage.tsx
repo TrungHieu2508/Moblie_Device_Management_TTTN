@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined } from '@ant-design/icons';
+import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin, Modal, Input } from 'antd';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import axiosInstance from '../../../config/axios';
 import { useQuery } from '@tanstack/react-query';
@@ -13,6 +13,8 @@ const DeviceDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   
   const [initialMetrics, setInitialMetrics] = useState<any>(null);
+  const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
+  const [updateApkUrl, setUpdateApkUrl] = useState('');
 
   const { data: deviceInfo, isLoading: loading } = useQuery({
     queryKey: ['device', id],
@@ -51,6 +53,16 @@ const DeviceDetailPage = () => {
       // For demo purposes, we will still show success if API fails due to no backend running
       message.success(`(Demo) Đã gửi lệnh ${commandType}`);
     }
+  };
+
+  const handleUpdateApp = () => {
+    if (!updateApkUrl) {
+      message.error('Vui lòng nhập đường link tải APK!');
+      return;
+    }
+    handleSendCommand('UPDATE_APP', { url: updateApkUrl });
+    setIsUpdateModalVisible(false);
+    setUpdateApkUrl('');
   };
 
   if (loading) return <div className="p-8 flex justify-center"><Spin size="large" /></div>;
@@ -249,6 +261,15 @@ const DeviceDetailPage = () => {
               >
                 Xóa dữ liệu (Factory Reset)
               </Button>
+              <Divider className="border-[#2e303a] my-2" />
+              <Button 
+                size="large" 
+                icon={<CloudDownloadOutlined />} 
+                className="bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500 hover:text-white transition-all text-left flex justify-start items-center"
+                onClick={() => setIsUpdateModalVisible(true)}
+              >
+                Cập nhật App (OTA)
+              </Button>
             </div>
           </Card>
 
@@ -281,6 +302,31 @@ const DeviceDetailPage = () => {
           </Card>
         </div>
       </div>
+
+      <Modal
+        title="Cập Nhật Ứng Dụng Agent Từ Xa (OTA)"
+        open={isUpdateModalVisible}
+        onOk={handleUpdateApp}
+        onCancel={() => {
+          setIsUpdateModalVisible(false);
+          setUpdateApkUrl('');
+        }}
+        okText="Gửi Lệnh Cập Nhật"
+        cancelText="Hủy"
+        okButtonProps={{ className: "bg-cyan-600 hover:bg-cyan-500 border-none" }}
+      >
+        <p className="mb-2 text-gray-600 dark:text-gray-300">
+          Vui lòng dán đường link tải trực tiếp (Direct Link) của file APK bản cập nhật mới nhất.
+          Thiết bị sẽ tự động tải ngầm và cài đè lên bản cũ.
+        </p>
+        <Input 
+          placeholder="https://example.com/edusphere-agent-v2.apk" 
+          value={updateApkUrl}
+          onChange={(e) => setUpdateApkUrl(e.target.value)}
+          size="large"
+          className="mt-2"
+        />
+      </Modal>
     </div>
   );
 };
