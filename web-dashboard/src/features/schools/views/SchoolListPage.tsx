@@ -5,7 +5,7 @@ import { Button, Modal, Form, Input, Card, Typography, message, Space, Select, P
 import { PlusOutlined, BankOutlined, EnvironmentOutlined, DeleteOutlined, EyeOutlined, EditOutlined, TableOutlined, BuildOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSchools, createSchool, getAllCampuses, deleteSchool, updateSchool } from '../../../services/schoolService';
+import { getSchools, createSchool, getAllCampuses, deleteSchool, updateSchool, getAllClassrooms } from '../../../services/schoolService';
 import { getDevices } from '../../../services/deviceService';
 import { useAuthStore } from '../../../store/authStore';
 import { SharedSceneLights } from '../../../components/3d/SharedScene';
@@ -43,13 +43,13 @@ const SchoolListPage = () => {
     queryKey: ['schools', page, selectedCampusFilter],
     queryFn: () => getSchools({ page, size: 100, campusId: selectedCampusFilter || undefined }),
   });
-  const schools = data?.content || [];
+  const schools = (Array.isArray(data) ? data : (data?.content)) || [];
 
   const { data: devicesData } = useQuery({
     queryKey: ['devices', { size: 500 }],
     queryFn: () => getDevices({ page: 0, size: 500 }),
   });
-  const allDevices = devicesData?.content || [];
+  const allDevices = (Array.isArray(devicesData) ? devicesData : (devicesData?.content)) || [];
 
   const getSchoolDeviceCount = (schoolId: string) =>
     allDevices.filter((d: any) => d.school?.id === schoolId).length;
@@ -58,6 +58,16 @@ const SchoolListPage = () => {
     queryKey: ['campuses'],
     queryFn: () => getAllCampuses(),
   });
+
+  const { data: classroomsData } = useQuery({
+    queryKey: ['classrooms_all'],
+    queryFn: () => getAllClassrooms(),
+  });
+  const allClassrooms = (Array.isArray(classroomsData) ? classroomsData : (classroomsData?.content)) || [];
+
+  const getSchoolClassroomCount = (schoolId: string) =>
+    allClassrooms.filter((c: any) => c.schoolId === schoolId).length;
+
 
   const createSchoolMutation = useMutation({
     mutationFn: createSchool,
@@ -226,7 +236,7 @@ const SchoolListPage = () => {
                     name={school.name}
                     campusName={school.campusName}
                     deviceCount={school.deviceCount || getSchoolDeviceCount(school.id)}
-                    classroomCount={school.classroomCount || 0}
+                    classroomCount={school.classroomCount || getSchoolClassroomCount(school.id)}
                     isSelected={selectedSchoolId === school.id}
                     onClick={() => setSelectedSchoolId(
                       selectedSchoolId === school.id ? null : school.id

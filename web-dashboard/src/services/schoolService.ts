@@ -26,6 +26,11 @@ export const getClassrooms = async (schoolId: string) => {
   return data.data;
 };
 
+export const getAllClassrooms = async () => {
+  const { data } = await axiosInstance.get('/classrooms');
+  return data.data;
+};
+
 export const createClassroom = async (schoolId: string, classroomData: { name: string, code: string }) => {
   const { data } = await axiosInstance.post(`/schools/${schoolId}/classrooms`, classroomData);
   return data.data;

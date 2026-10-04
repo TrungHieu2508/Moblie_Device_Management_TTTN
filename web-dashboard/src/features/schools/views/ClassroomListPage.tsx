@@ -56,7 +56,7 @@ const ClassroomListPage = () => {
     queryFn: () => getSchools({ page: 0, size: 100, campusId: selectedCampusId || undefined }),
     enabled: role !== 'TEACHER',
   });
-  const schools = schoolsData?.content || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
 
   useEffect(() => {
     if (role === 'SUPER_ADMIN' && !selectedSchoolId && schools.length > 0) {
@@ -79,7 +79,7 @@ const ClassroomListPage = () => {
     enabled: !!selectedSchoolId,
     refetchInterval: 15000, // update every 15 seconds
   });
-  const allDevices = devicesData?.content || [];
+  const allDevices = (Array.isArray(devicesData) ? devicesData : (devicesData?.content)) || [];
 
   // Devices for the selected classroom
   const selectedClassroomDevices = selectedClassroomId
@@ -188,7 +188,7 @@ const ClassroomListPage = () => {
             <Select
               allowClear
               placeholder="Khu vực"
-              style={{ width: 160 }}
+              style={{ width: 220 }}
               value={selectedCampusId}
               onChange={(val) => { setSelectedCampusId(val); setSelectedSchoolId(null); setSelectedClassroomId(null); }}
               options={campusesData?.map((c: any) => ({ value: c.id, label: c.name })) || []}

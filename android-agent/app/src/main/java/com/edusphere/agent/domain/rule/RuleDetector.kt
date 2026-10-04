@@ -5,18 +5,20 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import com.edusphere.agent.data.remote.model.ViolationRequest
+import com.edusphere.agent.data.remote.websocket.CommandReceiver
 import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.domain.action.DeviceActionManager
 import com.edusphere.agent.data.local.SharedPreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import org.json.JSONObject
 import javax.inject.Inject
 
 class RuleDetector @Inject constructor(
     @ApplicationContext private val context: Context,
     private val deviceRepository: DeviceRepository,
     private val actionManager: DeviceActionManager,
-    private val sharedPreferencesManager: SharedPreferencesManager
+    private val sharedPreferencesManager: SharedPreferencesManager,
+    private val commandReceiver: CommandReceiver
 ) {
     // In a real scenario, these lists would be fetched from the server and cached locally
     private var whitelist: List<String> = emptyList()
@@ -127,16 +129,17 @@ class RuleDetector @Inject constructor(
                 
                 val deviceInfo = deviceRepository.getDeviceInfo()
                 if (deviceInfo != null) {
-                    val request = ViolationRequest(
-                        deviceId = deviceInfo.deviceId,
-                        eventType = "BLACKLIST_APP_DETECTED",
-                        timestamp = now,
-                        payload = mapOf(
-                            "packageName" to packageName,
-                            "details" to details
-                        )
-                    )
-                    deviceRepository.sendViolation(request)
+                    val eventJson = JSONObject().apply {
+                        put("deviceId", deviceInfo.deviceId)
+                        put("eventType", "BLACKLIST_APP_DETECTED")
+                        put("timestamp", now)
+                        val payload = JSONObject().apply {
+                            put("packageName", packageName)
+                            put("details", details)
+                        }
+                        put("payload", payload)
+                    }
+                    commandReceiver.sendEvent(eventJson)
                 }
             }
         } else {

@@ -42,7 +42,7 @@ const LiveClassesPage = () => {
     </div>
   );
 
-  const devices: DeviceDto[] = devicesData?.content || [];
+  const devices: DeviceDto[] = (Array.isArray(devicesData) ? devicesData : (devicesData?.content)) || [];
   const onlineCount = devices.filter(d => d.status === 'ONLINE').length;
   const offlineCount = devices.length - onlineCount;
   const onlinePercentage = devices.length > 0 ? Math.round((onlineCount / devices.length) * 100) : 0;

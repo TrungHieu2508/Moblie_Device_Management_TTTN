@@ -29,6 +29,8 @@ class LockActivity : AppCompatActivity() {
     @Inject
     lateinit var deviceRepository: DeviceRepository
 
+    @Inject
+    lateinit var commandReceiver: CommandReceiver
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -119,15 +121,16 @@ class LockActivity : AppCompatActivity() {
                 try {
                     val deviceInfo = deviceRepository.getDeviceInfo()
                     if (deviceInfo != null) {
-                        val request = ViolationRequest(
-                            deviceId = deviceInfo.deviceId,
-                            eventType = "DEVICE_UNLOCKED_MANUALLY",
-                            timestamp = System.currentTimeMillis(),
-                            payload = mapOf(
-                                "method" to "PIN_CODE"
-                            )
-                        )
-                        deviceRepository.sendViolation(request)
+                        val eventJson = org.json.JSONObject().apply {
+                            put("deviceId", deviceInfo.deviceId)
+                            put("eventType", "DEVICE_UNLOCKED_MANUALLY")
+                            put("timestamp", System.currentTimeMillis())
+                            val payload = org.json.JSONObject().apply {
+                                put("method", "PIN_CODE")
+                            }
+                            put("payload", payload)
+                        }
+                        commandReceiver.sendEvent(eventJson)
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

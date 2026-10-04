@@ -1,0 +1,42 @@
+@startuml slide3_offline_detection
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+
+title <size:18><b>PHÁT HIỆN THIẾT BỊ OFFLINE</b></size>\n<size:13>OfflineDetectionJob — chạy mỗi 60 giây</size>
+
+start
+
+:Lấy **1.000 device ID** đang ONLINE
+từ Database (chỉ lấy ID, không load toàn bộ);
+
+:Gom thành danh sách Redis keys
+device:{id1}:status
+device:{id2}:status
+...;
+
+:Gọi Redis **MGET**
+(1 lần gọi cho cả 1.000 key);
+
+while (Duyệt từng kết quả) is (còn)
+  if (Redis trả về null?) then (Key đã hết hạn)
+    :Thêm vào danh sách **OFFLINE**;
+  else (Key còn tồn tại)
+    :Bỏ qua (vẫn ONLINE);
+  endif
+endwhile (hết)
+
+if (Có device offline?) then (Có)
+  :Gộp thành **1 câu SQL UPDATE**
+  cập nhật tất cả sang OFFLINE;
+  
+  :Push thông báo lên **Dashboard**
+  qua WebSocket;
+else (Không)
+  :Kết thúc;
+endif
+
+stop
+
+@enduml

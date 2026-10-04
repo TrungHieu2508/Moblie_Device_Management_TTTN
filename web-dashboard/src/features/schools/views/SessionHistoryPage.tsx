@@ -31,7 +31,7 @@ const SessionHistoryPage: React.FC = () => {
   });
 
   const schools = useMemo(() => {
-    let list = schoolsData?.content || [];
+    let list = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
     if (selectedCampusId) {
       list = list.filter((s: any) => s.campusId === selectedCampusId);
     }

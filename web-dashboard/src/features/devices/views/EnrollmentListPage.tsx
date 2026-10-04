@@ -29,7 +29,7 @@ const EnrollmentListPage = () => {
     queryKey: ['schools', { size: 100 }],
     queryFn: () => getSchools({ page: 0, size: 100 }),
   });
-  const schools = schoolsData?.content || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
 
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [selectedCode, setSelectedCode] = useState('');

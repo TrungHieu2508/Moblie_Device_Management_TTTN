@@ -1,0 +1,49 @@
+@startuml slide3_heartbeat_flow
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+
+title <size:18><b>LUỒNG HEARTBEAT — GIÁM SÁT TRẠNG THÁI</b></size>
+
+|📱 Android Agent|
+start
+:Gửi Heartbeat **(mỗi 60 giây)**
+ ── CPU, RAM, Pin, App đang mở;
+
+|🖥️ Server|
+:Nhận Heartbeat;
+
+fork
+  :Ghi vào **Redis**
+  key = device:{id}:status
+  value = "ONLINE"
+  **TTL = 90 giây**
+  (hết 90s → tự xóa);
+fork again
+  :Push metrics lên **Dashboard**
+  qua WebSocket
+  (CPU, RAM, Pin, App đang mở);
+fork again
+  :Đếm **số lệnh đang chờ**
+  trong Redis Queue;
+end fork
+
+:Trả response cho Agent;
+
+|📱 Android Agent|
+:Nhận response:
+ • nextHeartbeat = 60s
+ • pendingCommands = N;
+
+if (pendingCommands > 0?) then (Có lệnh chờ)
+  :Gọi GET /commands/pending
+  để lấy lệnh về thực thi;
+else (Không có)
+  :Chờ 60s rồi gửi
+  Heartbeat tiếp;
+endif
+
+stop
+
+@enduml

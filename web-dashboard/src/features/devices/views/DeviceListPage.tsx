@@ -103,7 +103,7 @@ const DeviceListPage = () => {
     queryKey: ['schools', { size: 100 }], // Fetch all for dropdown
     queryFn: () => getSchools({ page: 0, size: 100 }),
   });
-  const schools = schoolsData?.content || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
 
   const createEnrollmentMutation = useMutation({
     mutationFn: createEnrollmentProfile,
@@ -334,7 +334,7 @@ const DeviceListPage = () => {
         {/* Data Table */}
         <Table 
           columns={columns} 
-          dataSource={data?.content || []} 
+          dataSource={(Array.isArray(data) ? data : (data?.content)) || []} 
           loading={isLoading}
           rowKey="id"
           pagination={{ 

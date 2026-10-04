@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Html } from '@react-three/drei';
 import { useQuery } from '@tanstack/react-query';
-import { getAllCampuses, getSchools, getClassrooms } from '../../services/schoolService';
+import { getAllCampuses, getSchools, getClassrooms, getAllClassrooms } from '../../services/schoolService';
 import { getDevices } from '../../services/deviceService';
 import { useAuthStore } from '../../store/authStore';
 import { Button, Typography, Spin } from 'antd';
@@ -465,15 +465,24 @@ const Map3DPage = () => {
 
   const { data: campuses = [], isLoading: loadingCampuses } = useQuery({ queryKey: ['campuses'], queryFn: getAllCampuses, enabled: viewLevel === 'CAMPUS' });
   const { data: schoolsData, isLoading: loadingSchools } = useQuery({ queryKey: ['schools', { campusId: selectedCampusId, size: 100 }], queryFn: () => getSchools({ page: 0, size: 100, campusId: selectedCampusId || undefined }), enabled: viewLevel === 'SCHOOL' || (role !== 'SUPER_ADMIN' && role !== 'TEACHER') });
-  const schools = schoolsData?.content || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
   
   // Fetch all schools to count them for campuses
   const { data: allSchoolsData } = useQuery({ queryKey: ['all_schools'], queryFn: () => getSchools({ page: 0, size: 500 }), enabled: viewLevel === 'CAMPUS' });
-  const allSchools = allSchoolsData?.content || [];
+  const allSchools = (Array.isArray(allSchoolsData) ? allSchoolsData : (allSchoolsData?.content)) || [];
+
+  const { data: allClassroomsData } = useQuery({ queryKey: ['all_classrooms'], queryFn: getAllClassrooms, enabled: viewLevel === 'SCHOOL' });
+  const allClassrooms = (Array.isArray(allClassroomsData) ? allClassroomsData : (allClassroomsData?.content)) || [];
+
+  const { data: allDevicesMapData } = useQuery({ queryKey: ['all_devices_map'], queryFn: () => getDevices({ page: 0, size: 500 }), enabled: viewLevel === 'SCHOOL' });
+  const allDevicesMap = (Array.isArray(allDevicesMapData) ? allDevicesMapData : (allDevicesMapData?.content)) || [];
+
+  const getSchoolClassroomCount = (schoolId: string) => allClassrooms.filter((c: any) => c.schoolId === schoolId).length;
+  const getSchoolDeviceCount = (schoolId: string) => allDevicesMap.filter((d: any) => d.school?.id === schoolId).length;
 
   const { data: classrooms = [], isLoading: loadingClassrooms } = useQuery({ queryKey: ['classrooms', selectedSchoolId], queryFn: () => getClassrooms(selectedSchoolId as string), enabled: (viewLevel === 'CLASSROOM' || role === 'TEACHER') && !!selectedSchoolId });
   const { data: devicesData, isLoading: loadingDevices } = useQuery({ queryKey: ['devices_map', selectedSchoolId], queryFn: () => getDevices({ page: 0, size: 500, schoolId: selectedSchoolId || undefined }), enabled: (viewLevel === 'CLASSROOM' || viewLevel === 'DEVICE') && !!selectedSchoolId });
-  const devices = devicesData?.content || [];
+  const devices = (Array.isArray(devicesData) ? devicesData : (devicesData?.content)) || [];
 
   const handleBack = () => {
     if (viewLevel === 'DEVICE') { setViewLevel('CLASSROOM'); setSelectedClassroomId(null); }
@@ -530,8 +539,8 @@ const Map3DPage = () => {
           position={layout[i] as [number, number, number]}
           name={s.name}
           campusName={s.campusName}
-          classroomCount={s.classroomCount}
-          deviceCount={s.deviceCount}
+          classroomCount={s.classroomCount || getSchoolClassroomCount(s.id)}
+          deviceCount={s.deviceCount || getSchoolDeviceCount(s.id)}
           onClick={() => { setSelectedSchoolId(s.id); setViewLevel('CLASSROOM'); }}
         />
       ));

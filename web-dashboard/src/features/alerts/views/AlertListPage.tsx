@@ -209,7 +209,7 @@ const AlertListPage = () => {
 
         <Table 
           columns={columns} 
-          dataSource={data?.content || []} 
+          dataSource={(Array.isArray(data) ? data : (data?.content)) || []} 
           loading={isLoading}
           rowKey="id"
           pagination={{ 

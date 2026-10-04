@@ -172,12 +172,7 @@ const UserListPage = () => {
         return <span className="text-gray-500">Chưa phân bổ</span>;
       }
     },
-    {
-      title: 'Đăng nhập cuối',
-      dataIndex: 'lastLoginAt',
-      key: 'lastLoginAt',
-      render: (text: string) => <span className="text-gray-500">{text ? new Date(text).toLocaleString() : 'Chưa đăng nhập'}</span>
-    },
+
     {
       title: 'Thao tác',
       key: 'action',
@@ -267,7 +262,7 @@ const UserListPage = () => {
 
         <Table 
           columns={columns} 
-          dataSource={data?.content || []} 
+          dataSource={(Array.isArray(data) ? data : (data?.content)) || []} 
           loading={isLoading}
           rowKey="id"
           pagination={{ 
@@ -335,7 +330,7 @@ const UserListPage = () => {
                     
                     <Form.Item name="schoolId" label="Trường học (School) (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn trường' }]}>
                       <Select placeholder="-- Chọn Trường --">
-                        {schoolsData?.content?.map((school: any) => (
+                        {(Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content))?.map((school: any) => (
                           <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
                         ))}
                       </Select>
@@ -412,7 +407,7 @@ const UserListPage = () => {
                     <p className="text-gray-300 mb-4 text-sm">Phân bổ Giáo viên (TEACHER) về Trường</p>
                     <Form.Item name="schoolId" label="Trường học (School) (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn trường' }]}>
                       <Select placeholder="-- Chọn Trường --">
-                        {schoolsData?.content?.map((school: any) => (
+                        {(Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content))?.map((school: any) => (
                           <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
                         ))}
                       </Select>

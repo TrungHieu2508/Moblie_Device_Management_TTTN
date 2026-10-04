@@ -1,0 +1,27 @@
+# ============================================================
+# EduGuardian MDM Server - Python FastAPI
+# ============================================================
+
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Database (Async SQLAlchemy + PostgreSQL)
+sqlalchemy[asyncio]==2.0.35
+asyncpg==0.29.0
+alembic==1.13.2
+greenlet==3.1.1
+
+# Pydantic (Validation + Settings)
+pydantic==2.9.2
+pydantic-settings==2.5.2
+
+# Security (JWT + Password Hashing)
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.0
+
+# Environment
+python-dotenv==1.0.1
+
+# WebSocket support is built-in with FastAPI/Starlette

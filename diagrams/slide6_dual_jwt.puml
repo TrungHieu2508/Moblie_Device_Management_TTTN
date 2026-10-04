@@ -1,0 +1,61 @@
+@startuml slide6_dual_jwt
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+
+title <size:18><b>BẢO MẬT — XÁC THỰC DUAL JWT</b></size>
+
+start
+
+:HTTP Request đến Server;
+:Đọc header **Authorization**;
+
+if (Header bắt đầu bằng?) then
+
+  if (""Bearer xxx"" ?) then ( Admin / Giáo viên)
+    :Giải mã JWT → lấy **username**;
+    :Tìm User trong Database;
+    
+    if (Tài khoản bị khóa?) then ( Bị khóa)
+      :Từ chối truy cập;
+      stop
+    else ( Hoạt động)
+    endif
+    
+    :Trích xuất **role** (ADMIN / TEACHER);
+    :Gắn xác thực vào SecurityContext;
+    #90EE90: Cho phép truy cập API;
+    
+  elseif (""Device xxx"" ?) then ( Thiết bị)
+    :Giải mã JWT → lấy **deviceId**;
+    :Kiểm tra token còn hạn?;
+    
+    if (Token hợp lệ?) then ( Hợp lệ)
+      :Gắn deviceId vào SecurityContext;
+      #90EE90: Cho phép truy cập
+      API dành cho thiết bị;
+    else ( Hết hạn)
+      :Từ chối truy cập;
+      stop
+    endif
+    
+  else ( Không có header)
+    :Chuyển tiếp cho
+    Spring Security xử lý
+    (chặn nếu cần auth);
+  endif
+  
+endif
+
+stop
+
+legend bottom right
+  **WebSocket cũng được bảo vệ:**
+  JwtChannelInterceptor check JWT
+  tại frame STOMP CONNECT.
+  Device chỉ subscribe được
+  topic của chính mình.
+endlegend
+
+@enduml

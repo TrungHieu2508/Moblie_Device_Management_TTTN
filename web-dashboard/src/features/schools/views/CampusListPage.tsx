@@ -168,7 +168,7 @@ const CampusListPage = () => {
     queryKey: ['schools', { size: 200 }],
     queryFn: () => getSchools({ page: 0, size: 200 }),
   });
-  const schools = schoolsData?.content || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
 
   const createMutation = useMutation({
     mutationFn: (values: any) => createCampus(values),

@@ -1,0 +1,38 @@
+@startuml slide2_architecture
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam defaultFontName Arial
+skinparam componentStyle rectangle
+
+title <size:18><b>CẤU TRÚC PHÂN TẦNG SERVER</b></size>
+
+actor "Client\n(Dashboard / Agent)" as Client
+
+package "EduSphere MDM Server" {
+    component "🔐 **Tầng Bảo mật (Security)**\nKiểm tra Token JWT, phân quyền" as Security #FFE0B2
+    component "🌐 **Tầng Controller (API)**\nNhận Request, trả Response" as Controller #BBDEFB
+    component "⚙️ **Tầng Service (Nghiệp vụ)**\nXử lý logic (Rule, Command, Alert...)" as Service #C8E6C9
+    component "🗄️ **Tầng Repository (Truy vấn)**\nGiao tiếp với Database qua JPA" as Repo #E1BEE7
+}
+
+database "🐘 PostgreSQL\n(Lưu trữ chính)" as DB #FFCDD2
+queue "⚡ Redis\n(Cache & Hàng đợi)" as Redis #FFCDD2
+
+Client -down-> Security : " Gửi Request (kèm JWT)"
+Security -down-> Controller : " Xác thực thành công"
+Controller -down-> Service : " Chuyển tiếp xử lý"
+Service -down-> Repo : " Lấy/Lưu dữ liệu"
+Repo -down-> DB : " Truy vấn SQL"
+Service -down-> Redis : " Đọc/Ghi trạng thái"
+
+note right of Service
+  **Các Module nghiệp vụ chính:**
+  📱 **Device:** Quản lý vòng đời thiết bị
+  📡 **Command:** Gửi lệnh điều khiển từ xa
+  📏 **Rule Engine:** Tự động phát hiện vi phạm
+  🚨 **Alert:** Sinh cảnh báo cho Admin
+  📊 **Dashboard:** Thống kê dữ liệu
+end note
+
+@enduml

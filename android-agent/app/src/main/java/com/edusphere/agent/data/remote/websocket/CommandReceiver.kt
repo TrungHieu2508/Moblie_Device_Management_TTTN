@@ -66,7 +66,6 @@ class CommandReceiver @Inject constructor(
 
     @Synchronized
     fun connect(serverUrl: String, token: String, deviceId: String) {
-        // Use user-defined Server URL from SharedPreferences if available, otherwise fallback to serverUrl parameter
         val prefsUrl = sharedPreferencesManager.getServerUrl()
         val actualServerUrl = if (!prefsUrl.isNullOrEmpty()) prefsUrl else serverUrl
         
@@ -81,23 +80,23 @@ class CommandReceiver @Inject constructor(
             return
         }
 
-        // Construct STOMP endpoint URL
+        // URL format: ws://host:8081/ws/agent/{deviceId}?token={token}
         var wsUrl = if (actualServerUrl.startsWith("http")) {
             actualServerUrl.replaceFirst("http", "ws")
         } else {
             actualServerUrl
         }
         
-        // Ensure wsUrl ends with /api/ws-agent if it doesn't already
-        if (!wsUrl.endsWith("/api/ws-agent")) {
-            if (!wsUrl.endsWith("/")) {
-                wsUrl += "/"
-            }
-            wsUrl += "api/ws-agent"
+        // Remove trailing slash or /api if present
+        wsUrl = wsUrl.replace(Regex("/api/?$"), "")
+        if (wsUrl.endsWith("/")) {
+            wsUrl = wsUrl.substring(0, wsUrl.length - 1)
         }
+        
+        wsUrl += "/ws/agent/$deviceId?token=$token"
 
         val uri = URI(wsUrl)
-        val headers = mapOf("Authorization" to "Device $token")
+        val headers = mapOf<String, String>() // No headers needed, token is in query
 
         isConnecting = true
         
@@ -110,33 +109,31 @@ class CommandReceiver @Inject constructor(
         webSocketClient = object : WebSocketClient(uri, headers) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 isConnecting = false
-                Log.i(TAG, "WebSocket Opened, sending STOMP CONNECT...")
-                val connectFrame = "CONNECT\n" +
-                        "accept-version:1.2,1.1,1.0\n" +
-                        "heart-beat:0,0\n" +
-                        "Authorization:Device $token\n" +
-                        "\n\u0000"
-                webSocketClient?.send(connectFrame)
+                Log.i(TAG, "WebSocket Opened!")
+                _isConnected.value = true
             }
 
             override fun onMessage(message: String?) {
                 Log.i(TAG, "Received message: $message")
                 message?.let {
-                    if (it.startsWith("CONNECTED")) {
-                        Log.i(TAG, "STOMP Connected! Subscribing to command topic...")
-                        val subscribeFrame = "SUBSCRIBE\n" +
-                                "id:sub-0\n" +
-                                "destination:/topic/devices/$deviceId/command\n" +
-                                "\n\u0000"
-                        webSocketClient?.send(subscribeFrame)
-                        _isConnected.value = true
-                    } else if (it.startsWith("MESSAGE")) {
-                        // Extract JSON payload from STOMP MESSAGE frame
-                        val payloadIndex = it.indexOf("\n\n")
-                        if (payloadIndex != -1) {
-                            val jsonPayload = it.substring(payloadIndex + 2).replace("\u0000", "")
-                            handleCommand(jsonPayload)
+                    try {
+                        val json = JSONObject(it)
+                        val type = json.optString("type")
+                        if (type == "COMMAND") {
+                            val data = json.optJSONObject("data")
+                            if (data != null) {
+                                val commandType = data.optString("commandType")
+                                val payload = data.optJSONObject("payload")
+                                val commandId = data.optString("id") // To acknowledge later
+                                executeCommand(commandType, payload)
+                                
+                                if (commandId.isNotEmpty()) {
+                                    sendCommandAck(commandId, "EXECUTED", null)
+                                }
+                            }
                         }
+                    } catch (e: Exception) {
+                         Log.e(TAG, "Failed to parse incoming WS message", e)
                     }
                 }
             }
@@ -155,7 +152,6 @@ class CommandReceiver @Inject constructor(
             }
         }
         
-        // Set connection lost timeout to ping the server every 30 seconds
         webSocketClient?.setConnectionLostTimeout(30)
         
         try {
@@ -324,13 +320,62 @@ class CommandReceiver @Inject constructor(
 
     fun sendScreenFrame(base64Frame: String) {
         if (_isConnected.value && currentDeviceId != null) {
-            val json = JSONObject().apply {
+            val dataJson = JSONObject().apply {
                 put("deviceId", currentDeviceId)
                 put("frame", base64Frame)
             }
-            val destination = "/app/stream/frame"
-            val message = "SEND\ndestination:$destination\ncontent-type:application/json\n\n${json.toString()}\u0000"
-            webSocketClient?.send(message)
+            val json = JSONObject().apply {
+                put("type", "SCREEN_FRAME")
+                put("data", dataJson)
+            }
+            webSocketClient?.send(json.toString())
+        }
+    }
+
+    fun sendMetrics(metricsJson: JSONObject) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val json = JSONObject().apply {
+                put("type", "METRICS")
+                put("data", metricsJson)
+            }
+            webSocketClient?.send(json.toString())
+        }
+    }
+
+    fun sendCurrentApp(currentAppJson: JSONObject) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val json = JSONObject().apply {
+                put("type", "CURRENT_APP")
+                put("data", currentAppJson)
+            }
+            webSocketClient?.send(json.toString())
+        }
+    }
+
+    fun sendCommandAck(commandId: String, status: String, errorMessage: String?) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val dataJson = JSONObject().apply {
+                put("commandId", commandId)
+                put("status", status)
+                if (errorMessage != null) {
+                    put("errorMessage", errorMessage)
+                }
+            }
+            val json = JSONObject().apply {
+                put("type", "COMMAND_ACK")
+                put("data", dataJson)
+            }
+            webSocketClient?.send(json.toString())
+        }
+    }
+
+    fun sendEvent(eventJson: JSONObject) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val json = JSONObject().apply {
+                put("type", "EVENT")
+                put("data", eventJson)
+            }
+            webSocketClient?.send(json.toString())
         }
     }
 }

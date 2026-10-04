@@ -65,16 +65,20 @@ class HeartbeatService : Service() {
         if (intent?.action == "FORCE_HEARTBEAT") {
             serviceScope.launch {
                 val deviceInfo = deviceRepository.getDeviceInfo()
-                if (deviceInfo != null && deviceInfo.isRegistered) {
+                if (deviceInfo != null && deviceInfo.isRegistered && commandReceiver.isConnected.value) {
+                    val gson = com.google.gson.Gson()
                     val metrics = deviceMonitor.getDeviceMetrics()
                     val currentApp = deviceMonitor.getCurrentApp()
-                    val request = HeartbeatRequest(
-                        deviceId = deviceInfo.deviceId,
-                        timestamp = System.currentTimeMillis(),
-                        metrics = metrics,
-                        currentApp = currentApp
-                    )
-                    deviceRepository.sendHeartbeat(request)
+                    
+                    val metricsJson = org.json.JSONObject(gson.toJson(metrics))
+                    metricsJson.put("deviceId", deviceInfo.deviceId)
+                    commandReceiver.sendMetrics(metricsJson)
+                    
+                    if (currentApp != null) {
+                        val currentAppJson = org.json.JSONObject(gson.toJson(currentApp))
+                        currentAppJson.put("deviceId", deviceInfo.deviceId)
+                        commandReceiver.sendCurrentApp(currentAppJson)
+                    }
                 }
             }
             return START_STICKY
@@ -123,12 +127,12 @@ class HeartbeatService : Service() {
 
     private fun startHeartbeatLoop(deviceId: String) {
         serviceScope.launch {
+            val gson = com.google.gson.Gson()
             while (isActive) {
                 try {
                     val isPaused = sharedPreferencesManager.isMdmPaused()
                     
                     if (!isPaused) {
-                        // Attempt reconnect if backend restarted or connection dropped
                         if (!commandReceiver.isConnected.value) {
                             val deviceInfo = deviceRepository.getDeviceInfo()
                             if (deviceInfo != null && deviceInfo.isRegistered) {
@@ -138,26 +142,18 @@ class HeartbeatService : Service() {
                                     deviceId = deviceInfo.deviceId
                                 )
                             }
-                        }
-
-                        val metrics = deviceMonitor.getDeviceMetrics()
-                        val currentApp = deviceMonitor.getCurrentApp()
-                        
-                        val request = HeartbeatRequest(
-                            deviceId = deviceId,
-                            timestamp = System.currentTimeMillis(),
-                            metrics = metrics,
-                            currentApp = currentApp
-                        )
-                        
-                        val pendingCount = deviceRepository.sendHeartbeat(request)
-                        
-                        if (pendingCount > 0) {
-                            val pendingCommands = deviceRepository.fetchPendingCommands()
-                            pendingCommands.forEach { cmd ->
-                                val payloadJson = if (cmd.payload != null) org.json.JSONObject(cmd.payload as Map<*, *>) else null
-                                commandReceiver.executeCommand(cmd.commandType, payloadJson)
-                                deviceRepository.acknowledgeCommand(cmd.id, "EXECUTED")
+                        } else {
+                            val metrics = deviceMonitor.getDeviceMetrics()
+                            val currentApp = deviceMonitor.getCurrentApp()
+                            
+                            val metricsJson = org.json.JSONObject(gson.toJson(metrics))
+                            metricsJson.put("deviceId", deviceId)
+                            commandReceiver.sendMetrics(metricsJson)
+                            
+                            if (currentApp != null) {
+                                val currentAppJson = org.json.JSONObject(gson.toJson(currentApp))
+                                currentAppJson.put("deviceId", deviceId)
+                                commandReceiver.sendCurrentApp(currentAppJson)
                             }
                         }
                     }
