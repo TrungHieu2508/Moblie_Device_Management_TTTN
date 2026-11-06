@@ -12,7 +12,14 @@ export interface AlertDto {
   createdAt: string;
 }
 
-export const getAlerts = async (params: { page?: number, size?: number, status?: string, campusId?: string }) => {
+export const getAlerts = async (params: {
+  page?: number;
+  size?: number;
+  status?: string;
+  severity?: string;
+  search?: string;
+  campusId?: string;
+}) => {
   const { data } = await axiosInstance.get('/alerts', { params });
   return data.data; // ApiResponse.data (which is Page<Alert>)
 };

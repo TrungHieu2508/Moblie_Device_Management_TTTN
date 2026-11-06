@@ -62,13 +62,13 @@ class MainViewModel @Inject constructor(
     }
 
     fun checkStatus() {
-        val isDeviceOwner = dpm.isDeviceOwnerApp(context.packageName)
+        val hasMdmPrivilege = dpm.isDeviceOwnerApp(context.packageName) || dpm.isAdminActive(adminComponent)
         val isPaused = sharedPreferencesManager.isMdmPaused()
         
         viewModelScope.launch {
             val deviceInfo = deviceRepository.getDeviceInfo()
             _uiState.value = _uiState.value.copy(
-                isDeviceOwner = isDeviceOwner,
+                isDeviceOwner = hasMdmPrivilege,
                 isRegistered = deviceInfo?.isRegistered == true,
                 isPaused = isPaused
             )

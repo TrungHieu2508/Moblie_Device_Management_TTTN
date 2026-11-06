@@ -4,7 +4,7 @@ import type { Dayjs } from 'dayjs';
 import { PlayCircleOutlined, StopOutlined, VideoCameraOutlined, CalendarOutlined, EditOutlined, DeleteOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../../store/authStore';
-import { getActiveSessions, startSession, endSession, scheduleSession, getScheduledSessions } from '../../../services/classSessionService';
+import { getActiveSessions, startSession, activateScheduledSession, endSession, scheduleSession, getScheduledSessions } from '../../../services/classSessionService';
 import { getClassrooms, createClassroom, updateClassroom, deleteClassroom } from '../../../services/schoolService';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -101,6 +101,33 @@ const TeacherDashboard = () => {
     },
     onError: (error: any) => {
       message.error(error.response?.data?.message || 'Không thể lên lịch lớp học.');
+    }
+  });
+
+  const startNowMutation = useMutation({
+    mutationFn: (classroomId: string) => startSession(classroomId, user!.id),
+    onSuccess: (session) => {
+      message.success('Đã bắt đầu phiên học trực tiếp!');
+      setIsScheduleModalVisible(false);
+      queryClient.invalidateQueries({ queryKey: ['activeSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['scheduledSessions'] });
+      navigate(`/live-classes/${session.id}${effectiveSchoolId ? `?schoolId=${effectiveSchoolId}` : ''}`);
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || 'Không thể bắt đầu lớp học.');
+    }
+  });
+
+  const activateScheduledMutation = useMutation({
+    mutationFn: (sessionId: string) => activateScheduledSession(sessionId),
+    onSuccess: (session) => {
+      message.success('Đã kích hoạt lớp học sang trạng thái Live!');
+      queryClient.invalidateQueries({ queryKey: ['activeSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['scheduledSessions'] });
+      navigate(`/live-classes/${session.id}${effectiveSchoolId ? `?schoolId=${effectiveSchoolId}` : ''}`);
+    },
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || 'Không thể kích hoạt lớp học.');
     }
   });
 
@@ -255,16 +282,27 @@ const TeacherDashboard = () => {
               </div>
 
               <div className="flex gap-2 mt-6">
-                <Button 
-                  type="primary" 
-                  ghost 
-                  icon={<VideoCameraOutlined />} 
-                  className="flex-1"
-                  onClick={() => navigate(`/live-classes/${session.id}${effectiveSchoolId ? `?schoolId=${effectiveSchoolId}` : ''}`)}
-                  disabled={session.status !== 'ACTIVE'}
-                >
-                  {session.status === 'ACTIVE' ? 'Vào lớp' : 'Chưa bắt đầu'}
-                </Button>
+                {session.status === 'ACTIVE' ? (
+                  <Button 
+                    type="primary" 
+                    ghost 
+                    icon={<VideoCameraOutlined />} 
+                    className="flex-1"
+                    onClick={() => navigate(`/live-classes/${session.id}${effectiveSchoolId ? `?schoolId=${effectiveSchoolId}` : ''}`)}
+                  >
+                    Vào lớp
+                  </Button>
+                ) : (
+                  <Button 
+                    type="primary" 
+                    icon={<PlayCircleOutlined />} 
+                    className="flex-1 bg-green-600 hover:bg-green-500 border-0"
+                    loading={activateScheduledMutation.isPending}
+                    onClick={() => activateScheduledMutation.mutate(session.id)}
+                  >
+                    Bắt đầu ngay
+                  </Button>
+                )}
                 <Popconfirm
                   title="Kết thúc/Hủy lớp học?"
                   description={session.status === 'ACTIVE' ? "Bạn có chắc chắn muốn kết thúc lớp học này không?" : "Bạn có chắc chắn muốn hủy lịch lớp học này không?"}
@@ -286,11 +324,27 @@ const TeacherDashboard = () => {
       )}
       {/* Schedule Session Modal */}
       <Modal
-        title="Lên lịch lớp học"
+        title="Bắt đầu hoặc Lên lịch lớp học"
         open={isScheduleModalVisible}
         onCancel={() => setIsScheduleModalVisible(false)}
         footer={[
           <Button key="back" onClick={() => setIsScheduleModalVisible(false)}>Hủy</Button>,
+          <Button
+            key="startNow"
+            type="primary"
+            icon={<PlayCircleOutlined />}
+            className="bg-green-600 hover:bg-green-500 border-0"
+            loading={startNowMutation.isPending}
+            onClick={() => {
+              if (!selectedClassroomId) {
+                message.warning('Vui lòng chọn lớp học');
+                return;
+              }
+              startNowMutation.mutate(selectedClassroomId);
+            }}
+          >
+            Bắt đầu ngay
+          </Button>,
           <Button 
             key="submit" 
             type="primary" 

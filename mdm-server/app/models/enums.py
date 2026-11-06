@@ -49,6 +49,9 @@ class CommandType(str, enum.Enum):
     DISABLE_CAMERA = "DISABLE_CAMERA"
     DISABLE_FACTORY_RESET = "DISABLE_FACTORY_RESET"
     START_STREAM = "START_STREAM"
+    STOP_STREAM = "STOP_STREAM"
+    FORCE_HEARTBEAT = "FORCE_HEARTBEAT"
+    UPDATE_APP = "UPDATE_APP"
 
 
 class CommandStatus(str, enum.Enum):
@@ -78,6 +81,7 @@ class EventType(str, enum.Enum):
     DEVICE_OFFLINE = "DEVICE_OFFLINE"
     DEVICE_ONLINE = "DEVICE_ONLINE"
     QUICK_RECOVERY_TRIGGERED = "QUICK_RECOVERY_TRIGGERED"
+    UNAUTHORIZED_UNLOCK_ATTEMPT = "UNAUTHORIZED_UNLOCK_ATTEMPT"
 
 
 # ── Rule ──────────────────────────────────────────────────────

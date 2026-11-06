@@ -51,9 +51,8 @@ const DeviceDetailPage = () => {
         payload: payloadData
       });
       message.success(`Đã gửi lệnh ${commandType} thành công!`);
-    } catch (error) {
-      // For demo purposes, we will still show success if API fails due to no backend running
-      message.success(`(Demo) Đã gửi lệnh ${commandType}`);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || `Không thể gửi lệnh ${commandType} tới thiết bị.`);
     }
   };
 
@@ -69,8 +68,9 @@ const DeviceDetailPage = () => {
 
   if (loading) return <div className="p-8 flex justify-center"><Spin size="large" /></div>;
 
-  // Use real-time status if available, otherwise fallback to initial info
+  // Use real-time status & metrics if available, otherwise fallback to initial info
   const currentStatus = deviceStatus || deviceInfo?.status;
+  const activeMetrics = metrics || initialMetrics || (deviceInfo as any)?.metrics;
   
 
   return (
@@ -92,16 +92,16 @@ const DeviceDetailPage = () => {
           {/* Real-time System Metrics */}
           <div className="flex flex-wrap gap-2 mt-4">
             <Tag color="purple" icon={<DatabaseOutlined />} className="px-3 py-1 border border-purple-500/30">
-              RAM: {metrics?.ramUsedMb || 0} / {metrics?.ramTotalMb || 0} MB
+              RAM: {activeMetrics?.ramUsedMb ?? activeMetrics?.ramUsageMb ?? 0} / {activeMetrics?.ramTotalMb ?? 0} MB
             </Tag>
             <Tag color="green" icon={<HddOutlined />} className="px-3 py-1 border border-green-500/30">
-              Lưu trữ: {(metrics?.storageUsedGb ?? 0).toFixed(1)} / {(metrics?.storageTotalGb ?? 0).toFixed(1)} GB
+              Lưu trữ: {(activeMetrics?.storageUsedGb ?? (activeMetrics?.storageUsedMb ? activeMetrics.storageUsedMb / 1024 : 0)).toFixed(1)} / {(activeMetrics?.storageTotalGb ?? (activeMetrics?.storageTotalMb ? activeMetrics.storageTotalMb / 1024 : 0)).toFixed(1)} GB
             </Tag>
-            <Tag color={(metrics?.batteryLevel ?? 100) < 20 ? "error" : "gold"} icon={<ThunderboltOutlined />} className="px-3 py-1 border border-yellow-500/30">
-                Pin: {metrics?.batteryLevel ?? 0}% {metrics?.batteryCharging ? '(Đang sạc)' : ''}
+            <Tag color={(activeMetrics?.batteryLevel ?? 100) < 20 ? "error" : "gold"} icon={<ThunderboltOutlined />} className="px-3 py-1 border border-yellow-500/30">
+                Pin: {activeMetrics?.batteryLevel ?? 0}% {(activeMetrics?.batteryCharging === true || activeMetrics?.batteryCharging === 'CHARGING') ? '(Đang sạc)' : ''}
             </Tag>
             <Tag color="blue" icon={<WifiOutlined />} className="px-3 py-1 border border-blue-500/30">
-              WiFi: {metrics?.wifiSsid || 'Không có'}
+              WiFi: {activeMetrics?.wifiSsid || 'Không có'}
             </Tag>
             <Tag color="default" icon={<DashboardOutlined />} className="px-3 py-1 opacity-60 border-0">
               CPU: Không khả dụng (Bảo mật Android)
@@ -122,10 +122,20 @@ const DeviceDetailPage = () => {
           {/* Live Incident View (App View) */}
           <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Live Incident View</span>}>
             <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative">
-              <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-4" />
-              <Text className="text-gray-400 mb-2 font-medium">
-                {isConnected ? 'Thiết bị đang trực tuyến' : 'Màn hình hiện đang tắt / Mất kết nối'}
-              </Text>
+              {screenFrame ? (
+                <img
+                  src={`data:image/jpeg;base64,${screenFrame}`}
+                  alt="Live Screen"
+                  className="max-h-full max-w-full object-contain rounded"
+                />
+              ) : (
+                <>
+                  <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-4" />
+                  <Text className="text-gray-400 mb-2 font-medium">
+                    {isConnected ? 'Thiết bị đang trực tuyến' : 'Màn hình hiện đang tắt / Mất kết nối'}
+                  </Text>
+                </>
+              )}
               
               <div className="flex flex-col items-center gap-3">
                 {(currentApp || deviceInfo?.currentApp) ? (

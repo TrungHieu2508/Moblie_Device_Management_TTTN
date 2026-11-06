@@ -57,7 +57,7 @@ class MetricsPersistenceService:
         """
         current = cls._counters.get(device_id, 0) + 1
         cls._counters[device_id] = current
-        return (current % METRICS_SAVE_EVERY) == 0
+        return current == 1 or (current % METRICS_SAVE_EVERY) == 0
 
     @classmethod
     def reset_counter(cls, device_id: str) -> None:
@@ -108,18 +108,65 @@ class MetricsPersistenceService:
                 return
 
             # 2. Map fields từ metrics dict sang model
-            #    Agent gửi lên camelCase, chuyển sang snake_case cho DB
+            #    Agent gửi lên camelCase (ramUsedMb, cpuUsagePct, storageUsedGb, wifiSignal, batteryCharging bool)
+            ram_usage_mb = (
+                metrics.get("ramUsedMb")
+                if metrics.get("ramUsedMb") is not None
+                else metrics.get("ramUsageMb") or metrics.get("ram_usage_mb")
+            )
+            ram_total_mb = (
+                metrics.get("ramTotalMb")
+                if metrics.get("ramTotalMb") is not None
+                else metrics.get("ram_total_mb")
+            )
+            cpu_usage_percent = (
+                metrics.get("cpuUsagePct")
+                if metrics.get("cpuUsagePct") is not None
+                else metrics.get("cpuUsagePercent") or metrics.get("cpu_usage_percent")
+            )
+            battery_level = (
+                metrics.get("batteryLevel")
+                if metrics.get("batteryLevel") is not None
+                else metrics.get("battery_level")
+            )
+            raw_charging = (
+                metrics.get("batteryCharging")
+                if metrics.get("batteryCharging") is not None
+                else metrics.get("battery_charging")
+            )
+            if isinstance(raw_charging, bool):
+                battery_charging = "CHARGING" if raw_charging else "DISCHARGING"
+            elif raw_charging is not None:
+                battery_charging = str(raw_charging)
+            else:
+                battery_charging = None
+
+            storage_used_mb = metrics.get("storageUsedMb") or metrics.get("storage_used_mb")
+            if storage_used_mb is None and metrics.get("storageUsedGb") is not None:
+                storage_used_mb = int(round(float(metrics["storageUsedGb"]) * 1024))
+
+            storage_total_mb = metrics.get("storageTotalMb") or metrics.get("storage_total_mb")
+            if storage_total_mb is None and metrics.get("storageTotalGb") is not None:
+                storage_total_mb = int(round(float(metrics["storageTotalGb"]) * 1024))
+
+            wifi_ssid = metrics.get("wifiSsid") or metrics.get("wifi_ssid")
+            wifi_signal_strength = (
+                metrics.get("wifiSignal")
+                if metrics.get("wifiSignal") is not None
+                else metrics.get("wifiSignalStrength") or metrics.get("wifi_signal_strength")
+            )
+
             snapshot = DeviceMetricsSnapshot(
                 device_id=device_uuid,
-                ram_usage_mb=metrics.get("ramUsageMb") or metrics.get("ram_usage_mb"),
-                ram_total_mb=metrics.get("ramTotalMb") or metrics.get("ram_total_mb"),
-                cpu_usage_percent=metrics.get("cpuUsagePercent") or metrics.get("cpu_usage_percent"),
-                battery_level=metrics.get("batteryLevel") or metrics.get("battery_level"),
-                battery_charging=metrics.get("batteryCharging") or metrics.get("battery_charging"),
-                storage_used_mb=metrics.get("storageUsedMb") or metrics.get("storage_used_mb"),
-                storage_total_mb=metrics.get("storageTotalMb") or metrics.get("storage_total_mb"),
-                wifi_ssid=metrics.get("wifiSsid") or metrics.get("wifi_ssid"),
-                wifi_signal_strength=metrics.get("wifiSignalStrength") or metrics.get("wifi_signal_strength"),
+                ram_usage_mb=int(ram_usage_mb) if ram_usage_mb is not None else None,
+                ram_total_mb=int(ram_total_mb) if ram_total_mb is not None else None,
+                cpu_usage_percent=float(cpu_usage_percent) if cpu_usage_percent is not None else None,
+                battery_level=int(battery_level) if battery_level is not None else None,
+                battery_charging=battery_charging,
+                storage_used_mb=int(storage_used_mb) if storage_used_mb is not None else None,
+                storage_total_mb=int(storage_total_mb) if storage_total_mb is not None else None,
+                wifi_ssid=wifi_ssid,
+                wifi_signal_strength=int(wifi_signal_strength) if wifi_signal_strength is not None else None,
                 recorded_at=datetime.now(timezone.utc),
             )
 

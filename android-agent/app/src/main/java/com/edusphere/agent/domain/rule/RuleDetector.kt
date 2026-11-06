@@ -12,7 +12,9 @@ import com.edusphere.agent.data.local.SharedPreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import org.json.JSONObject
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class RuleDetector @Inject constructor(
     @ApplicationContext private val context: Context,
     private val deviceRepository: DeviceRepository,
@@ -27,6 +29,12 @@ class RuleDetector @Inject constructor(
 
     private var violatingPackage: String? = null
     private var lastViolationSentTime: Long = 0L
+
+    init {
+        commandReceiver.policyUpdateListener = { wl, bl, isWlMode ->
+            updatePolicies(wl, bl, isWlMode)
+        }
+    }
 
     fun updatePolicies(whitelist: List<String>, blacklist: List<String>, isWhitelistMode: Boolean) {
         this.whitelist = whitelist
@@ -135,6 +143,7 @@ class RuleDetector @Inject constructor(
                         put("timestamp", now)
                         val payload = JSONObject().apply {
                             put("packageName", packageName)
+                            put("appName", appName)
                             put("details", details)
                         }
                         put("payload", payload)

@@ -17,7 +17,8 @@ const EnrollmentListPage = () => {
     queryFn: async () => {
       const res = await axiosInstance.get('/enrollments');
       return res.data?.data || [];
-    }
+    },
+    refetchOnMount: 'always',
   });
 
   const { data: campuses } = useQuery({
@@ -190,7 +191,7 @@ const EnrollmentListPage = () => {
           dataSource={enrollments} 
           loading={isLoading}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          pagination={{ pageSize: 10, className: 'custom-pagination' }}
           className="custom-dark-table"
         />
       </Card>

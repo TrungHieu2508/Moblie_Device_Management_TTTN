@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_admin
+from app.core.dependencies import get_current_user, require_admin, require_any_staff
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.user import User
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/commands", tags=["Commands"])
 async def create_command(
     device_uuid: UUID,
     request: CommandCreateRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -38,7 +38,7 @@ async def get_command_history(
     device_uuid: UUID,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Lịch sử lệnh của một thiết bị."""

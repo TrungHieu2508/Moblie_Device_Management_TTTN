@@ -110,6 +110,7 @@ const DeviceListPage = () => {
     onSuccess: (data) => {
       message.success('Tạo Mã ghi danh thành công!');
       setCreatedCode(data.code);
+      queryClient.invalidateQueries({ queryKey: ['enrollments'] });
       registerForm.resetFields();
     },
     onError: () => message.error('Có lỗi xảy ra khi tạo mã')

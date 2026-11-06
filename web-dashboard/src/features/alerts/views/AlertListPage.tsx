@@ -5,6 +5,7 @@ import { useWebSocket } from '../../../hooks/useWebSocket';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAlerts, updateAlertStatus, resolveAllAlerts } from '../../../services/alertService';
 import type { AlertDto } from '../../../services/alertService';
+import { getAllCampuses } from '../../../services/schoolService';
 
 const { Title, Text } = Typography;
 
@@ -38,18 +39,26 @@ const getStatusTag = (status: string) => {
 
 const AlertListPage = () => {
   const [searchText, setSearchText] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [campusFilter, setCampusFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
+  const { data: campuses = [] } = useQuery({
+    queryKey: ['campuses'],
+    queryFn: getAllCampuses,
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ['alerts', page, statusFilter, campusFilter],
+    queryKey: ['alerts', page, severityFilter, statusFilter, campusFilter, searchText],
     queryFn: () => getAlerts({ 
       page, 
       size: 10, 
+      severity: severityFilter === 'all' ? undefined : severityFilter,
       status: statusFilter === 'all' ? undefined : statusFilter,
-      campusId: campusFilter === 'all' ? undefined : campusFilter
+      campusId: campusFilter === 'all' ? undefined : campusFilter,
+      search: searchText.trim() || undefined,
     }),
   });
 
@@ -178,10 +187,12 @@ const AlertListPage = () => {
           <Select
             defaultValue="all"
             className="w-40"
+            onChange={(val) => setSeverityFilter(val)}
             options={[
               { value: 'all', label: 'Mọi mức độ' },
               { value: 'CRITICAL', label: 'Nghiêm trọng' },
               { value: 'WARNING', label: 'Cảnh báo' },
+              { value: 'INFO', label: 'Thông tin' },
             ]}
           />
           <Select
@@ -201,21 +212,20 @@ const AlertListPage = () => {
             onChange={(value) => setCampusFilter(value)}
             options={[
               { value: 'all', label: 'Tất cả Cơ sở' },
-              { value: 'campus-id-1', label: 'Cơ sở 1 (Demo)' },
-              { value: 'campus-id-2', label: 'Cơ sở 2 (Demo)' },
+              ...campuses.map((c: any) => ({ value: c.id, label: c.name })),
             ]}
           />
         </div>
 
         <Table 
           columns={columns} 
-          dataSource={(Array.isArray(data) ? data : (data?.content)) || []} 
+          dataSource={(Array.isArray(data) ? data : (data?.items || data?.content)) || []} 
           loading={isLoading}
           rowKey="id"
           pagination={{ 
             current: page + 1,
             pageSize: 10,
-            total: data?.totalElements || 0,
+            total: data?.total ?? data?.totalElements ?? 0,
             onChange: (p) => setPage(p - 1),
             className: 'custom-pagination' 
           }}

@@ -42,6 +42,8 @@ class CommandReceiver @Inject constructor(
 
     private var isConnecting = false
 
+    var policyUpdateListener: ((List<String>, List<String>, Boolean) -> Unit)? = null
+
     init {
         try {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
@@ -130,6 +132,26 @@ class CommandReceiver @Inject constructor(
                                 if (commandId.isNotEmpty()) {
                                     sendCommandAck(commandId, "EXECUTED", null)
                                 }
+                            }
+                        } else if (type == "SYNC_POLICIES") {
+                            val data = json.optJSONObject("data")
+                            if (data != null) {
+                                val wlArr = data.optJSONArray("whitelist")
+                                val blArr = data.optJSONArray("blacklist")
+                                val wl = mutableListOf<String>()
+                                val bl = mutableListOf<String>()
+                                if (wlArr != null) {
+                                    for (i in 0 until wlArr.length()) {
+                                        wlArr.optString(i)?.takeIf { it.isNotEmpty() }?.let { wl.add(it) }
+                                    }
+                                }
+                                if (blArr != null) {
+                                    for (i in 0 until blArr.length()) {
+                                        blArr.optString(i)?.takeIf { it.isNotEmpty() }?.let { bl.add(it) }
+                                    }
+                                }
+                                val isWlMode = data.optBoolean("isWhitelistMode", wl.isNotEmpty())
+                                policyUpdateListener?.invoke(wl, bl, isWlMode)
                             }
                         }
                     } catch (e: Exception) {

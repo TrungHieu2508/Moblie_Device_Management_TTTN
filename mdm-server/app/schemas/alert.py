@@ -16,6 +16,11 @@ class DeviceBasicInfo(CamelModel):
     device_name: Optional[str] = None
 
 
+class RuleBasicInfo(CamelModel):
+    id: UUID
+    name: str
+
+
 class AlertDto(CamelModel):
     """Tương đương AlertDto.java"""
     id: UUID
@@ -25,6 +30,7 @@ class AlertDto(CamelModel):
     severity: AlertSeverity
     status: AlertStatus
     device: Optional[DeviceBasicInfo] = None
+    rule: Optional[RuleBasicInfo] = None
     created_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
     resolution_note: Optional[str] = None
@@ -38,6 +44,8 @@ class AlertUpdateRequest(CamelModel):
 
 class PagedAlertResponse(CamelModel):
     items: list[AlertDto]
+    content: list[AlertDto] = []
     total: int
+    total_elements: int = 0
     page: int
     size: int

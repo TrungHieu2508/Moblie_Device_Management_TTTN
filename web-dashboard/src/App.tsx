@@ -246,7 +246,7 @@ function App() {
           <Route path="/" element={role !== 'TEACHER' ? <DashboardPage /> : <Navigate to="/teacher" replace />} />
           <Route path="/map3d" element={<Map3DPage />} />
           <Route path="/devices" element={role !== 'TEACHER' ? <DeviceListPage /> : <Navigate to="/teacher" replace />} />
-          <Route path="/devices/:id" element={role !== 'TEACHER' ? <DeviceDetailPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/devices/:id" element={<DeviceDetailPage />} />
           <Route path="/enrollments" element={role !== 'TEACHER' ? <EnrollmentListPage /> : <Navigate to="/teacher" replace />} />
           <Route path="/alerts" element={role !== 'TEACHER' ? <AlertListPage /> : <Navigate to="/teacher" replace />} />
           <Route path="/profile" element={<ProfilePage />} />

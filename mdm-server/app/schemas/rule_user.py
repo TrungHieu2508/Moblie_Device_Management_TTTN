@@ -2,11 +2,13 @@
 Rule & User Schemas.
 """
 
+from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import UUID
 
 from app.models.enums import AlertSeverity, RuleType
 from app.schemas.base import CamelModel
+from app.schemas.device import CampusBasicInfo, SchoolBasicInfo
 
 
 class RuleCreateRequest(CamelModel):
@@ -57,15 +59,26 @@ class UserDto(CamelModel):
     role: str
     school_id: Optional[UUID] = None
     campus_id: Optional[UUID] = None
+    school: Optional[SchoolBasicInfo] = None
+    campus: Optional[CampusBasicInfo] = None
     is_active: bool
+    last_login_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
 
 class UserUpdateRequest(CamelModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
+    password: Optional[str] = None
     school_id: Optional[UUID] = None
     campus_id: Optional[UUID] = None
     is_active: Optional[bool] = None
+
+
+class ProfileUpdateRequest(CamelModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
 
 
 class ChangePasswordRequest(CamelModel):

@@ -77,16 +77,21 @@ class MainActivity : AppCompatActivity() {
                 showPinDialog {
                     val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
                     val componentName = android.content.ComponentName(this, com.edusphere.agent.receiver.MDMAdminReceiver::class.java)
-                    if (dpm.isDeviceOwnerApp(packageName)) {
+                    if (dpm.isDeviceOwnerApp(packageName) || dpm.isAdminActive(componentName)) {
                         try {
-                            dpm.clearDeviceOwnerApp(packageName)
-                            android.widget.Toast.makeText(this, "Đã xóa quyền Device Owner thành công", android.widget.Toast.LENGTH_LONG).show()
+                            if (dpm.isDeviceOwnerApp(packageName)) {
+                                dpm.clearDeviceOwnerApp(packageName)
+                            }
+                            if (dpm.isAdminActive(componentName)) {
+                                dpm.removeActiveAdmin(componentName)
+                            }
+                            android.widget.Toast.makeText(this, "Đã xóa quyền Admin/Device Owner thành công", android.widget.Toast.LENGTH_LONG).show()
                             viewModel.checkStatus()
                         } catch (e: Exception) {
                             android.widget.Toast.makeText(this, "Lỗi khi xóa quyền: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                         }
                     } else {
-                        android.widget.Toast.makeText(this, "Ứng dụng chưa có quyền Device Owner!", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(this, "Ứng dụng chưa có quyền Admin!", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 }
                 return@registerForActivityResult
@@ -128,6 +133,11 @@ class MainActivity : AppCompatActivity() {
     private fun setupListeners() {
         findViewById<Button>(R.id.btnForceSync).setOnClickListener {
             viewModel.checkStatus()
+            val forceIntent = android.content.Intent(this, com.edusphere.agent.presentation.service.HeartbeatService::class.java).apply {
+                action = "FORCE_HEARTBEAT"
+            }
+            ContextCompat.startForegroundService(this, forceIntent)
+            android.widget.Toast.makeText(this, "Đã đồng bộ dữ liệu với máy chủ", android.widget.Toast.LENGTH_SHORT).show()
         }
         
         findViewById<Button>(R.id.btnScanQr).setOnClickListener {

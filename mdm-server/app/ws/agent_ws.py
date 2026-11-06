@@ -21,17 +21,22 @@ Luồng hoạt động:
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_device_from_ws_token
 from app.db.session import get_db, async_session_factory
+from app.models.alert import Alert
 from app.models.command import DeviceCommand
 from app.models.device import Device
-from app.models.enums import CommandStatus, DeviceStatus, EventType
+from app.models.enums import AlertSeverity, AlertStatus, CommandStatus, DeviceStatus, EventType
+from app.models.event import DeviceEvent
+from app.models.rule import Rule
+from app.services.alert_service import _map_to_dto
 from app.services.metrics_service import MetricsPersistenceService
 from app.ws.connection_manager import manager
 from app.ws.notifier import notifier
@@ -108,14 +113,172 @@ async def _send_pending_commands(device_id: str, websocket: WebSocket) -> None:
             await db.rollback()
 
 
+async def _touch_device_heartbeat(device_id: str) -> None:
+    """
+    Cập nhật last_heartbeat_at khi nhận METRICS định kỳ.
+    Không ghi đè status nếu thiết bị đang ở trạng thái WARNING hoặc CRITICAL.
+    """
+    async with async_session_factory() as db:
+        try:
+            now = datetime.now(timezone.utc)
+            result = await db.execute(select(Device).where(Device.device_id == device_id))
+            dev = result.scalar_one_or_none()
+            if dev:
+                dev.last_heartbeat_at = now
+                if dev.status == DeviceStatus.OFFLINE.value:
+                    dev.status = DeviceStatus.ONLINE.value
+                await db.commit()
+        except Exception as e:
+            logger.error("Failed to touch device heartbeat for %s: %s", device_id, e)
+            await db.rollback()
+
+
+async def _send_active_policies(device_id: str, websocket: WebSocket) -> None:
+    """
+    Gửi danh sách quy tắc (Whitelist / Blacklist) đang kích hoạt xuống Agent khi kết nối.
+    """
+    async with async_session_factory() as db:
+        try:
+            dev_res = await db.execute(select(Device).where(Device.device_id == device_id))
+            dev = dev_res.scalar_one_or_none()
+            if not dev:
+                return
+
+            rule_query = select(Rule).where(Rule.is_active == True)
+            if dev.school_id:
+                rule_query = rule_query.where(
+                    or_(Rule.school_id == dev.school_id, Rule.school_id.is_(None))
+                )
+            else:
+                rule_query = rule_query.where(Rule.school_id.is_(None))
+
+            rules = (await db.execute(rule_query)).scalars().all()
+            whitelist: list[str] = []
+            blacklist: list[str] = []
+
+            for r in rules:
+                rdata = r.rule_data or {}
+                pkgs: list[str] = []
+                for key in ("packages", "apps", "packageNames"):
+                    val = rdata.get(key)
+                    if isinstance(val, list):
+                        pkgs.extend(str(p) for p in val if p)
+                single_pkg = rdata.get("packageName")
+                if isinstance(single_pkg, str) and single_pkg:
+                    pkgs.append(single_pkg)
+
+                if r.rule_type == "APP_WHITELIST":
+                    whitelist.extend(pkgs)
+                elif r.rule_type == "APP_BLACKLIST":
+                    blacklist.extend(pkgs)
+
+            await websocket.send_json({
+                "type": "SYNC_POLICIES",
+                "data": {
+                    "whitelist": list(dict.fromkeys(whitelist)),
+                    "blacklist": list(dict.fromkeys(blacklist)),
+                    "isWhitelistMode": len(whitelist) > 0,
+                },
+            })
+        except Exception as e:
+            logger.warning("Failed to send active policies to %s: %s", device_id, e)
+
+
 async def _handle_event(device_id: str, event_data: dict) -> None:
     """
-    Xử lý event vi phạm từ Agent (gọi EventService/AlertService sau này).
-    Hiện tại log để debug.
+    Xử lý event vi phạm từ Agent:
+      1. Lưu vào bảng device_events
+      2. Tạo Alert tương ứng vào bảng alerts (có chống trùng lặp 60s)
+      3. Cập nhật trạng thái thiết bị (WARNING / CRITICAL)
+      4. Broadcast NEW_ALERT + DEVICE_STATUS lên tất cả Dashboard
     """
     event_type = event_data.get("eventType", "UNKNOWN")
+    payload = event_data.get("payload") if isinstance(event_data.get("payload"), dict) else event_data
     logger.info("Event from device=%s: type=%s data=%s", device_id, event_type, event_data)
-    # TODO: Gọi EventService.process_event() ở Sprint 4+
+
+    async with async_session_factory() as db:
+        try:
+            dev_res = await db.execute(select(Device).where(Device.device_id == device_id))
+            dev = dev_res.scalar_one_or_none()
+            if not dev:
+                return
+
+            now = datetime.now(timezone.utc)
+
+            # 1. Lưu DeviceEvent
+            dev_event = DeviceEvent(
+                device_id=dev.id,
+                event_type=event_type,
+                event_data=payload,
+                occurred_at=now,
+                processed=True,
+                processed_at=now,
+            )
+            db.add(dev_event)
+            await db.flush()
+
+            # 2. Kiểm tra chống spam alert (60s gần nhất cho cùng loại sự kiện trên thiết bị này)
+            cutoff = now - timedelta(seconds=60)
+            dup_res = await db.execute(
+                select(Alert).where(
+                    Alert.device_id == dev.id,
+                    Alert.alert_code == event_type,
+                    Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value]),
+                    Alert.created_at >= cutoff,
+                )
+            )
+            if dup_res.scalars().first() is not None:
+                await db.commit()
+                return
+
+            # 3. Xác định mức độ và tiêu đề cảnh báo
+            pkg_name = payload.get("packageName") or ""
+            app_name = payload.get("appName") or pkg_name or "Ứng dụng hạn chế"
+            details = payload.get("details") or ""
+
+            if event_type == EventType.UNAUTHORIZED_UNLOCK_ATTEMPT.value:
+                severity = AlertSeverity.CRITICAL.value
+                title = f"Cố tình mở khóa trái phép trên {dev.device_name or dev.device_id}"
+                description = details or "Học sinh đã nhập sai mật khẩu mở khóa MDM nhiều lần liên tiếp."
+                dev.status = DeviceStatus.CRITICAL.value
+            elif event_type == EventType.BLACKLIST_APP_DETECTED.value:
+                severity = AlertSeverity.WARNING.value
+                title = f"Mở ứng dụng bị cấm: {app_name}"
+                description = details or f"Thiết bị {dev.device_name or dev.device_id} đã mở ứng dụng giải trí/bị chặn ({pkg_name})."
+                if dev.status != DeviceStatus.CRITICAL.value:
+                    dev.status = DeviceStatus.WARNING.value
+            else:
+                severity = AlertSeverity.WARNING.value
+                title = f"Sự kiện cảnh báo: {event_type}"
+                description = details or f"Phát hiện sự kiện {event_type} trên thiết bị {dev.device_name or dev.device_id}."
+                if dev.status not in (DeviceStatus.CRITICAL.value, DeviceStatus.WARNING.value):
+                    dev.status = DeviceStatus.WARNING.value
+
+            new_alert = Alert(
+                id=uuid.uuid4(),
+                alert_code=event_type,
+                title=title,
+                description=description,
+                severity=severity,
+                status=AlertStatus.NEW.value,
+                event_data=payload,
+                device_id=dev.id,
+                school_id=dev.school_id,
+                campus_id=dev.campus_id,
+                classroom_id=dev.classroom_id,
+                event_id=dev_event.id,
+            )
+            db.add(new_alert)
+            await db.commit()
+            await db.refresh(new_alert)
+
+            alert_dto = _map_to_dto(new_alert).model_dump(mode="json", by_alias=True)
+            await notifier.broadcast_new_alert(alert_dto)
+            await notifier.broadcast_device_status(device_id, dev.status)
+
+        except Exception as e:
+            logger.error("Failed to process event from device %s: %s", device_id, e)
+            await db.rollback()
 
 
 async def _handle_command_ack(device_id: str, ack_data: dict) -> None:
@@ -200,8 +363,9 @@ async def agent_websocket_endpoint(
     # 4. Broadcast ONLINE cho tất cả Dashboard
     await notifier.broadcast_device_status(device_id, "ONLINE")
 
-    # 5. Gửi xuống Agent các lệnh đang PENDING
+    # 5. Gửi xuống Agent các lệnh đang PENDING và chính sách Rule đang active
     await _send_pending_commands(device_id, websocket)
+    await _send_active_policies(device_id, websocket)
 
     # 6. Vòng lặp nhận message từ Agent
     try:
@@ -223,9 +387,9 @@ async def agent_websocket_endpoint(
                 await notifier.broadcast_device_metrics(device_id, msg_data)
 
                 # 2. Cập nhật last_heartbeat_at định kỳ khi nhận metrics
-                await _update_device_status(device_id, DeviceStatus.ONLINE)
+                await _touch_device_heartbeat(device_id)
 
-                # 3. Lưu DB định kỳ (mỗi METRICS_SAVE_EVERY lần = ~5 phút)
+                # 3. Lưu DB định kỳ (mỗi METRICS_SAVE_EVERY lần = ~5 phút, và ngay lần đầu tiên)
                 #    Chạy dưới dạng background task để không block vòng lặp WS
                 if MetricsPersistenceService.should_save(device_id):
                     asyncio.create_task(
@@ -235,6 +399,9 @@ async def agent_websocket_endpoint(
             elif msg_type == "CURRENT_APP":
                 manager.update_current_app(device_id, msg_data)
                 await notifier.broadcast_current_app(device_id, msg_data)
+
+            elif msg_type == "SCREEN_FRAME":
+                await notifier.broadcast_screen_frame(device_id, msg_data.get("frame", ""))
 
             elif msg_type == "EVENT":
                 await _handle_event(device_id, msg_data)

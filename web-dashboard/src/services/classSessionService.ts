@@ -18,6 +18,11 @@ export const startSession = async (classroomId: string, teacherId: string): Prom
   return response.data.data;
 };
 
+export const activateScheduledSession = async (sessionId: string): Promise<ClassSessionDto> => {
+  const response = await axiosInstance.post(`/class-sessions/${sessionId}/start`);
+  return response.data.data;
+};
+
 export const endSession = async (sessionId: string): Promise<ClassSessionDto> => {
   const response = await axiosInstance.post(`/class-sessions/${sessionId}/end`);
   return response.data.data;

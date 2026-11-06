@@ -13,7 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_device, get_current_user, require_admin
+from app.core.dependencies import get_current_device, get_current_user, require_admin, require_any_staff
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.device import Device
@@ -58,18 +58,27 @@ async def get_devices(
     classroom_id: Optional[UUID] = Query(None, alias="classroomId"),
     status: Optional[DeviceStatus] = Query(None),
     search: Optional[str] = Query(None),
-    current_user: User = Depends(require_admin),
+    android_version: Optional[str] = Query(None, alias="androidVersion"),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Lấy danh sách thiết bị với filter tuỳ chọn."""
-    data = await DeviceService.get_all_devices(db, school_id, campus_id, classroom_id, status)
+    data = await DeviceService.get_all_devices(
+        db,
+        school_id=school_id,
+        campus_id=campus_id,
+        classroom_id=classroom_id,
+        status=status,
+        search=search,
+        android_version=android_version,
+    )
     return ApiResponse.ok(data)
 
 
 @router.get("/{device_uuid}", response_model=ApiResponse[DeviceDto])
 async def get_device(
     device_uuid: UUID,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Lấy thông tin chi tiết một thiết bị."""
@@ -77,18 +86,23 @@ async def get_device(
     return ApiResponse.ok(data)
 
 
-@router.get("/{device_uuid}/metrics", response_model=ApiResponse[Optional[Dict[str, Any]]])
+@router.get("/{device_id_or_uuid}/metrics", response_model=ApiResponse[Optional[Dict[str, Any]]])
 async def get_device_metrics(
-    device_uuid: UUID,
-    current_user: User = Depends(require_admin),
+    device_id_or_uuid: str,
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Lấy metrics real-time của thiết bị từ memory cache.
-    BUG-8 FIX: DeviceDetailPage gọi GET /devices/{deviceId}/metrics
+    Hỗ trợ truyền cả UUID (id) lẫn hardware string (deviceId).
     """
-    device = await DeviceService.get_device_by_id(device_uuid, db)
-    metrics = manager.get_metrics(device.device_id)
+    try:
+        parsed_uuid = UUID(device_id_or_uuid)
+        device = await DeviceService.get_device_by_id(parsed_uuid, db)
+        hw_device_id = device.device_id
+    except ValueError:
+        hw_device_id = device_id_or_uuid
+    metrics = manager.get_metrics(hw_device_id)
     return ApiResponse.ok(metrics)
 
 
@@ -147,7 +161,7 @@ async def delete_device(
 async def send_command(
     device_uuid: UUID,
     request: CommandCreateRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Gửi lệnh tới thiết bị. Frontend gọi endpoint này."""
@@ -159,7 +173,7 @@ async def send_command(
 async def send_command_alias(
     device_uuid: UUID,
     request: CommandCreateRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Alias cho LiveClassesPage: POST /devices/{deviceId}/commands"""

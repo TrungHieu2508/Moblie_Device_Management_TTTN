@@ -70,7 +70,7 @@ class Notifier:
         }
         await manager.broadcast_to_dashboards(payload)
 
-    # ── Current App ───────────────────────────────────────────
+    # ── Current App & Screen Stream ───────────────────────────
 
     async def broadcast_current_app(self, device_id: str, current_app: dict) -> None:
         """Thông báo app đang mở trên thiết bị."""
@@ -79,6 +79,19 @@ class Notifier:
             "data": {
                 "deviceId": device_id,
                 "currentApp": current_app,
+            },
+        }
+        await manager.broadcast_to_dashboards(payload)
+
+    async def broadcast_screen_frame(self, device_id: str, frame: str) -> None:
+        """Phát sóng khung hình màn hình trực tiếp (Base64 JPEG) lên Dashboard."""
+        if not frame:
+            return
+        payload = {
+            "type": "SCREEN_FRAME",
+            "data": {
+                "deviceId": device_id,
+                "frame": frame,
             },
         }
         await manager.broadcast_to_dashboards(payload)

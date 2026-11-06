@@ -16,7 +16,8 @@ from app.models.device import Device
 from app.models.enums import AlertSeverity, AlertStatus, DeviceStatus
 from app.models.rule import Rule
 from app.models.user import User
-from app.schemas.alert import AlertDto, AlertUpdateRequest, DeviceBasicInfo, PagedAlertResponse
+from app.schemas.alert import AlertDto, AlertUpdateRequest, DeviceBasicInfo, PagedAlertResponse, RuleBasicInfo
+from app.ws.connection_manager import manager
 from app.ws.notifier import notifier
 
 
@@ -36,7 +37,12 @@ def _map_to_dto(alert: Alert) -> AlertDto:
         dto.device = DeviceBasicInfo(
             id=alert.device.id,
             device_id=alert.device.device_id,
-            device_name=alert.device.device_name,
+            device_name=alert.device.device_name or alert.device.model,
+        )
+    if alert.rule:
+        dto.rule = RuleBasicInfo(
+            id=alert.rule.id,
+            name=alert.rule.name,
         )
     return dto
 
@@ -65,7 +71,7 @@ class AlertService:
                 Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value]),
             )
         )
-        if existing.scalar_one_or_none():
+        if existing.scalars().first():
             return  # Đã có alert đang xử lý cho rule này
 
         alert = Alert(
@@ -165,28 +171,44 @@ class AlertService:
         page: int,
         size: int,
         db: AsyncSession,
+        severity: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> PagedAlertResponse:
-        offset = (page - 1) * size
+        offset = max(page, 0) * size
 
         filters = []
         if campus_id:
             filters.append(Alert.campus_id == campus_id)
         if status:
             filters.append(Alert.status == status.value)
+        if severity:
+            filters.append(Alert.severity == severity)
+        if search:
+            pattern = f"%{search.strip()}%"
+            filters.append(
+                or_(
+                    Alert.title.ilike(pattern),
+                    Alert.description.ilike(pattern),
+                    Alert.alert_code.ilike(pattern),
+                )
+            )
 
         count_q = select(func.count()).select_from(Alert)
         if filters:
             count_q = count_q.where(*filters)
-        total = (await db.execute(count_q)).scalar()
+        total = (await db.execute(count_q)).scalar() or 0
 
         q = select(Alert).order_by(Alert.created_at.desc()).offset(offset).limit(size)
         if filters:
             q = q.where(*filters)
         alerts = (await db.execute(q)).scalars().all()
+        dtos = [_map_to_dto(a) for a in alerts]
 
         return PagedAlertResponse(
-            items=[_map_to_dto(a) for a in alerts],
+            items=dtos,
+            content=dtos,
             total=total,
+            total_elements=total,
             page=page,
             size=size,
         )
@@ -219,12 +241,17 @@ class AlertService:
                     Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value]),
                 )
             )
-            if not other_active.scalar_one_or_none():
-                # Không còn alert nào → phục hồi về ONLINE
+            if not other_active.scalars().first():
+                # Không còn alert nào → phục hồi về ONLINE (nếu đang kết nối) hoặc OFFLINE
                 dev_result = await db.execute(select(Device).where(Device.id == alert.device_id))
                 device = dev_result.scalar_one_or_none()
                 if device:
-                    device.status = DeviceStatus.ONLINE.value
+                    new_st = (
+                        DeviceStatus.ONLINE.value
+                        if manager.is_device_online(device.device_id)
+                        else DeviceStatus.OFFLINE.value
+                    )
+                    device.status = new_st
 
         await db.commit()
         await db.refresh(alert)
@@ -232,3 +259,40 @@ class AlertService:
         dto = _map_to_dto(alert)
         await notifier.broadcast_alert_status_change(str(alert.id), dto.model_dump(mode="json"))
         return dto
+
+    @staticmethod
+    async def resolve_all_alerts(
+        resolved_by: User,
+        db: AsyncSession,
+    ) -> int:
+        """Giải quyết tất cả cảnh báo đang mở (NEW, PROCESSING)."""
+        result = await db.execute(
+            select(Alert).where(
+                Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value])
+            )
+        )
+        active_alerts = result.scalars().all()
+        if not active_alerts:
+            return 0
+
+        now = datetime.now(timezone.utc)
+        affected_device_ids = set()
+        for alert in active_alerts:
+            alert.status = AlertStatus.RESOLVED.value
+            alert.resolved_at = now
+            alert.resolved_by_id = resolved_by.id
+            affected_device_ids.add(alert.device_id)
+
+        if affected_device_ids:
+            dev_res = await db.execute(
+                select(Device).where(Device.id.in_(affected_device_ids))
+            )
+            for dev in dev_res.scalars().all():
+                dev.status = (
+                    DeviceStatus.ONLINE.value
+                    if manager.is_device_online(dev.device_id)
+                    else DeviceStatus.OFFLINE.value
+                )
+
+        await db.commit()
+        return len(active_alerts)

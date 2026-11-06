@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -148,6 +148,8 @@ class DeviceService:
         campus_id: Optional[UUID] = None,
         classroom_id: Optional[UUID] = None,
         status: Optional[DeviceStatus] = None,
+        search: Optional[str] = None,
+        android_version: Optional[str] = None,
     ) -> List[DeviceDto]:
         """Lấy danh sách thiết bị với filter."""
         query = select(Device)
@@ -160,7 +162,20 @@ class DeviceService:
             query = query.where(Device.classroom_id == classroom_id)
         if status:
             query = query.where(Device.status == status.value)
+        if android_version:
+            query = query.where(Device.android_version.ilike(f"%{android_version.strip()}%"))
+        if search:
+            pattern = f"%{search.strip()}%"
+            query = query.where(
+                or_(
+                    Device.device_name.ilike(pattern),
+                    Device.model.ilike(pattern),
+                    Device.device_id.ilike(pattern),
+                    Device.serial_number.ilike(pattern),
+                )
+            )
 
+        query = query.order_by(Device.created_at.desc())
         result = await db.execute(query)
         devices = result.scalars().all()
         return [_map_device_to_dto(d) for d in devices]
@@ -206,6 +221,12 @@ class DeviceService:
             device.device_name = request.device_name
         if request.notes is not None:
             device.notes = request.notes
+        if request.campus_id is not None:
+            device.campus_id = request.campus_id
+        if request.school_id is not None:
+            device.school_id = request.school_id
+        if request.classroom_id is not None:
+            device.classroom_id = request.classroom_id
 
         await db.commit()
         await db.refresh(device)
@@ -291,6 +312,7 @@ class DeviceService:
         if campus_id:
             query = query.where(EnrollmentProfile.campus_id == campus_id)
 
+        query = query.order_by(EnrollmentProfile.created_at.desc())
         result = await db.execute(query)
         profiles = result.scalars().all()
 

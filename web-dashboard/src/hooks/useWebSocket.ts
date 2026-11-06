@@ -48,6 +48,11 @@ export const useWebSocket = (deviceId?: string) => {
               setCurrentApp(data.currentApp);
             }
             break;
+          case 'SCREEN_FRAME':
+            if (deviceId && data.deviceId === deviceId) {
+              setScreenFrame(data.frame);
+            }
+            break;
           case 'NEW_ALERT':
             setAlertInfo(data);
             break;

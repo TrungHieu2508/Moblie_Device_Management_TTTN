@@ -42,8 +42,9 @@ const LiveClassesPage = () => {
     </div>
   );
 
-  const devices: DeviceDto[] = (Array.isArray(devicesData) ? devicesData : (devicesData?.content)) || [];
-  const onlineCount = devices.filter(d => d.status === 'ONLINE').length;
+  const isDeviceConnected = (status?: string) => status === 'ONLINE' || status === 'WARNING' || status === 'CRITICAL';
+  const devices: DeviceDto[] = (Array.isArray(devicesData) ? devicesData : (devicesData?.content || (devicesData as any)?.items)) || [];
+  const onlineCount = devices.filter(d => isDeviceConnected(d.status)).length;
   const offlineCount = devices.length - onlineCount;
   const onlinePercentage = devices.length > 0 ? Math.round((onlineCount / devices.length) * 100) : 0;
 
@@ -54,13 +55,13 @@ const LiveClassesPage = () => {
         payload: payloadData
       });
       message.success(`Đã gửi lệnh ${commandType} thành công!`);
-    } catch (error) {
-      message.success(`(Demo) Đã gửi lệnh ${commandType} tới thiết bị.`);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || `Không thể gửi lệnh ${commandType} tới thiết bị.`);
     }
   };
 
   const handleBulkCommand = (commandType: string, payloadData: any = {}) => {
-    const onlineDevices = devices.filter(d => d.status === 'ONLINE');
+    const onlineDevices = devices.filter(d => isDeviceConnected(d.status));
     if (onlineDevices.length === 0) {
       message.warning('Không có thiết bị nào đang trực tuyến để nhận lệnh!');
       return;
@@ -193,7 +194,7 @@ const LiveClassesPage = () => {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
             {devices.map(device => {
-              const isOnline = device.status === 'ONLINE';
+              const isOnline = isDeviceConnected(device.status);
               const deviceMenu = {
                 items: [
                   {

@@ -266,7 +266,7 @@ async def get_classrooms_by_school(
 async def create_classroom_nested(
     school_id: UUID,
     request: ClassroomCreateRequest,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Frontend gọi: POST /schools/{schoolId}/classrooms"""
@@ -292,7 +292,7 @@ async def create_classroom_nested(
 async def create_classroom(
     request: ClassroomCreateRequest,
     school_id: Optional[UUID] = Query(None, alias="schoolId"),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Tạo classroom — flat route."""
@@ -323,7 +323,7 @@ async def create_classroom(
 async def update_classroom(
     classroom_id: UUID,
     request: ClassroomUpdateRequest,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Frontend gọi: PUT /classrooms/{id}"""
@@ -347,7 +347,7 @@ async def update_classroom(
 @router.delete("/classrooms/{classroom_id}", response_model=ApiResponse[None])
 async def delete_classroom(
     classroom_id: UUID,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Classroom).where(Classroom.id == classroom_id))
@@ -396,6 +396,24 @@ async def start_session(
         started_at=datetime.now(timezone.utc),
     )
     db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return ApiResponse.ok(_session_to_dto(session), "Buổi học đã bắt đầu")
+
+
+@router.post("/class-sessions/{session_id}/start", response_model=ApiResponse[ClassSessionDto])
+async def activate_scheduled_session(
+    session_id: UUID,
+    _: User = Depends(require_any_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Chuyển buổi học từ SCHEDULED sang ACTIVE."""
+    result = await db.execute(select(ClassSession).where(ClassSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise NotFoundException("Buổi học không tồn tại")
+    session.status = "ACTIVE"
+    session.started_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(session)
     return ApiResponse.ok(_session_to_dto(session), "Buổi học đã bắt đầu")
