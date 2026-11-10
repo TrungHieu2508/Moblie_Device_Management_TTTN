@@ -39,6 +39,9 @@ class HeartbeatService : Service() {
     lateinit var ruleDetector: RuleDetector
 
     @Inject
+    lateinit var actionManager: com.edusphere.agent.domain.action.DeviceActionManager
+
+    @Inject
     lateinit var sharedPreferencesManager: SharedPreferencesManager
 
     private val serviceScope = CoroutineScope(Dispatchers.IO)
@@ -195,8 +198,15 @@ class HeartbeatService : Service() {
                 try {
                     val isPaused = sharedPreferencesManager.isMdmPaused()
                     if (!isPaused) {
-                        val currentApp = deviceMonitor.getCurrentApp()
-                        ruleDetector.checkForegroundApp(currentApp)
+                        val currentApp = deviceMonitor.getCurrentApp(includeIcon = false)
+                        if (sharedPreferencesManager.isDeviceLocked()) {
+                            val pkg = currentApp?.packageName
+                            if (pkg != null && pkg != packageName && pkg != "com.edusphere.agent") {
+                                actionManager.lockScreen(sharedPreferencesManager.getLockMessage())
+                            }
+                        } else {
+                            ruleDetector.checkForegroundApp(currentApp)
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

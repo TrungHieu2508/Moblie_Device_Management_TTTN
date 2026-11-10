@@ -152,6 +152,25 @@ class Notifier:
 
         return sent
 
+    async def broadcast_command_ack(
+        self,
+        device_id: str,
+        command_id: str,
+        status: str,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Thông báo trạng thái thực thi lệnh (COMMAND_ACK) lên Dashboard."""
+        payload = {
+            "type": "COMMAND_ACK",
+            "data": {
+                "deviceId": device_id,
+                "commandId": command_id,
+                "status": status,
+                "errorMessage": error_message,
+            },
+        }
+        await manager.broadcast_to_dashboards(payload)
+
 
 # ── Singleton Instance ────────────────────────────────────────
 notifier = Notifier()

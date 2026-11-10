@@ -184,6 +184,18 @@ async def _send_active_policies(device_id: str, websocket: WebSocket) -> None:
             logger.warning("Failed to send active policies to %s: %s", device_id, e)
 
 
+async def broadcast_policies_to_online_agents() -> None:
+    """
+    Đẩy danh sách quy tắc (Whitelist / Blacklist) mới nhất xuống toàn bộ Agent đang Online.
+    Được gọi mỗi khi Admin thêm / sửa / bật tắt / xóa Rule trên Web Dashboard.
+    """
+    online_ids = manager.get_online_device_ids()
+    for dev_id in online_ids:
+        ws = manager.agent_connections.get(dev_id)
+        if ws:
+            await _send_active_policies(dev_id, ws)
+
+
 async def _handle_event(device_id: str, event_data: dict) -> None:
     """
     Xử lý event vi phạm từ Agent:
@@ -312,6 +324,7 @@ async def _handle_command_ack(device_id: str, ack_data: dict) -> None:
             )
             await db.commit()
             logger.info("Command %s for device %s updated to %s", command_id, device_id, new_status)
+            await notifier.broadcast_command_ack(device_id, str(command_id), new_status, error_message)
 
         except Exception as e:
             logger.error("Failed to update command ACK: %s", e)

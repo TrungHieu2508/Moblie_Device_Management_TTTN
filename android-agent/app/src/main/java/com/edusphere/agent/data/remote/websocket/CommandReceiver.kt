@@ -304,14 +304,14 @@ class CommandReceiver @Inject constructor(
                     actionManager.setFactoryResetDisabled(disabled)
                 }
                 "SHOW_VIOLATION_LOCK" -> {
-                    val intent = Intent(context, LockActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                     val message = payload?.optString("message", "Thiết bị đang bị khóa do vi phạm kỷ luật!")
-                    intent.putExtra("LOCK_MESSAGE", message)
-                    context.startActivity(intent)
+                    actionManager.lockScreen(message)
                 }
                 "UNLOCK_DEVICE" -> {
-                    val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE")
+                    sharedPreferencesManager.setDeviceLocked(false)
+                    val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE").apply {
+                        setPackage(context.packageName)
+                    }
                     context.sendBroadcast(intent)
                 }
                 "UPDATE_APP" -> {

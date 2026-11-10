@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Button, Typography, Space, Tag, Spin, Row, Col, Progress, Badge, Dropdown, message, Modal, Input } from 'antd';
-import { ArrowLeftOutlined, DesktopOutlined, WifiOutlined, DisconnectOutlined, LockOutlined, UnlockOutlined, AlertOutlined, MoreOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DesktopOutlined, WifiOutlined, DisconnectOutlined, LockOutlined, UnlockOutlined, AlertOutlined, MoreOutlined, ThunderboltOutlined, GlobalOutlined, AppstoreOutlined, CameraOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import { getActiveSessions } from '../../../services/classSessionService';
 import { getDevices } from '../../../services/deviceService';
@@ -90,6 +90,53 @@ const LiveClassesPage = () => {
     });
   };
 
+  const promptForOpenUrl = (targetDeviceId?: string) => {
+    let url = 'https://';
+    Modal.confirm({
+      title: targetDeviceId ? 'Mở Trang Web Trên Thiết Bị' : 'Mở Trang Web Bài Học Cho Cả Lớp',
+      content: (
+        <Input
+          placeholder="https://forms.gle/... hoặc https://kahoot.it"
+          defaultValue={url}
+          onChange={(e) => (url = e.target.value)}
+          className="mt-4"
+        />
+      ),
+      okText: 'Mở ngay',
+      cancelText: 'Hủy',
+      onOk: () => {
+        const cleanUrl = url.trim().startsWith('http') ? url.trim() : `https://${url.trim()}`;
+        if (targetDeviceId) {
+          handleSendCommand(targetDeviceId, 'OPEN_URL', { url: cleanUrl });
+        } else {
+          handleBulkCommand('OPEN_URL', { url: cleanUrl });
+        }
+      },
+    });
+  };
+
+  const promptForOpenApp = () => {
+    let pkg = 'com.android.chrome';
+    Modal.confirm({
+      title: 'Mở Ứng Dụng Học Tập Cho Cả Lớp',
+      content: (
+        <Input
+          placeholder="Nhập Package Name (VD: com.android.chrome)"
+          defaultValue={pkg}
+          onChange={(e) => (pkg = e.target.value)}
+          className="mt-4"
+        />
+      ),
+      okText: 'Mở Ứng Dụng',
+      cancelText: 'Hủy',
+      onOk: () => {
+        if (pkg.trim()) {
+          handleBulkCommand('OPEN_APP', { packageName: pkg.trim() });
+        }
+      },
+    });
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto h-full flex flex-col">
       <div className="flex items-center gap-4 mb-6">
@@ -169,6 +216,34 @@ const LiveClassesPage = () => {
           >
             Gửi Thông Báo
           </Button>
+          <Button
+            className="border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-white"
+            icon={<GlobalOutlined />}
+            onClick={() => promptForOpenUrl()}
+          >
+            Mở Link Bài Học
+          </Button>
+          <Button
+            className="border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white"
+            icon={<AppstoreOutlined />}
+            onClick={promptForOpenApp}
+          >
+            Mở Ứng Dụng
+          </Button>
+          <Button
+            className="border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-white"
+            icon={<CameraOutlined />}
+            onClick={() => handleBulkCommand('DISABLE_CAMERA', { disabled: true })}
+          >
+            Tắt Camera Lớp
+          </Button>
+          <Button
+            className="border-emerald-500 text-emerald-400 hover:bg-emerald-500 hover:text-white"
+            icon={<CameraOutlined />}
+            onClick={() => handleBulkCommand('DISABLE_CAMERA', { disabled: false })}
+          >
+            Bật Camera Lớp
+          </Button>
         </div>
       </div>
 
@@ -221,6 +296,25 @@ const LiveClassesPage = () => {
                     label: 'Chi tiết / Xem màn hình',
                     icon: <DesktopOutlined />,
                     onClick: () => navigate(`/devices/${device.id}`)
+                  },
+                  { type: 'divider' as const },
+                  {
+                    key: 'open_url',
+                    label: 'Mở Link Bài Học (URL)',
+                    icon: <GlobalOutlined />,
+                    onClick: () => promptForOpenUrl(device.id)
+                  },
+                  {
+                    key: 'disable_cam',
+                    label: 'Tắt Camera',
+                    icon: <CameraOutlined />,
+                    onClick: () => handleSendCommand(device.id, 'DISABLE_CAMERA', { disabled: true })
+                  },
+                  {
+                    key: 'enable_cam',
+                    label: 'Bật Camera',
+                    icon: <CameraOutlined />,
+                    onClick: () => handleSendCommand(device.id, 'DISABLE_CAMERA', { disabled: false })
                   }
                 ]
               };

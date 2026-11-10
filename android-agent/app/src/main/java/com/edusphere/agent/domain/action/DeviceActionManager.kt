@@ -7,6 +7,8 @@ import android.content.Intent
 import android.media.AudioManager
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.os.UserManager
 import android.util.Log
 import com.edusphere.agent.receiver.MDMAdminReceiver
@@ -18,23 +20,38 @@ class DeviceActionManager @Inject constructor(
 ) {
     private val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
     private val adminComponent = ComponentName(context, MDMAdminReceiver::class.java)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private fun isAdminActive(): Boolean = dpm.isAdminActive(adminComponent)
     private fun isDeviceOwner(): Boolean = dpm.isDeviceOwnerApp(context.packageName)
 
     fun lockScreen(customMessage: String? = null) {
-        if (isAdminActive()) {
-            dpm.lockNow()
-            Log.d("DeviceActionManager", "Screen locked")
-        } else {
-            Log.e("DeviceActionManager", "Cannot lock screen: Admin not active")
+        val msg = if (!customMessage.isNullOrEmpty()) customMessage else "Sử dụng điện thoại ngoài việc học nha"
+        context.getSharedPreferences("edusphere_mdm_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("device_locked", true)
+            .putString("device_lock_message", msg)
+            .apply()
+
+        mainHandler.post {
+            try {
+                // Hiện màn hình khóa MDM (LockActivity)
+                val intent = Intent(context, com.edusphere.agent.presentation.main.LockActivity::class.java)
+                intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+                intent.putExtra("LOCK_MESSAGE", msg)
+                context.startActivity(intent)
+                Log.d("DeviceActionManager", "Launched LockActivity: $msg")
+            } catch (e: Exception) {
+                Log.e("DeviceActionManager", "Failed to launch LockActivity", e)
+                if (isAdminActive()) {
+                    try { dpm.lockNow() } catch (_: Exception) {}
+                }
+            }
         }
-        
-        // Hiện thông báo khóa màn hình
-        val intent = Intent(context, com.edusphere.agent.presentation.main.LockActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        intent.putExtra("LOCK_MESSAGE", customMessage ?: "Sử dụng điện thoại ngoài việc học nha")
-        context.startActivity(intent)
     }
 
     fun reboot() {
@@ -47,21 +64,25 @@ class DeviceActionManager @Inject constructor(
     }
 
     fun openApp(packageName: String) {
-        val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-        if (intent != null) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            Log.d("DeviceActionManager", "Opened app: $packageName")
-        } else {
-            Log.e("DeviceActionManager", "Cannot open app: $packageName not found")
+        mainHandler.post {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Log.d("DeviceActionManager", "Opened app: $packageName")
+            } else {
+                Log.e("DeviceActionManager", "Cannot open app: $packageName not found")
+            }
         }
     }
     
     fun openUrl(url: String) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
-        Log.d("DeviceActionManager", "Opened URL: $url")
+        mainHandler.post {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            Log.d("DeviceActionManager", "Opened URL: $url")
+        }
     }
 
     fun setKioskMode(packageName: String, enable: Boolean) {
@@ -75,14 +96,17 @@ class DeviceActionManager @Inject constructor(
     }
 
     fun clearRecents() {
-        // Clearing recents usually requires Accessibility Service or root.
-        // As a Device Owner, there isn't a direct API to clear recents.
-        // We can simulate pressing the home button to minimize everything.
-        val startMain = Intent(Intent.ACTION_MAIN)
-        startMain.addCategory(Intent.CATEGORY_HOME)
-        startMain.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        context.startActivity(startMain)
-        Log.d("DeviceActionManager", "Navigated to Home (simulate clear recents)")
+        mainHandler.post {
+            try {
+                val startMain = Intent(Intent.ACTION_MAIN)
+                startMain.addCategory(Intent.CATEGORY_HOME)
+                startMain.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(startMain)
+                Log.d("DeviceActionManager", "Navigated to Home (simulate clear recents)")
+            } catch (e: Exception) {
+                Log.e("DeviceActionManager", "Failed to navigate to Home", e)
+            }
+        }
     }
 
     fun clearRam() {
@@ -111,6 +135,9 @@ class DeviceActionManager @Inject constructor(
             } else {
                 showAlert("Dọn Dẹp RAM", "Không có ứng dụng nào cần dọn dẹp", "SUCCESS")
             }
+        } else {
+            clearRecents()
+            showAlert("Dọn Dẹp RAM", "Đã đóng các ứng dụng chạy nền!", "SUCCESS")
         }
     }
 
@@ -133,11 +160,11 @@ class DeviceActionManager @Inject constructor(
     }
 
     fun setCameraDisabled(disabled: Boolean) {
-        if (isDeviceOwner()) {
+        if (isDeviceOwner() || isAdminActive()) {
             dpm.setCameraDisabled(adminComponent, disabled)
             Log.d("DeviceActionManager", "Camera disabled: $disabled")
         } else {
-            Log.e("DeviceActionManager", "Cannot disable camera: Not Device Owner")
+            Log.e("DeviceActionManager", "Cannot disable camera: Not Admin/Device Owner")
         }
     }
 
@@ -155,48 +182,50 @@ class DeviceActionManager @Inject constructor(
     }
 
     fun ringAlarm() {
-        try {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            
+        mainHandler.post {
             try {
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
-            } catch (e: SecurityException) {
-                Log.w("DeviceActionManager", "Cannot set volume due to DND, ignoring...")
-            }
-
-            var alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            if (alarmUri == null) {
-                alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            }
-            
-            val mediaPlayer = android.media.MediaPlayer()
-            mediaPlayer.setDataSource(context, alarmUri)
-            mediaPlayer.setAudioAttributes(
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            mediaPlayer.isLooping = true
-            mediaPlayer.prepare()
-            mediaPlayer.start()
-            
-            Log.d("DeviceActionManager", "Playing alarm sound at max volume")
-            showAlert("Cảnh Báo Vi Phạm!", "Vui lòng tập trung và không sử dụng thiết bị trong giờ học!", "WARNING")
-            
-            // Auto stop after 10 seconds
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+                
                 try {
-                    if (mediaPlayer.isPlaying) {
-                        mediaPlayer.stop()
-                        mediaPlayer.release()
-                    }
-                } catch (e: Exception) {}
-            }, 10000)
-            
-        } catch (e: Exception) {
-            Log.e("DeviceActionManager", "Failed to play alarm", e)
+                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
+                } catch (e: SecurityException) {
+                    Log.w("DeviceActionManager", "Cannot set volume due to DND, ignoring...")
+                }
+
+                var alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                if (alarmUri == null) {
+                    alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                }
+                
+                val mediaPlayer = android.media.MediaPlayer()
+                mediaPlayer.setDataSource(context, alarmUri)
+                mediaPlayer.setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                mediaPlayer.isLooping = true
+                mediaPlayer.prepare()
+                mediaPlayer.start()
+                
+                Log.d("DeviceActionManager", "Playing alarm sound at max volume")
+                showAlert("Cảnh Báo Vi Phạm!", "Vui lòng tập trung và không sử dụng thiết bị trong giờ học!", "WARNING")
+                
+                // Auto stop after 10 seconds
+                mainHandler.postDelayed({
+                    try {
+                        if (mediaPlayer.isPlaying) {
+                            mediaPlayer.stop()
+                            mediaPlayer.release()
+                        }
+                    } catch (e: Exception) {}
+                }, 10000)
+                
+            } catch (e: Exception) {
+                Log.e("DeviceActionManager", "Failed to play alarm", e)
+            }
         }
     }
 
@@ -210,12 +239,23 @@ class DeviceActionManager @Inject constructor(
     }
 
     fun showAlert(title: String, message: String, type: String = "WARNING") {
-        val intent = Intent(context, com.edusphere.agent.presentation.main.AlertActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        intent.putExtra("ALERT_TITLE", title)
-        intent.putExtra("ALERT_MESSAGE", message)
-        intent.putExtra("ALERT_TYPE", type)
-        context.startActivity(intent)
-        Log.d("DeviceActionManager", "Showing alert: $title - $message")
+        // Delay 150ms để nếu vừa gọi clearRecents() (về màn hình chính) thì Home kịp mở trước rồi mới hiện bảng Cảnh báo đè lên trên
+        mainHandler.postDelayed({
+            try {
+                val intent = Intent(context, com.edusphere.agent.presentation.main.AlertActivity::class.java)
+                intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+                intent.putExtra("ALERT_TITLE", title)
+                intent.putExtra("ALERT_MESSAGE", message)
+                intent.putExtra("ALERT_TYPE", type)
+                context.startActivity(intent)
+                Log.d("DeviceActionManager", "Showing alert: $title - $message")
+            } catch (e: Exception) {
+                Log.e("DeviceActionManager", "Failed to show AlertActivity", e)
+            }
+        }, 150)
     }
 }

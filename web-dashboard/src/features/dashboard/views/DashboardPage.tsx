@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { Typography, Spin } from 'antd';
 import { MobileOutlined, AlertOutlined, SafetyCertificateOutlined, WifiOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDashboardSummary } from '../../../services/dashboardService';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
@@ -90,7 +90,14 @@ const StatCard = ({ title, value, suffix, icon, color, glowColor, gradient, dela
 };
 
 const DashboardPage = () => {
-  useWebSocket(); // Keep WebSocket alive
+  const queryClient = useQueryClient();
+  const { lastEvent } = useWebSocket(); // Keep WebSocket alive & listen for real-time updates
+
+  useEffect(() => {
+    if (lastEvent) {
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+    }
+  }, [lastEvent, queryClient]);
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ['dashboardSummary'],

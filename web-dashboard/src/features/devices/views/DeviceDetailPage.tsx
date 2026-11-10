@@ -1,28 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin, Modal, Input } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { Card, Typography, Button, Tag, Space, Divider, message, Spin, Modal, Input, Table } from 'antd';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined, VideoCameraOutlined, StopOutlined, GlobalOutlined, AppstoreOutlined, CameraOutlined, SafetyOutlined, EyeInvisibleOutlined, ReloadOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { QRCodeSVG } from 'qrcode.react';
 import axiosInstance from '../../../config/axios';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDeviceById } from '../../../services/deviceService';
 
 const { Title, Text } = Typography;
 
 const DeviceDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   
   const [initialMetrics, setInitialMetrics] = useState<any>(null);
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   const [updateApkUrl, setUpdateApkUrl] = useState('');
   const [isAdminQrModalVisible, setIsAdminQrModalVisible] = useState(false);
+  const [openUrlInput, setOpenUrlInput] = useState('');
+  const [targetPackageInput, setTargetPackageInput] = useState('');
 
   const { data: deviceInfo, isLoading: loading } = useQuery({
     queryKey: ['device', id],
     queryFn: () => getDeviceById(id!),
     enabled: !!id,
     refetchInterval: 30000,
+  });
+
+  const { data: commandHistory = [], isLoading: loadingCommands } = useQuery({
+    queryKey: ['deviceCommands', id],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/devices/${id}/commands`);
+      return res.data?.data || [];
+    },
+    enabled: !!id,
+    refetchInterval: 15000,
   });
 
   useEffect(() => {
@@ -38,7 +51,13 @@ const DeviceDetailPage = () => {
   }, [deviceInfo?.deviceId]);
 
   // Connect to WebSocket to receive real-time metrics for this specific device
-  const { isConnected, metrics, deviceStatus, screenFrame, currentApp } = useWebSocket(deviceInfo?.deviceId);
+  const { isConnected, metrics, deviceStatus, screenFrame, currentApp, commandAck } = useWebSocket(deviceInfo?.deviceId);
+
+  useEffect(() => {
+    if (commandAck) {
+      queryClient.invalidateQueries({ queryKey: ['deviceCommands', id] });
+    }
+  }, [commandAck, id, queryClient]);
 
   useEffect(() => {
     // Không tự động gọi START_STREAM nữa vì không ổn định (Theo yêu cầu)
@@ -51,6 +70,7 @@ const DeviceDetailPage = () => {
         payload: payloadData
       });
       message.success(`Đã gửi lệnh ${commandType} thành công!`);
+      queryClient.invalidateQueries({ queryKey: ['deviceCommands', id] });
     } catch (error: any) {
       message.error(error?.response?.data?.message || `Không thể gửi lệnh ${commandType} tới thiết bị.`);
     }
@@ -157,13 +177,29 @@ const DeviceDetailPage = () => {
                   </Tag>
                 )}
 
-                <Button 
-                  type="primary" 
-                  className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)] mt-4" 
-                  onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
-                >
-                  Làm mới thông tin Ứng dụng
-                </Button>
+                <div className="flex flex-wrap justify-center gap-2 mt-4">
+                  <Button 
+                    type="primary" 
+                    className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)]" 
+                    onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
+                  >
+                    Làm mới thông tin Ứng dụng
+                  </Button>
+                  <Button
+                    icon={<VideoCameraOutlined />}
+                    className="bg-cyan-500/15 text-cyan-400 border-cyan-500/40 hover:bg-cyan-500 hover:text-white"
+                    onClick={() => handleSendCommand('START_STREAM')}
+                  >
+                    Xem màn hình (Stream)
+                  </Button>
+                  <Button
+                    icon={<StopOutlined />}
+                    className="bg-red-500/15 text-red-400 border-red-500/40 hover:bg-red-500 hover:text-white"
+                    onClick={() => handleSendCommand('STOP_STREAM')}
+                  >
+                    Dừng Stream
+                  </Button>
+                </div>
               </div>
             </div>
           </Card>
@@ -320,8 +356,201 @@ const DeviceDetailPage = () => {
               <Text className="text-blue-400 font-mono text-sm break-all" copyable>{deviceInfo?.deviceId || 'Không có dữ liệu'}</Text>
             </div>
           </Card>
+
+          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6" title={<span className="text-cyan-400 font-bold"><SafetyOutlined /> Điều khiển Nâng cao & Hỗ trợ Học tập</span>}>
+            <div className="flex flex-col gap-3">
+              <div>
+                <Text className="text-gray-400 text-xs block mb-1">Mở trang Web bài giảng / kiểm tra trên máy học sinh:</Text>
+                <Space.Compact className="w-full">
+                  <Input
+                    placeholder="https://forms.gle/... hoặc https://kahoot.it"
+                    value={openUrlInput}
+                    onChange={(e) => setOpenUrlInput(e.target.value)}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<GlobalOutlined />}
+                    className="bg-blue-600 hover:bg-blue-500 border-0"
+                    onClick={() => {
+                      if (!openUrlInput.trim()) {
+                        message.warning('Vui lòng nhập đường dẫn URL!');
+                        return;
+                      }
+                      const url = openUrlInput.trim().startsWith('http') ? openUrlInput.trim() : `https://${openUrlInput.trim()}`;
+                      handleSendCommand('OPEN_URL', { url });
+                    }}
+                  >
+                    Mở Web
+                  </Button>
+                </Space.Compact>
+              </div>
+
+              <div>
+                <Text className="text-gray-400 text-xs block mb-1">Quản lý Ứng dụng theo Package Name:</Text>
+                <Input
+                  placeholder="VD: com.android.chrome hoặc com.garena.game.kgvn"
+                  value={targetPackageInput}
+                  onChange={(e) => setTargetPackageInput(e.target.value)}
+                  className="mb-2"
+                />
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    size="small"
+                    icon={<AppstoreOutlined />}
+                    className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                    onClick={() => {
+                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
+                      handleSendCommand('OPEN_APP', { packageName: targetPackageInput.trim() });
+                    }}
+                  >
+                    Mở App
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<EyeInvisibleOutlined />}
+                    className="bg-orange-500/10 text-orange-400 border-orange-500/30"
+                    onClick={() => {
+                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
+                      handleSendCommand('HIDE_APP', { packageName: targetPackageInput.trim(), hidden: true });
+                    }}
+                  >
+                    Ẩn App
+                  </Button>
+                  <Button
+                    size="small"
+                    className="bg-teal-500/10 text-teal-400 border-teal-500/30"
+                    onClick={() => {
+                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
+                      handleSendCommand('HIDE_APP', { packageName: targetPackageInput.trim(), hidden: false });
+                    }}
+                  >
+                    Hiện App
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Button
+                    size="small"
+                    className="bg-red-500/10 text-red-400 border-red-500/30"
+                    onClick={() => {
+                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
+                      handleSendCommand('BLOCK_UNINSTALL', { packageName: targetPackageInput.trim(), blocked: true });
+                    }}
+                  >
+                    Chặn Gỡ Cài Đặt
+                  </Button>
+                  <Button
+                    size="small"
+                    className="bg-gray-500/10 text-gray-300 border-gray-500/30"
+                    onClick={() => {
+                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
+                      handleSendCommand('BLOCK_UNINSTALL', { packageName: targetPackageInput.trim(), blocked: false });
+                    }}
+                  >
+                    Cho Phép Gỡ
+                  </Button>
+                </div>
+              </div>
+
+              <Divider className="border-[#2e303a] my-1" />
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  icon={<CameraOutlined />}
+                  className="bg-red-500/10 text-red-400 border-red-500/30"
+                  onClick={() => handleSendCommand('DISABLE_CAMERA', { disabled: true })}
+                >
+                  Khóa Camera
+                </Button>
+                <Button
+                  icon={<CameraOutlined />}
+                  className="bg-green-500/10 text-green-400 border-green-500/30"
+                  onClick={() => handleSendCommand('DISABLE_CAMERA', { disabled: false })}
+                >
+                  Mở Camera
+                </Button>
+                <Button
+                  icon={<SafetyOutlined />}
+                  className="bg-amber-500/10 text-amber-400 border-amber-500/30"
+                  onClick={() => handleSendCommand('DISABLE_FACTORY_RESET', { disabled: true })}
+                >
+                  Chặn Reset Máy
+                </Button>
+                <Button
+                  icon={<ReloadOutlined />}
+                  className="bg-purple-500/10 text-purple-400 border-purple-500/30"
+                  onClick={() => handleSendCommand('REBOOT_DEVICE')}
+                >
+                  Khởi động lại
+                </Button>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
+
+      {/* Lịch sử lệnh điều khiển thời gian thực (bên dưới) */}
+      <Card
+        className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6"
+        title={
+          <span className="text-[var(--color-primary)] font-bold flex items-center gap-2">
+            <HistoryOutlined /> Lịch sử Lệnh Điều khiển Thiết bị (Real-time ACK)
+          </span>
+        }
+      >
+        <Table
+          dataSource={commandHistory}
+          rowKey="id"
+          loading={loadingCommands}
+          pagination={{ pageSize: 5 }}
+          className="custom-dark-table"
+          columns={[
+            {
+              title: 'Lệnh Điều khiển',
+              dataIndex: 'commandType',
+              key: 'commandType',
+              render: (cmd: string) => <Tag color="purple" className="font-mono font-bold">{cmd}</Tag>,
+            },
+            {
+              title: 'Tham số (Payload)',
+              dataIndex: 'payload',
+              key: 'payload',
+              render: (p: any) => (
+                <Text className="text-gray-400 font-mono text-xs">
+                  {p && Object.keys(p).length > 0 ? JSON.stringify(p) : '---'}
+                </Text>
+              ),
+            },
+            {
+              title: 'Trạng thái',
+              dataIndex: 'status',
+              key: 'status',
+              render: (st: string) => {
+                const color =
+                  st === 'EXECUTED'
+                    ? 'success'
+                    : st === 'SENT' || st === 'ACKNOWLEDGED'
+                    ? 'processing'
+                    : st === 'FAILED'
+                    ? 'error'
+                    : 'warning';
+                return <Tag color={color}>{st}</Tag>;
+              },
+            },
+            {
+              title: 'Thời gian gửi',
+              dataIndex: 'createdAt',
+              key: 'createdAt',
+              render: (t: string) => <Text className="text-gray-400 text-xs">{t ? new Date(t).toLocaleString() : '---'}</Text>,
+            },
+            {
+              title: 'Thời gian thực thi',
+              dataIndex: 'executedAt',
+              key: 'executedAt',
+              render: (t: string) => <Text className="text-green-400 text-xs">{t ? new Date(t).toLocaleString() : 'Đang chờ...'}</Text>,
+            },
+          ]}
+        />
+      </Card>
 
       <Modal
         title="Cập Nhật Ứng Dụng Agent Từ Xa (OTA)"

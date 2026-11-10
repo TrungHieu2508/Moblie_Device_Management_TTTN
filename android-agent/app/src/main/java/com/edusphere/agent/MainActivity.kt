@@ -47,10 +47,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.checkStatus()
-        checkUsageStatsPermission()
+        checkRequiredPermissions()
     }
 
-    private fun checkUsageStatsPermission() {
+    private fun checkRequiredPermissions() {
+        // 1. Kiểm tra quyền Truy cập dữ liệu sử dụng (Usage Stats) để phát hiện ứng dụng đang mở
         val appOps = getSystemService(android.content.Context.APP_OPS_SERVICE) as android.app.AppOpsManager
         val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             appOps.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), packageName)
@@ -60,6 +61,36 @@ class MainActivity : AppCompatActivity() {
         if (mode != android.app.AppOpsManager.MODE_ALLOWED) {
             android.widget.Toast.makeText(this, "Vui lòng cấp quyền Truy cập dữ liệu sử dụng để phát hiện ứng dụng", android.widget.Toast.LENGTH_LONG).show()
             startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
+            return
+        }
+
+        // 2. Kiểm tra quyền Xuất hiện trên cùng / Hiển thị trên ứng dụng khác (SYSTEM_ALERT_WINDOW)
+        // Bắt buộc trên Android 10/11+ để bật được màn hình Khóa (LockActivity) và Cảnh báo (AlertActivity) khi chạy ngầm
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+            android.widget.Toast.makeText(this, "Vui lòng bật quyền 'Xuất hiện trên cùng' (Hiển thị trên ứng dụng khác) cho EduSphere Agent!", android.widget.Toast.LENGTH_LONG).show()
+            try {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+            } catch (e: Exception) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+            }
+            return
+        }
+
+        // 3. Kiểm tra quyền Quản trị thiết bị (Device Admin / Device Owner)
+        val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+        val componentName = android.content.ComponentName(this, com.edusphere.agent.receiver.MDMAdminReceiver::class.java)
+        if (!dpm.isDeviceOwnerApp(packageName) && !dpm.isAdminActive(componentName)) {
+            try {
+                val intent = android.content.Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                    putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
+                    putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Cấp quyền Quản trị thiết bị để hỗ trợ khóa màn hình và quản lý trong giờ học.")
+                }
+                startActivity(intent)
+            } catch (_: Exception) {}
         }
     }
 

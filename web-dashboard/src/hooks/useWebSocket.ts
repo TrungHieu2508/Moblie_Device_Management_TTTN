@@ -8,6 +8,8 @@ export const useWebSocket = (deviceId?: string) => {
   const [alertInfo, setAlertInfo] = useState<any>(null);
   const [screenFrame, setScreenFrame] = useState<string | null>(null);
   const [currentApp, setCurrentApp] = useState<any>(null);
+  const [commandAck, setCommandAck] = useState<any>(null);
+  const [lastEvent, setLastEvent] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -34,6 +36,7 @@ export const useWebSocket = (deviceId?: string) => {
 
         switch (type) {
           case 'DEVICE_STATUS':
+            setLastEvent({ type, data, ts: Date.now() });
             if (deviceId && data.deviceId === deviceId) {
               setDeviceStatus(data.status);
             }
@@ -53,11 +56,18 @@ export const useWebSocket = (deviceId?: string) => {
               setScreenFrame(data.frame);
             }
             break;
+          case 'COMMAND_ACK':
+            setLastEvent({ type, data, ts: Date.now() });
+            if (!deviceId || data.deviceId === deviceId) {
+              setCommandAck({ ...data, ts: Date.now() });
+            }
+            break;
           case 'NEW_ALERT':
             setAlertInfo(data);
+            setLastEvent({ type, data, ts: Date.now() });
             break;
           case 'ALERT_STATUS_CHANGED':
-            // Có thể xử lý sau
+            setLastEvent({ type, data, ts: Date.now() });
             break;
           case 'INITIAL_STATE':
             console.log('Initial WS State:', data);
@@ -92,5 +102,5 @@ export const useWebSocket = (deviceId?: string) => {
     };
   }, [deviceId]);
 
-  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame, currentApp };
+  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame, currentApp, commandAck, lastEvent };
 };
