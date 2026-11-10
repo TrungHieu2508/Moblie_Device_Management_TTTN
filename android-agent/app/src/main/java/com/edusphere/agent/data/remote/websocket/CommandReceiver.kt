@@ -253,14 +253,26 @@ class CommandReceiver @Inject constructor(
                     context.startService(intent)
                 }
                 "START_STREAM" -> {
-                    val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        try {
+                            val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to launch ScreenCaptureActivity", e)
+                        }
+                    }
                 }
                 "STOP_STREAM" -> {
-                    val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)
-                    intent.action = "STOP"
-                    context.startService(intent)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        try {
+                            val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)
+                            intent.action = "STOP"
+                            context.startService(intent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to stop ScreenCaptureService", e)
+                        }
+                    }
                 }
                 "REBOOT_DEVICE" -> {
                     actionManager.reboot()

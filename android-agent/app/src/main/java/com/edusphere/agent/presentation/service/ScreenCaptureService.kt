@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -14,7 +15,9 @@ import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Base64
 import android.util.DisplayMetrics
 import android.util.Log
@@ -36,60 +39,109 @@ class ScreenCaptureService : Service() {
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var captureJob: Job? = null
     
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile
     private var isCapturing = false
+
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            super.onStop()
+            Log.i("ScreenCapture", "MediaProjection stopped by system")
+            stopCaptureResources()
+            stopSelf()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP") {
+            stopCaptureResources()
             stopSelf()
             return START_NOT_STICKY
         }
 
-        val resultCode = intent?.getIntExtra("RESULT_CODE", -1) ?: -1
-        val resultData: Intent? = intent?.getParcelableExtra("RESULT_DATA")
+        val resultCode = intent?.getIntExtra("RESULT_CODE", 0) ?: 0
+        val resultData: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra("RESULT_DATA", Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra("RESULT_DATA")
+        }
 
-        if (resultCode != -1 && resultData != null && !isCapturing) {
-            startCapture(resultCode, resultData)
+        if (resultCode != 0 && resultData != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(
+                        NOTIFICATION_ID,
+                        createNotification(),
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                    )
+                } else {
+                    startForeground(NOTIFICATION_ID, createNotification())
+                }
+                startCapture(resultCode, resultData)
+            } catch (e: Exception) {
+                Log.e("ScreenCapture", "Failed to start foreground screen capture", e)
+                stopSelf()
+            }
+        } else {
+            stopSelf()
         }
 
         return START_NOT_STICKY
     }
 
     private fun startCapture(resultCode: Int, resultData: Intent) {
+        stopCaptureResources()
+
         val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         mediaProjection = mpm.getMediaProjection(resultCode, resultData)
+        if (mediaProjection == null) {
+            Log.e("ScreenCapture", "MediaProjection is null")
+            stopSelf()
+            return
+        }
+
+        // Bắt buộc trên Android 14+ (targetSdk >= 34): phải đăng ký callback trước khi createVirtualDisplay
+        mediaProjection?.registerCallback(projectionCallback, mainHandler)
 
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val metrics = DisplayMetrics()
-        windowManager.defaultDisplay.getMetrics(metrics)
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
         
-        // Cố định độ phân giải nhỏ để tiết kiệm băng thông (VD: 480p ngang/dọc)
         val density = metrics.densityDpi
-        val originalWidth = metrics.widthPixels
-        val originalHeight = metrics.heightPixels
+        val originalWidth = metrics.widthPixels.coerceAtLeast(360)
+        val originalHeight = metrics.heightPixels.coerceAtLeast(640)
         
-        val scale = 0.5f // Giảm nửa độ phân giải
-        val width = (originalWidth * scale).toInt()
-        val height = (originalHeight * scale).toInt()
+        // Giảm độ phân giải về ~480p (chiều ngang chẵn) để mượt và rõ nét qua WebSocket
+        val scale = 0.45f
+        val width = ((originalWidth * scale).toInt() / 2) * 2
+        val height = ((originalHeight * scale).toInt() / 2) * 2
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         
         virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "ScreenCapture",
+            "EduSphereLiveScreen",
             width, height, density,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader?.surface, null, null
+            imageReader?.surface, null, mainHandler
         )
 
         isCapturing = true
-        scope.launch {
+        Log.i("ScreenCapture", "Started live screen capture: ${width}x${height}")
+
+        captureJob = scope.launch {
+            var lastBase64Frame: String? = null
+            var lastSentTime = 0L
+
             while (isCapturing && isActive) {
                 try {
                     val image = imageReader?.acquireLatestImage()
@@ -100,7 +152,6 @@ class ScreenCaptureService : Service() {
                         val rowStride = planes[0].rowStride
                         val rowPadding = rowStride - pixelStride * width
 
-                        // Create bitmap
                         val bitmap = Bitmap.createBitmap(
                             width + rowPadding / pixelStride,
                             height,
@@ -109,42 +160,61 @@ class ScreenCaptureService : Service() {
                         bitmap.copyPixelsFromBuffer(buffer)
                         image.close()
 
-                        // Crop if needed (remove padding)
                         val croppedBitmap = if (rowPadding > 0) {
-                            Bitmap.createBitmap(bitmap, 0, 0, width, height)
+                            val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+                            bitmap.recycle()
+                            cropped
                         } else {
                             bitmap
                         }
 
-                        // Convert to JPEG & Base64
                         val baos = ByteArrayOutputStream()
-                        croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 30, baos)
-                        val byteArray = baos.toByteArray()
-                        val base64 = Base64.encodeToString(byteArray, Base64.NO_WRAP)
-                        
-                        // Send frame
+                        croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 45, baos)
+                        croppedBitmap.recycle()
+
+                        val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                        lastBase64Frame = base64
+                        lastSentTime = System.currentTimeMillis()
+
                         commandReceiver.sendScreenFrame(base64)
-                        
-                        // Cố gắng giữ 5-10 FPS
-                        delay(150)
+                        delay(150) // ~6-7 FPS
                     } else {
-                        delay(50)
+                        // Nếu màn hình điện thoại đang đứng yên không đổi pixel, gửi lại frame cuối mỗi 1 giây
+                        // để Web Dashboard luôn hiển thị hình ngay lập tức
+                        val now = System.currentTimeMillis()
+                        if (lastBase64Frame != null && now - lastSentTime >= 1000L) {
+                            lastSentTime = now
+                            commandReceiver.sendScreenFrame(lastBase64Frame)
+                        }
+                        delay(80)
                     }
                 } catch (e: Exception) {
                     Log.e("ScreenCapture", "Error capturing frame", e)
-                    delay(100)
+                    delay(150)
                 }
             }
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    private fun stopCaptureResources() {
         isCapturing = false
+        captureJob?.cancel()
+        captureJob = null
+        try { virtualDisplay?.release() } catch (_: Exception) {}
+        virtualDisplay = null
+        try { imageReader?.close() } catch (_: Exception) {}
+        imageReader = null
+        try {
+            mediaProjection?.unregisterCallback(projectionCallback)
+            mediaProjection?.stop()
+        } catch (_: Exception) {}
+        mediaProjection = null
+    }
+
+    override fun onDestroy() {
+        stopCaptureResources()
         scope.cancel()
-        virtualDisplay?.release()
-        imageReader?.close()
-        mediaProjection?.stop()
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -163,9 +233,10 @@ class ScreenCaptureService : Service() {
 
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("MDM Agent")
-            .setContentText("Đang chia sẻ màn hình...")
+            .setContentTitle("EduSphere Agent")
+            .setContentText("Đang truyền trực tiếp màn hình lên hệ thống...")
             .setSmallIcon(R.mipmap.ic_launcher)
+            .setOngoing(true)
             .build()
     }
 

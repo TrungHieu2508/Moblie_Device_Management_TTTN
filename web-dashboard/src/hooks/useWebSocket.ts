@@ -102,5 +102,7 @@ export const useWebSocket = (deviceId?: string) => {
     };
   }, [deviceId]);
 
-  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame, currentApp, commandAck, lastEvent };
+  const clearScreenFrame = () => setScreenFrame(null);
+
+  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame, clearScreenFrame, currentApp, commandAck, lastEvent };
 };

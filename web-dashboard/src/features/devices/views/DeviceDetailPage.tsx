@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Typography, Button, Tag, Space, Divider, message, Spin, Modal, Input, Table } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined, VideoCameraOutlined, StopOutlined, GlobalOutlined, AppstoreOutlined, CameraOutlined, SafetyOutlined, EyeInvisibleOutlined, ReloadOutlined, HistoryOutlined } from '@ant-design/icons';
+import { Card, Typography, Button, Tag, Divider, message, Spin, Modal, Input, Table } from 'antd';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined, VideoCameraOutlined, StopOutlined, ExpandOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { QRCodeSVG } from 'qrcode.react';
 import axiosInstance from '../../../config/axios';
@@ -18,8 +18,7 @@ const DeviceDetailPage = () => {
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
   const [updateApkUrl, setUpdateApkUrl] = useState('');
   const [isAdminQrModalVisible, setIsAdminQrModalVisible] = useState(false);
-  const [openUrlInput, setOpenUrlInput] = useState('');
-  const [targetPackageInput, setTargetPackageInput] = useState('');
+  const [isFullscreenStreamVisible, setIsFullscreenStreamVisible] = useState(false);
 
   const { data: deviceInfo, isLoading: loading } = useQuery({
     queryKey: ['device', id],
@@ -50,8 +49,8 @@ const DeviceDetailPage = () => {
     }
   }, [deviceInfo?.deviceId]);
 
-  // Connect to WebSocket to receive real-time metrics for this specific device
-  const { isConnected, metrics, deviceStatus, screenFrame, currentApp, commandAck } = useWebSocket(deviceInfo?.deviceId);
+  // Connect to WebSocket to receive real-time metrics & live screen frames for this specific device
+  const { isConnected, metrics, deviceStatus, screenFrame, clearScreenFrame, currentApp, commandAck } = useWebSocket(deviceInfo?.deviceId);
 
   useEffect(() => {
     if (commandAck) {
@@ -59,16 +58,15 @@ const DeviceDetailPage = () => {
     }
   }, [commandAck, id, queryClient]);
 
-  useEffect(() => {
-    // Không tự động gọi START_STREAM nữa vì không ổn định (Theo yêu cầu)
-  }, [isConnected, deviceInfo?.deviceId]);
-
   const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
     try {
       await axiosInstance.post(`/devices/${id}/commands`, {
         commandType,
         payload: payloadData
       });
+      if (commandType === 'STOP_STREAM') {
+        clearScreenFrame();
+      }
       message.success(`Đã gửi lệnh ${commandType} thành công!`);
       queryClient.invalidateQueries({ queryKey: ['deviceCommands', id] });
     } catch (error: any) {
@@ -136,70 +134,102 @@ const DeviceDetailPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Live Metrics */}
+        {/* Left Column: Live Screen Stream & 3D Digital Twin */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Live Incident View (App View) */}
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Live Incident View</span>}>
-            <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative">
+          {/* Live Incident View (Xem Màn Hình Trực Tiếp Real-time) */}
+          <Card
+            className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg"
+            title={
+              <div className="flex items-center justify-between">
+                <span className="text-gray-200 font-semibold flex items-center gap-2">
+                  <VideoCameraOutlined className="text-cyan-400" /> Xem Màn Hình Trực Tiếp (Real-time Live Stream)
+                </span>
+                {screenFrame && (
+                  <div className="flex items-center gap-2">
+                    <Tag color="error" className="animate-pulse font-bold m-0">● LIVE STREAM</Tag>
+                    <Button
+                      size="small"
+                      icon={<ExpandOutlined />}
+                      className="bg-[#252834] text-gray-200 border-[#3a3d4a] hover:text-cyan-400"
+                      onClick={() => setIsFullscreenStreamVisible(true)}
+                    >
+                      Phóng to
+                    </Button>
+                  </div>
+                )}
+              </div>
+            }
+          >
+            {/* Khung hiển thị màn hình trực tiếp */}
+            <div
+              className={`bg-black/70 border border-dashed border-[#2e303a] ${
+                screenFrame ? 'h-[480px]' : 'h-56'
+              } flex flex-col items-center justify-center rounded-lg overflow-hidden relative transition-all duration-300`}
+            >
               {screenFrame ? (
                 <img
                   src={`data:image/jpeg;base64,${screenFrame}`}
                   alt="Live Screen"
-                  className="max-h-full max-w-full object-contain rounded"
+                  onClick={() => setIsFullscreenStreamVisible(true)}
+                  className="max-h-full max-w-full object-contain rounded cursor-pointer shadow-[0_0_25px_rgba(0,212,255,0.2)]"
                 />
               ) : (
                 <>
-                  <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-4" />
-                  <Text className="text-gray-400 mb-2 font-medium">
-                    {isConnected ? 'Thiết bị đang trực tuyến' : 'Màn hình hiện đang tắt / Mất kết nối'}
+                  <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-3" />
+                  <Text className="text-gray-300 mb-1 font-medium">
+                    {isConnected ? 'Thiết bị đang trực tuyến — Nhấn "Xem màn hình (Stream)" để phát trực tiếp' : 'Màn hình hiện đang tắt / Mất kết nối'}
+                  </Text>
+                  <Text className="text-gray-500 text-xs">
+                    Hình ảnh màn hình điện thoại sẽ truyền trực tiếp theo thời gian thực qua WebSocket
                   </Text>
                 </>
               )}
-              
-              <div className="flex flex-col items-center gap-3">
-                {(currentApp || deviceInfo?.currentApp) ? (
-                  <div className="flex flex-col items-center gap-2">
-                    {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) && (
-                      <img 
-                        src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
-                        alt="App Icon"
-                        className="w-12 h-12 rounded-lg shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.5)] border border-[#2e303a]"
-                      />
-                    )}
-                    <Tag color="cyan" className="px-4 py-2 text-sm border border-cyan-500/30 rounded-lg text-lg">
-                      Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
-                    </Tag>
-                  </div>
-                ) : (
-                  <Tag color="default" className="px-4 py-2 text-sm border-0 rounded-lg text-gray-400">
-                    Chưa xác định ứng dụng đang mở
-                  </Tag>
-                )}
+            </div>
 
-                <div className="flex flex-wrap justify-center gap-2 mt-4">
-                  <Button 
-                    type="primary" 
-                    className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)]" 
-                    onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
-                  >
-                    Làm mới thông tin Ứng dụng
-                  </Button>
-                  <Button
-                    icon={<VideoCameraOutlined />}
-                    className="bg-cyan-500/15 text-cyan-400 border-cyan-500/40 hover:bg-cyan-500 hover:text-white"
-                    onClick={() => handleSendCommand('START_STREAM')}
-                  >
-                    Xem màn hình (Stream)
-                  </Button>
-                  <Button
-                    icon={<StopOutlined />}
-                    className="bg-red-500/15 text-red-400 border-red-500/40 hover:bg-red-500 hover:text-white"
-                    onClick={() => handleSendCommand('STOP_STREAM')}
-                  >
-                    Dừng Stream
-                  </Button>
+            {/* Thanh trạng thái ứng dụng đang mở & nút điều khiển Stream (tách riêng bên dưới để không đè lên màn hình Live) */}
+            <div className="flex flex-col items-center gap-3 mt-4 pt-4 border-t border-[#2e303a]">
+              {(currentApp || deviceInfo?.currentApp) ? (
+                <div className="flex items-center gap-3">
+                  {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) && (
+                    <img 
+                      src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
+                      alt="App Icon"
+                      className="w-10 h-10 rounded-lg shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.5)] border border-[#2e303a]"
+                    />
+                  )}
+                  <Tag color="cyan" className="px-4 py-1.5 text-sm border border-cyan-500/30 rounded-lg m-0">
+                    Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
+                  </Tag>
                 </div>
+              ) : (
+                <Tag color="default" className="px-4 py-1.5 text-sm border-0 rounded-lg text-gray-400 m-0">
+                  Chưa xác định ứng dụng đang mở
+                </Tag>
+              )}
+
+              <div className="flex flex-wrap justify-center gap-3 mt-1">
+                <Button
+                  type="primary"
+                  icon={<VideoCameraOutlined />}
+                  className="bg-cyan-600 hover:bg-cyan-500 border-none text-white font-semibold shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                  onClick={() => handleSendCommand('START_STREAM')}
+                >
+                  Xem màn hình (Stream)
+                </Button>
+                <Button
+                  icon={<StopOutlined />}
+                  className="bg-red-500/15 text-red-400 border-red-500/40 hover:bg-red-500 hover:text-white"
+                  onClick={() => handleSendCommand('STOP_STREAM')}
+                >
+                  Dừng Stream
+                </Button>
+                <Button 
+                  className="bg-[var(--color-primary)]/20 border-[var(--color-primary)]/40 text-purple-300 hover:bg-[var(--color-primary)] hover:text-white transition-colors" 
+                  onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
+                >
+                  Làm mới thông tin Ứng dụng
+                </Button>
               </div>
             </div>
           </Card>
@@ -221,34 +251,44 @@ const DeviceDetailPage = () => {
                   
                   {/* Screen Content */}
                   <div className="flex-1 bg-[#121318] m-1.5 rounded-[1.5rem] relative overflow-hidden flex flex-col p-4 z-0">
-                    {/* Status bar */}
-                    <div className="flex justify-between items-center text-[8px] text-gray-400 mb-4 px-1">
-                      <span>12:00</span>
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                      </div>
-                    </div>
-                    
-                    {/* App Display */}
-                    <div className="flex-1 flex flex-col items-center justify-center opacity-80">
-                      {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) ? (
-                        <img 
-                          src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
-                          alt="App Icon"
-                          className="w-10 h-10 rounded-lg shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)] mb-2"
-                        />
-                      ) : (
-                        <MobileOutlined className="text-4xl text-[var(--color-primary)] mb-2 drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)]" />
-                      )}
-                      <div className="text-white text-sm font-bold text-center truncate w-full px-2">
-                        {deviceInfo?.deviceName || deviceInfo?.model || 'Android Device'}
-                      </div>
-                      <div className="text-cyan-400 text-xs mt-2 bg-cyan-900/30 px-2 py-0.5 rounded border border-cyan-500/20 truncate max-w-full">
-                        {(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName) || 'Màn hình chính'}
-                      </div>
-                    </div>
+                    {screenFrame ? (
+                      <img
+                        src={`data:image/jpeg;base64,${screenFrame}`}
+                        alt="3D Twin Live Screen"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <>
+                        {/* Status bar */}
+                        <div className="flex justify-between items-center text-[8px] text-gray-400 mb-4 px-1">
+                          <span>12:00</span>
+                          <div className="flex gap-1">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                          </div>
+                        </div>
+                        
+                        {/* App Display */}
+                        <div className="flex-1 flex flex-col items-center justify-center opacity-80">
+                          {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) ? (
+                            <img 
+                              src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
+                              alt="App Icon"
+                              className="w-10 h-10 rounded-lg shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)] mb-2"
+                            />
+                          ) : (
+                            <MobileOutlined className="text-4xl text-[var(--color-primary)] mb-2 drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)]" />
+                          )}
+                          <div className="text-white text-sm font-bold text-center truncate w-full px-2">
+                            {deviceInfo?.deviceName || deviceInfo?.model || 'Android Device'}
+                          </div>
+                          <div className="text-cyan-400 text-xs mt-2 bg-cyan-900/30 px-2 py-0.5 rounded border border-cyan-500/20 truncate max-w-full">
+                            {(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName) || 'Màn hình chính'}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 
@@ -356,135 +396,6 @@ const DeviceDetailPage = () => {
               <Text className="text-blue-400 font-mono text-sm break-all" copyable>{deviceInfo?.deviceId || 'Không có dữ liệu'}</Text>
             </div>
           </Card>
-
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6" title={<span className="text-cyan-400 font-bold"><SafetyOutlined /> Điều khiển Nâng cao & Hỗ trợ Học tập</span>}>
-            <div className="flex flex-col gap-3">
-              <div>
-                <Text className="text-gray-400 text-xs block mb-1">Mở trang Web bài giảng / kiểm tra trên máy học sinh:</Text>
-                <Space.Compact className="w-full">
-                  <Input
-                    placeholder="https://forms.gle/... hoặc https://kahoot.it"
-                    value={openUrlInput}
-                    onChange={(e) => setOpenUrlInput(e.target.value)}
-                  />
-                  <Button
-                    type="primary"
-                    icon={<GlobalOutlined />}
-                    className="bg-blue-600 hover:bg-blue-500 border-0"
-                    onClick={() => {
-                      if (!openUrlInput.trim()) {
-                        message.warning('Vui lòng nhập đường dẫn URL!');
-                        return;
-                      }
-                      const url = openUrlInput.trim().startsWith('http') ? openUrlInput.trim() : `https://${openUrlInput.trim()}`;
-                      handleSendCommand('OPEN_URL', { url });
-                    }}
-                  >
-                    Mở Web
-                  </Button>
-                </Space.Compact>
-              </div>
-
-              <div>
-                <Text className="text-gray-400 text-xs block mb-1">Quản lý Ứng dụng theo Package Name:</Text>
-                <Input
-                  placeholder="VD: com.android.chrome hoặc com.garena.game.kgvn"
-                  value={targetPackageInput}
-                  onChange={(e) => setTargetPackageInput(e.target.value)}
-                  className="mb-2"
-                />
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    size="small"
-                    icon={<AppstoreOutlined />}
-                    className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                    onClick={() => {
-                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
-                      handleSendCommand('OPEN_APP', { packageName: targetPackageInput.trim() });
-                    }}
-                  >
-                    Mở App
-                  </Button>
-                  <Button
-                    size="small"
-                    icon={<EyeInvisibleOutlined />}
-                    className="bg-orange-500/10 text-orange-400 border-orange-500/30"
-                    onClick={() => {
-                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
-                      handleSendCommand('HIDE_APP', { packageName: targetPackageInput.trim(), hidden: true });
-                    }}
-                  >
-                    Ẩn App
-                  </Button>
-                  <Button
-                    size="small"
-                    className="bg-teal-500/10 text-teal-400 border-teal-500/30"
-                    onClick={() => {
-                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
-                      handleSendCommand('HIDE_APP', { packageName: targetPackageInput.trim(), hidden: false });
-                    }}
-                  >
-                    Hiện App
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Button
-                    size="small"
-                    className="bg-red-500/10 text-red-400 border-red-500/30"
-                    onClick={() => {
-                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
-                      handleSendCommand('BLOCK_UNINSTALL', { packageName: targetPackageInput.trim(), blocked: true });
-                    }}
-                  >
-                    Chặn Gỡ Cài Đặt
-                  </Button>
-                  <Button
-                    size="small"
-                    className="bg-gray-500/10 text-gray-300 border-gray-500/30"
-                    onClick={() => {
-                      if (!targetPackageInput.trim()) return message.warning('Nhập package name!');
-                      handleSendCommand('BLOCK_UNINSTALL', { packageName: targetPackageInput.trim(), blocked: false });
-                    }}
-                  >
-                    Cho Phép Gỡ
-                  </Button>
-                </div>
-              </div>
-
-              <Divider className="border-[#2e303a] my-1" />
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  icon={<CameraOutlined />}
-                  className="bg-red-500/10 text-red-400 border-red-500/30"
-                  onClick={() => handleSendCommand('DISABLE_CAMERA', { disabled: true })}
-                >
-                  Khóa Camera
-                </Button>
-                <Button
-                  icon={<CameraOutlined />}
-                  className="bg-green-500/10 text-green-400 border-green-500/30"
-                  onClick={() => handleSendCommand('DISABLE_CAMERA', { disabled: false })}
-                >
-                  Mở Camera
-                </Button>
-                <Button
-                  icon={<SafetyOutlined />}
-                  className="bg-amber-500/10 text-amber-400 border-amber-500/30"
-                  onClick={() => handleSendCommand('DISABLE_FACTORY_RESET', { disabled: true })}
-                >
-                  Chặn Reset Máy
-                </Button>
-                <Button
-                  icon={<ReloadOutlined />}
-                  className="bg-purple-500/10 text-purple-400 border-purple-500/30"
-                  onClick={() => handleSendCommand('REBOOT_DEVICE')}
-                >
-                  Khởi động lại
-                </Button>
-              </div>
-            </div>
-          </Card>
         </div>
       </div>
 
@@ -551,6 +462,43 @@ const DeviceDetailPage = () => {
           ]}
         />
       </Card>
+
+      {/* Modal phóng to màn hình Live Stream */}
+      <Modal
+        title={`Màn hình trực tiếp: ${deviceInfo?.deviceName || deviceInfo?.model || ''}`}
+        open={isFullscreenStreamVisible}
+        onCancel={() => setIsFullscreenStreamVisible(false)}
+        footer={[
+          <Button
+            key="stop"
+            danger
+            icon={<StopOutlined />}
+            onClick={() => {
+              handleSendCommand('STOP_STREAM');
+              setIsFullscreenStreamVisible(false);
+            }}
+          >
+            Dừng Stream
+          </Button>,
+          <Button key="close" onClick={() => setIsFullscreenStreamVisible(false)}>
+            Đóng
+          </Button>,
+        ]}
+        width={520}
+        centered
+      >
+        <div className="bg-black rounded-xl p-2 flex items-center justify-center min-h-[620px]">
+          {screenFrame ? (
+            <img
+              src={`data:image/jpeg;base64,${screenFrame}`}
+              alt="Live Screen Full"
+              className="max-h-[75vh] w-auto object-contain rounded-lg"
+            />
+          ) : (
+            <Text className="text-gray-400">Đã dừng truyền màn hình</Text>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         title="Cập Nhật Ứng Dụng Agent Từ Xa (OTA)"

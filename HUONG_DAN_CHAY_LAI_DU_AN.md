@@ -113,6 +113,7 @@ cd D:\UTH\UTH_IT\TTTN\Final_Code\Moblie_Device_Management_TTTN\android-agent
 adb -d install -r -t app\build\outputs\apk\debug\app-debug.apk
 adb -d shell appops set com.edusphere.agent SYSTEM_ALERT_WINDOW allow
 adb -d shell appops set com.edusphere.agent GET_USAGE_STATS allow
+adb -d shell appops set com.edusphere.agent PROJECT_MEDIA allow
 adb -d shell dpm set-active-admin com.edusphere.agent/.receiver.MDMAdminReceiver
 ```
 
