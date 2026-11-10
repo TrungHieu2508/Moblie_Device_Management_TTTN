@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_admin
+from app.core.dependencies import require_admin
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.enums import AlertStatus
@@ -32,7 +32,13 @@ async def get_alerts(
 ):
     """Lấy danh sách cảnh báo, lọc theo campus và trạng thái."""
     data = await AlertService.get_alerts(
-        campus_id, status, page, size, db, severity=severity, search=search
+        campus_id=campus_id,
+        status=status,
+        page=page,
+        size=size,
+        db=db,
+        severity=severity,
+        search=search,
     )
     return ApiResponse.ok(data)
 
