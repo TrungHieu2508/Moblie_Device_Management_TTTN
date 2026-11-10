@@ -110,7 +110,7 @@ async def get_device_metrics(
 async def update_device_put(
     device_uuid: UUID,
     request: DeviceUpdateRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Cập nhật thông tin thiết bị (PUT — Frontend dùng PUT)."""
@@ -122,7 +122,7 @@ async def update_device_put(
 async def update_device_patch(
     device_uuid: UUID,
     request: DeviceUpdateRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Cập nhật thông tin thiết bị (PATCH)."""
@@ -134,7 +134,7 @@ async def update_device_patch(
 async def assign_device(
     device_uuid: UUID,
     request: DeviceAssignRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Gán thiết bị vào trường/cơ sở/lớp học."""
@@ -179,6 +179,19 @@ async def send_command_alias(
     """Alias cho LiveClassesPage: POST /devices/{deviceId}/commands"""
     data = await CommandService.create_command(device_uuid, request, current_user, db)
     return ApiResponse.ok(data, "Lệnh đã được tạo và gửi")
+
+
+@router.get("/{device_uuid}/commands", response_model=ApiResponse[List[CommandDto]])
+async def get_device_commands_list(
+    device_uuid: UUID,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_any_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lấy danh sách lịch sử lệnh của thiết bị cho DeviceDetailPage."""
+    paged = await CommandService.get_command_history(device_uuid, page, size, db)
+    return ApiResponse.ok(paged.items)
 
 
 # ── Agent ACK endpoint (REST fallback) ─────────────────────────────

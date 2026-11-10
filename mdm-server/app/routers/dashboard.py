@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_admin
+from app.core.dependencies import require_admin, require_any_staff
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.alert import Alert
@@ -105,7 +105,7 @@ async def _build_summary(db: AsyncSession) -> dict:
 
 @router.get("/summary", response_model=ApiResponse[dict])
 async def get_dashboard_summary(
-    _: User = Depends(require_admin),
+    _: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -118,7 +118,7 @@ async def get_dashboard_summary(
 
 @router.get("/stats", response_model=ApiResponse[dict])
 async def get_dashboard_stats(
-    _: User = Depends(require_admin),
+    _: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """

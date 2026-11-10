@@ -103,7 +103,12 @@ const MainLayout = () => {
           ) : null}
           {role === 'TEACHER' ? (
             <>
-              <NavItem path="/teacher" icon={<DesktopOutlined />} label="Lớp học" current={location.pathname} navigate={navigate} />
+              <NavItem path="/teacher" icon={<AppstoreOutlined />} label="Lớp học & Giám sát" current={location.pathname} navigate={navigate} />
+              <NavItem path="/devices" icon={<DesktopOutlined />} label="Thiết bị học sinh" current={location.pathname} navigate={navigate} />
+              <NavItem path="/enrollments" icon={<QrcodeOutlined />} label="Mã ghi danh (QR)" current={location.pathname} navigate={navigate} />
+              <NavItem path="/alerts" icon={<AlertOutlined />} label="Cảnh báo vi phạm" current={location.pathname} navigate={navigate} isAlert />
+              <NavItem path="/classrooms" icon={<BookOutlined />} label="Quản lý Lớp học" current={location.pathname} navigate={navigate} />
+              <NavItem path="/map3d" icon={<GlobalOutlined />} label="Bản Đồ 3D" current={location.pathname} navigate={navigate} isCyan />
             </>
           ) : null}
           {role === 'TEACHER' || role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? (
@@ -245,16 +250,16 @@ function App() {
         <Route element={<MainLayout />}>
           <Route path="/" element={role !== 'TEACHER' ? <DashboardPage /> : <Navigate to="/teacher" replace />} />
           <Route path="/map3d" element={<Map3DPage />} />
-          <Route path="/devices" element={role !== 'TEACHER' ? <DeviceListPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/devices" element={<DeviceListPage />} />
           <Route path="/devices/:id" element={<DeviceDetailPage />} />
-          <Route path="/enrollments" element={role !== 'TEACHER' ? <EnrollmentListPage /> : <Navigate to="/teacher" replace />} />
-          <Route path="/alerts" element={role !== 'TEACHER' ? <AlertListPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/enrollments" element={<EnrollmentListPage />} />
+          <Route path="/alerts" element={<AlertListPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           
           {/* Super Admin & IT Admin Routes */}
           <Route path="/campuses" element={role === 'SUPER_ADMIN' ? <CampusListPage /> : <Navigate to="/" replace />} />
           <Route path="/schools" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <SchoolListPage /> : <Navigate to="/" replace />} />
-          <Route path="/classrooms" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <ClassroomListPage /> : <Navigate to="/" replace />} />
+          <Route path="/classrooms" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' || role === 'TEACHER' ? <ClassroomListPage /> : <Navigate to="/" replace />} />
           <Route path="/schools/:schoolId/dashboard" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <TeacherDashboard /> : <Navigate to="/" replace />} />
           <Route path="/users" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <UserListPage /> : <Navigate to="/" replace />} />
           

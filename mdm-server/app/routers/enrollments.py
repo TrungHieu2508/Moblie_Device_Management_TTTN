@@ -15,7 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_admin
+from app.core.dependencies import require_admin, require_any_staff
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.user import User
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/enrollments", tags=["Enrollments"])
 @router.get("", response_model=ApiResponse[List[EnrollmentDto]])
 async def get_enrollments(
     campus_id: Optional[UUID] = Query(None, alias="campusId"),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Lấy danh sách mã đăng ký đang hoạt động."""
@@ -39,7 +39,7 @@ async def get_enrollments(
 @router.post("", response_model=ApiResponse[EnrollmentDto])
 async def create_enrollment(
     request: CreateEnrollmentRequest,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Tạo mã đăng ký QR cho thiết bị."""
@@ -50,7 +50,7 @@ async def create_enrollment(
 @router.delete("/{enrollment_id}", response_model=ApiResponse[None])
 async def delete_enrollment(
     enrollment_id: UUID,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_any_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Vô hiệu hóa mã đăng ký."""
