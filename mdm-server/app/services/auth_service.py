@@ -113,7 +113,12 @@ class AuthService:
         if not saved_token or saved_token.is_revoked:
             raise UnauthorizedException("Refresh token đã bị thu hồi")
 
-        if saved_token.expires_at < datetime.now(timezone.utc):
+        expires_at = (
+            saved_token.expires_at
+            if saved_token.expires_at.tzinfo
+            else saved_token.expires_at.replace(tzinfo=timezone.utc)
+        )
+        if expires_at < datetime.now(timezone.utc):
             raise UnauthorizedException("Refresh token đã hết hạn")
 
         # Lấy user

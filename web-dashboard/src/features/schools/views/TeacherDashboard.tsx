@@ -940,7 +940,7 @@ const TeacherDashboard = () => {
               size="small"
               className="border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white bg-transparent"
               icon={<ClearOutlined />}
-              onClick={() => handleBulkCommand('CLEAR_RAM')}
+              onClick={() => handleBulkCommand('CLEAR_BACKGROUND_APPS')}
             >
               Dọn RAM & Đóng App Nền
             </Button>
@@ -1432,7 +1432,7 @@ const TeacherDashboard = () => {
                     block
                     className="border-purple-500 text-purple-400 bg-transparent hover:bg-purple-500 hover:text-white"
                     icon={<ClearOutlined />}
-                    onClick={() => handleSendCommand(streamingDevice.id, 'CLEAR_RAM')}
+                    onClick={() => handleSendCommand(streamingDevice.id, 'CLEAR_BACKGROUND_APPS')}
                   >
                     Dọn RAM & Đóng App Nền
                   </Button>

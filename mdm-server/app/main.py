@@ -131,6 +131,7 @@ app.include_router(dashboard_ws.router)
 # ── Health Check ──────────────────────────────────────────────
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 async def health_check():
     """Health check endpoint cho Docker/Kubernetes."""
     from app.ws.connection_manager import manager

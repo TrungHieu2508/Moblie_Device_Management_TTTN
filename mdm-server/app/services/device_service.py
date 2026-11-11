@@ -110,8 +110,14 @@ class DeviceService:
             profile = result.scalar_one_or_none()
 
             if profile:
-                if profile.expires_at and profile.expires_at < datetime.now(timezone.utc):
-                    raise ValueError("Mã đăng ký đã hết hạn")
+                if profile.expires_at:
+                    exp_at = (
+                        profile.expires_at
+                        if profile.expires_at.tzinfo
+                        else profile.expires_at.replace(tzinfo=timezone.utc)
+                    )
+                    if exp_at < datetime.now(timezone.utc):
+                        raise ValueError("Mã đăng ký đã hết hạn")
                 if profile.max_uses > 0 and profile.current_uses >= profile.max_uses:
                     raise ValueError("Mã đăng ký đã đạt giới hạn sử dụng")
 

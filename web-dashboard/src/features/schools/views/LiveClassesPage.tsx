@@ -323,7 +323,7 @@ const LiveClassesPage = () => {
           <Button
             className="border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white bg-transparent"
             icon={<ClearOutlined />}
-            onClick={() => handleBulkCommand('CLEAR_RAM')}
+            onClick={() => handleBulkCommand('CLEAR_BACKGROUND_APPS')}
           >
             Dọn RAM Cả Lớp
           </Button>
@@ -681,7 +681,7 @@ const LiveClassesPage = () => {
                   block
                   className="border-purple-500 text-purple-400 bg-transparent hover:bg-purple-500 hover:text-white"
                   icon={<ClearOutlined />}
-                  onClick={() => handleSendCommand(streamingDevice.id, 'CLEAR_RAM')}
+                  onClick={() => handleSendCommand(streamingDevice.id, 'CLEAR_BACKGROUND_APPS')}
                 >
                   Dọn RAM
                 </Button>
