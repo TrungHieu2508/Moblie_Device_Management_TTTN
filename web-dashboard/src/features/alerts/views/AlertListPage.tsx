@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Table, Tag, Input, Select, Card, Typography, Space, Button } from 'antd';
-import { SearchOutlined, CheckCircleOutlined, ExclamationCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import {
+  SearchOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  ClockCircleOutlined,
+  EyeOutlined,
+  MobileOutlined,
+} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../../../hooks/useWebSocket';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAlerts, updateAlertStatus, resolveAllAlerts } from '../../../services/alertService';
@@ -9,16 +17,26 @@ import { getAllCampuses } from '../../../services/schoolService';
 
 const { Title, Text } = Typography;
 
-// Mock data replaced with real API call
-
 const getSeverityTag = (severity: string) => {
   switch (severity) {
     case 'CRITICAL':
-      return <Tag color="error" className="border-0 bg-red-500/20 text-red-400 font-bold px-3 py-1 rounded-full"><ExclamationCircleOutlined className="mr-1" /> NGHIÊM TRỌNG</Tag>;
+      return (
+        <Tag color="error" className="border-0 bg-red-500/20 text-red-400 font-bold px-3 py-1 rounded-full">
+          <ExclamationCircleOutlined className="mr-1" /> NGHIÊM TRỌNG
+        </Tag>
+      );
     case 'WARNING':
-      return <Tag color="warning" className="border-0 bg-yellow-500/20 text-yellow-400 font-medium px-3 py-1 rounded-full">Cảnh báo</Tag>;
+      return (
+        <Tag color="warning" className="border-0 bg-yellow-500/20 text-yellow-400 font-medium px-3 py-1 rounded-full">
+          Cảnh báo
+        </Tag>
+      );
     case 'INFO':
-      return <Tag color="processing" className="border-0 bg-blue-500/20 text-blue-400 font-medium px-3 py-1 rounded-full">Thông tin</Tag>;
+      return (
+        <Tag color="processing" className="border-0 bg-blue-500/20 text-blue-400 font-medium px-3 py-1 rounded-full">
+          Thông tin
+        </Tag>
+      );
     default:
       return <Tag>{severity}</Tag>;
   }
@@ -27,17 +45,30 @@ const getSeverityTag = (severity: string) => {
 const getStatusTag = (status: string) => {
   switch (status) {
     case 'NEW':
-      return <Tag className="border-0 bg-gray-600/30 text-gray-300 rounded-full px-2"><ClockCircleOutlined className="mr-1" /> Mới</Tag>;
+      return (
+        <Tag className="border-0 bg-gray-600/30 text-gray-300 rounded-full px-2">
+          <ClockCircleOutlined className="mr-1" /> Mới
+        </Tag>
+      );
     case 'PROCESSING':
-      return <Tag className="border-0 bg-blue-500/20 text-blue-400 rounded-full px-2"><ClockCircleOutlined className="mr-1 animate-spin" /> Đang xử lý</Tag>;
+      return (
+        <Tag className="border-0 bg-blue-500/20 text-blue-400 rounded-full px-2">
+          <ClockCircleOutlined className="mr-1 animate-spin" /> Đang xử lý
+        </Tag>
+      );
     case 'RESOLVED':
-      return <Tag className="border-0 bg-green-500/20 text-green-400 rounded-full px-2"><CheckCircleOutlined className="mr-1" /> Đã giải quyết</Tag>;
+      return (
+        <Tag className="border-0 bg-green-500/20 text-green-400 rounded-full px-2">
+          <CheckCircleOutlined className="mr-1" /> Đã giải quyết
+        </Tag>
+      );
     default:
       return <Tag>{status}</Tag>;
   }
 };
 
 const AlertListPage = () => {
+  const navigate = useNavigate();
   const [searchText, setSearchText] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
@@ -52,37 +83,37 @@ const AlertListPage = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['alerts', page, severityFilter, statusFilter, campusFilter, searchText],
-    queryFn: () => getAlerts({ 
-      page, 
-      size: 10, 
-      severity: severityFilter === 'all' ? undefined : severityFilter,
-      status: statusFilter === 'all' ? undefined : statusFilter,
-      campusId: campusFilter === 'all' ? undefined : campusFilter,
-      search: searchText.trim() || undefined,
-    }),
+    queryFn: () =>
+      getAlerts({
+        page,
+        size: 10,
+        severity: severityFilter === 'all' ? undefined : severityFilter,
+        status: statusFilter === 'all' ? undefined : statusFilter,
+        campusId: campusFilter === 'all' ? undefined : campusFilter,
+        search: searchText.trim() || undefined,
+      }),
   });
 
-  // Real-time alert listener
   const { alertInfo } = useWebSocket();
-  
+
   useEffect(() => {
     if (alertInfo) {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
     }
   }, [alertInfo, queryClient]);
-  
+
   const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string, status: string }) => updateAlertStatus(id, status),
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateAlertStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
-    }
+    },
   });
 
   const resolveAllMutation = useMutation({
     mutationFn: () => resolveAllAlerts(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
-    }
+    },
   });
 
   const columns = [
@@ -91,61 +122,92 @@ const AlertListPage = () => {
       dataIndex: 'severity',
       key: 'severity',
       render: (text: string) => getSeverityTag(text),
-      width: 150
+      width: 150,
     },
     {
       title: 'Thời gian',
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (text: string) => <Text className="text-gray-400">{new Date(text).toLocaleString()}</Text>,
-      width: 180
+      width: 170,
     },
     {
       title: 'Thiết bị',
       dataIndex: 'device',
       key: 'device',
-      render: (device: any) => <Text className="text-white font-medium">{device?.deviceName || 'Unknown'}</Text>
+      render: (device: any) =>
+        device?.id ? (
+          <a
+            onClick={() => navigate(`/devices/${device.id}`)}
+            className="text-cyan-400 hover:underline font-semibold flex items-center gap-1.5"
+          >
+            <MobileOutlined />
+            {device?.deviceName || 'Thiết bị Android'}
+          </a>
+        ) : (
+          <Text className="text-white font-medium">{device?.deviceName || 'Unknown'}</Text>
+        ),
     },
     {
       title: 'Vi phạm',
       dataIndex: 'rule',
       key: 'rule',
-      render: (rule: any, record: AlertDto) => <Text className="text-[var(--color-primary)] font-medium">{rule?.name || record.title}</Text>
+      render: (rule: any, record: AlertDto) => (
+        <Text className="text-[var(--color-primary)] font-semibold">{rule?.name || record.title}</Text>
+      ),
     },
     {
       title: 'Chi tiết',
       dataIndex: 'description',
       key: 'description',
-      render: (text: string) => <Text className="text-gray-400">{text}</Text>
+      render: (text: string) => <Text className="text-gray-400">{text}</Text>,
     },
     {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
       render: (text: string) => getStatusTag(text),
-      width: 140
+      width: 140,
     },
     {
       title: 'Hành động',
       key: 'action',
+      width: 220,
       render: (_: any, record: any) => (
-        <Space size="middle">
+        <Space size="small">
+          {record.device?.id && (
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/devices/${record.device.id}`)}
+              style={{
+                background: 'rgba(0,212,255,0.12)',
+                borderColor: 'rgba(0,212,255,0.35)',
+                color: '#00d4ff',
+                borderRadius: 8,
+              }}
+            >
+              Xem máy
+            </Button>
+          )}
           {record.status === 'NEW' && (
-            <Button 
-              type="link" 
-              className="text-blue-400 p-0 hover:text-blue-300"
+            <Button
+              size="small"
+              type="primary"
               onClick={() => statusMutation.mutate({ id: record.id, status: 'PROCESSING' })}
               loading={statusMutation.isPending}
+              style={{ background: '#3b82f6', border: 'none', borderRadius: 8 }}
             >
               Nhận xử lý
             </Button>
           )}
           {record.status === 'PROCESSING' && (
-            <Button 
-              type="link" 
-              className="text-green-400 p-0 hover:text-green-300"
+            <Button
+              size="small"
+              type="primary"
               onClick={() => statusMutation.mutate({ id: record.id, status: 'RESOLVED' })}
               loading={statusMutation.isPending}
+              style={{ background: '#22c55e', border: 'none', borderRadius: 8 }}
             >
               Hoàn thành
             </Button>
@@ -160,13 +222,19 @@ const AlertListPage = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <Title level={3} className="!m-0 !text-white flex items-center gap-3">
-            Trung tâm Cảnh báo
-            {alertInfo && <Tag color="error" className="animate-pulse border-0">Có cảnh báo mới!</Tag>}
+            Trung tâm Cảnh báo Vi phạm
+            {alertInfo && (
+              <Tag color="error" className="animate-pulse border-0">
+                Có cảnh báo mới!
+              </Tag>
+            )}
           </Title>
-          <p className="text-gray-400 mt-1">Giám sát các hành vi vi phạm chính sách của học sinh</p>
+          <p className="text-gray-400 mt-1">
+            Giám sát và xử lý các hành vi mở ứng dụng cấm (Mạng xã hội, Game) của học sinh
+          </p>
         </div>
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] border-0 h-10 px-6 font-medium rounded-lg"
           onClick={() => resolveAllMutation.mutate()}
           loading={resolveAllMutation.isPending}
@@ -178,16 +246,17 @@ const AlertListPage = () => {
 
       <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg">
         <div className="flex flex-wrap gap-4 mb-6">
-          <Input 
-            placeholder="Tìm kiếm theo tên thiết bị, vi phạm..." 
+          <Input
+            placeholder="Tìm kiếm theo tên thiết bị, vi phạm..."
             prefix={<SearchOutlined className="text-gray-500" />}
             className="max-w-md bg-[#1f2028] border-[#2e303a] text-white hover:border-gray-500 focus:border-[var(--color-primary)]"
-            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+            onChange={e => setSearchText(e.target.value)}
           />
           <Select
             defaultValue="all"
             className="w-40"
-            onChange={(val) => setSeverityFilter(val)}
+            onChange={val => setSeverityFilter(val)}
             options={[
               { value: 'all', label: 'Mọi mức độ' },
               { value: 'CRITICAL', label: 'Nghiêm trọng' },
@@ -198,7 +267,7 @@ const AlertListPage = () => {
           <Select
             defaultValue="all"
             className="w-40"
-            onChange={(val) => setStatusFilter(val)}
+            onChange={val => setStatusFilter(val)}
             options={[
               { value: 'all', label: 'Mọi trạng thái' },
               { value: 'NEW', label: 'Mới' },
@@ -209,7 +278,7 @@ const AlertListPage = () => {
           <Select
             defaultValue="all"
             className="w-48"
-            onChange={(value) => setCampusFilter(value)}
+            onChange={value => setCampusFilter(value)}
             options={[
               { value: 'all', label: 'Tất cả Cơ sở' },
               ...campuses.map((c: any) => ({ value: c.id, label: c.name })),
@@ -217,17 +286,17 @@ const AlertListPage = () => {
           />
         </div>
 
-        <Table 
-          columns={columns} 
-          dataSource={(Array.isArray(data) ? data : (data?.items || data?.content)) || []} 
+        <Table
+          columns={columns}
+          dataSource={(Array.isArray(data) ? data : data?.items || data?.content) || []}
           loading={isLoading}
           rowKey="id"
-          pagination={{ 
+          pagination={{
             current: page + 1,
             pageSize: 10,
             total: data?.total ?? data?.totalElements ?? 0,
-            onChange: (p) => setPage(p - 1),
-            className: 'custom-pagination' 
+            onChange: p => setPage(p - 1),
+            className: 'custom-pagination',
           }}
           className="custom-dark-table"
         />

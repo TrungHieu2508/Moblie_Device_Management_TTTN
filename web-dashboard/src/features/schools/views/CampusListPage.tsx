@@ -1,22 +1,28 @@
-import { useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Text } from '@react-three/drei';
-import * as THREE from 'three';
-import { Button, Modal, Form, Input, Typography, message, Popconfirm, Tooltip, Spin, Tag } from 'antd';
-import { PlusOutlined, EnvironmentOutlined, DeleteOutlined, EditOutlined, TableOutlined, GlobalOutlined } from '@ant-design/icons';
+import { useMemo, useState } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
+import { Button, Modal, Form, Input, Typography, message, Popconfirm, Tooltip, Spin, Tag, Card, Table, Space } from 'antd';
+import {
+  PlusOutlined,
+  EnvironmentOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  TableOutlined,
+  GlobalOutlined,
+  SearchOutlined,
+  BankOutlined,
+} from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAllCampuses, createCampus, deleteCampus, updateCampus } from '../../../services/schoolService';
-import { getSchools } from '../../../services/schoolService';
+import { getAllCampuses, createCampus, deleteCampus, updateCampus, getSchools } from '../../../services/schoolService';
 import { Campus3DPin } from '../../../components/3d/Campus3DPin';
+import { CampusMapGround } from '../../../components/3d/CampusMapGround';
 
 const { Title } = Typography;
 
-// ─── Pin colors (Google Maps palette) ─────────────────────────────
 const PIN_COLORS = ['#EA4335', '#1A73E8', '#FBBC04', '#34A853', '#9C27B0', '#FF6D00'];
 
-// ─── Compute spread positions on the map ──────────────────────────
 const getMapPositions = (count: number): [number, number, number][] => {
-  // Spread pins in different city zones, not in a rigid grid
   const presets: [number, number, number][] = [
     [-14, 0, -10],
     [10, 0, -14],
@@ -30,83 +36,12 @@ const getMapPositions = (count: number): [number, number, number][] => {
   return presets.slice(0, count);
 };
 
-// ─── City building block ───────────────────────────────────────────
-const CityBlock = ({
-  x, z, w, d, h, color, roofColor,
+const CityMap = ({
+  campuses,
+  selectedCampusId,
+  schools,
+  onPinClick,
 }: {
-  x: number; z: number; w: number; d: number; h: number;
-  color: string; roofColor: string;
-}) => (
-  <group position={[x, 0, z]}>
-    {/* Body */}
-    <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
-      <boxGeometry args={[w, h, d]} />
-      <meshStandardMaterial color={color} roughness={0.75} metalness={0.05} />
-    </mesh>
-    {/* Flat roof accent */}
-    <mesh position={[0, h + 0.04, 0]}>
-      <boxGeometry args={[w + 0.04, 0.08, d + 0.04]} />
-      <meshStandardMaterial color={roofColor} roughness={0.6} metalness={0.1} />
-    </mesh>
-  </group>
-);
-
-// ─── Road segment ─────────────────────────────────────────────────
-const Road = ({ x, z, w, d }: { x: number; z: number; w: number; d: number }) => (
-  <mesh position={[x, 0.005, z]} receiveShadow>
-    <boxGeometry args={[w, 0.01, d]} />
-    <meshStandardMaterial color="#3a3a3a" roughness={0.95} />
-  </mesh>
-);
-
-// ─── Road center line dashes ───────────────────────────────────────
-const RoadLine = ({ x, z, length, horizontal }: { x: number; z: number; length: number; horizontal: boolean }) => {
-  const dashes = Math.floor(length / 2.4);
-  return (
-    <>
-      {Array.from({ length: dashes }).map((_, i) => {
-        const offset = (i - (dashes - 1) / 2) * 2.4;
-        return (
-          <mesh key={i} position={[
-            horizontal ? x + offset : x,
-            0.02,
-            horizontal ? z : z + offset
-          ]} receiveShadow>
-            <boxGeometry args={horizontal ? [1.2, 0.01, 0.08] : [0.08, 0.01, 1.2]} />
-            <meshStandardMaterial color="#e0c060" roughness={0.9} transparent opacity={0.7} />
-          </mesh>
-        );
-      })}
-    </>
-  );
-};
-
-// ─── Park patch ───────────────────────────────────────────────────
-const Park = ({ x, z, w, d }: { x: number; z: number; w: number; d: number }) => (
-  <mesh position={[x, 0.015, z]} receiveShadow>
-    <boxGeometry args={[w, 0.01, d]} />
-    <meshStandardMaterial color="#3a7d44" roughness={0.95} />
-  </mesh>
-);
-
-// ─── Simple 3D tree for parks ─────────────────────────────────────
-const MapTree = ({ x, z }: { x: number; z: number }) => (
-  <group position={[x, 0, z]}>
-    <mesh position={[0, 0.35, 0]}>
-      <cylinderGeometry args={[0.06, 0.08, 0.7, 6]} />
-      <meshStandardMaterial color="#6b4226" roughness={0.9} />
-    </mesh>
-    <mesh position={[0, 0.9, 0]}>
-      <sphereGeometry args={[0.38, 10, 10]} />
-      <meshStandardMaterial color="#2d7a3a" roughness={0.85} />
-    </mesh>
-  </group>
-);
-
-import { CampusMapGround } from '../../../components/3d/CampusMapGround';
-
-// ─── The City Map Scene ────────────────────────────────────────────
-const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
   campuses: any[];
   selectedCampusId: string | null;
   schools: any[];
@@ -116,11 +51,12 @@ const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
 
   return (
     <>
-      {/* ── Lighting ── */}
       <ambientLight intensity={0.7} />
       <directionalLight
-        position={[20, 35, 15]} intensity={1.8}
-        castShadow color="#fff8f0"
+        position={[20, 35, 15]}
+        intensity={1.8}
+        castShadow
+        color="#fff8f0"
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-60}
         shadow-camera-right={60}
@@ -129,11 +65,8 @@ const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
       />
       <directionalLight position={[-15, 20, -20]} intensity={0.5} color="#c8e0ff" />
       <hemisphereLight args={['#b8d4f0', '#6b8a50', 0.5]} />
-
-      {/* ── High-detail Procedural City Ground ── */}
       <CampusMapGround />
 
-      {/* ── Campus Pins ── */}
       {campuses.map((campus: any, i: number) => (
         <Campus3DPin
           key={campus.id}
@@ -150,13 +83,14 @@ const CityMap = ({ campuses, selectedCampusId, schools, onPinClick }: {
   );
 };
 
-// ─── CampusListPage ────────────────────────────────────────────────
 const CampusListPage = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedCampusId, setSelectedCampusId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'3d' | 'table'>('3d');
+  const [viewMode, setViewMode] = useState<'table' | '3d'>('table');
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
   const { data: campuses = [], isLoading } = useQuery({
@@ -168,73 +102,237 @@ const CampusListPage = () => {
     queryKey: ['schools', { size: 200 }],
     queryFn: () => getSchools({ page: 0, size: 200 }),
   });
-  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : schoolsData?.content) || [];
 
   const createMutation = useMutation({
     mutationFn: (values: any) => createCampus(values),
-    onSuccess: () => { message.success('Đã thêm khu vực mới!'); handleModalClose(); queryClient.invalidateQueries({ queryKey: ['campuses'] }); },
-    onError: (e: any) => message.error(e.response?.data?.message || 'Không thể tạo khu vực'),
+    onSuccess: () => {
+      message.success('Đã thêm khu vực mới!');
+      handleModalClose();
+      queryClient.invalidateQueries({ queryKey: ['campuses'] });
+    },
+    onError: (e: any) => message.error(e.response?.data?.message || e.response?.data?.detail || 'Không thể tạo khu vực'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (values: any) => updateCampus(editingId as string, values),
-    onSuccess: () => { message.success('Đã cập nhật!'); handleModalClose(); queryClient.invalidateQueries({ queryKey: ['campuses'] }); },
-    onError: (e: any) => message.error(e.response?.data?.message || 'Không thể cập nhật'),
+    onSuccess: () => {
+      message.success('Đã cập nhật khu vực!');
+      handleModalClose();
+      queryClient.invalidateQueries({ queryKey: ['campuses'] });
+    },
+    onError: (e: any) => message.error(e.response?.data?.message || e.response?.data?.detail || 'Không thể cập nhật'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteCampus(id),
-    onSuccess: () => { message.success('Đã xóa!'); setSelectedCampusId(null); queryClient.invalidateQueries({ queryKey: ['campuses'] }); },
-    onError: (e: any) => message.error(e.response?.data?.message || 'Không thể xóa'),
+    onSuccess: () => {
+      message.success('Đã xóa khu vực!');
+      setSelectedCampusId(null);
+      queryClient.invalidateQueries({ queryKey: ['campuses'] });
+    },
+    onError: (e: any) => message.error(e.response?.data?.message || e.response?.data?.detail || 'Không thể xóa'),
   });
 
-  const handleModalClose = () => { setIsModalVisible(false); setEditingId(null); form.resetFields(); };
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+    setEditingId(null);
+    form.resetFields();
+  };
+
   const handleEdit = (record: any) => {
     setEditingId(record.id);
     form.setFieldsValue({ name: record.name, code: record.code, address: record.address });
     setIsModalVisible(true);
   };
 
+  const filteredCampuses = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    if (!q) return campuses as any[];
+    return (campuses as any[]).filter(
+      (c: any) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.code?.toLowerCase().includes(q) ||
+        c.address?.toLowerCase().includes(q)
+    );
+  }, [campuses, searchText]);
+
   const selectedCampus = (campuses as any[]).find((c: any) => c.id === selectedCampusId);
 
-  return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: '#1a1a2e' }}>
+  const columns = [
+    {
+      title: '#',
+      key: 'idx',
+      width: 60,
+      render: (_: any, __: any, index: number) => (
+        <div
+          className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-xs"
+          style={{ background: PIN_COLORS[index % PIN_COLORS.length] }}
+        >
+          {index + 1}
+        </div>
+      ),
+    },
+    {
+      title: 'Tên Khu vực (Campus)',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string, record: any) => (
+        <div>
+          <div className="text-white font-semibold text-sm">{name}</div>
+          <div className="text-xs text-gray-500 mt-0.5">📍 {record.address || 'Chưa cập nhật địa chỉ'}</div>
+        </div>
+      ),
+    },
+    {
+      title: 'Mã Khu vực',
+      dataIndex: 'code',
+      key: 'code',
+      width: 150,
+      render: (code: string) => (
+        <Tag className="border-0 bg-purple-500/15 text-purple-300 font-mono-data px-2.5 py-0.5 rounded-md">{code}</Tag>
+      ),
+    },
+    {
+      title: 'Trường trực thuộc',
+      key: 'schoolCount',
+      width: 180,
+      render: (_: any, record: any) => {
+        const count = schools.filter((s: any) => s.campusId === record.id).length;
+        return (
+          <Tag
+            color={count > 0 ? 'success' : 'default'}
+            className="border-0 bg-emerald-500/15 text-emerald-400 font-semibold px-3 py-1 rounded-full cursor-pointer"
+            onClick={() => navigate(`/schools?campusId=${record.id}`)}
+          >
+            <BankOutlined className="mr-1.5" />
+            {count} trường học
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'Thao tác',
+      key: 'actions',
+      width: 280,
+      render: (_: any, record: any) => (
+        <Space size="small">
+          <Button
+            size="small"
+            icon={<BankOutlined />}
+            onClick={() => navigate(`/schools?campusId=${record.id}`)}
+            style={{
+              background: 'rgba(16,185,129,0.12)',
+              borderColor: 'rgba(16,185,129,0.35)',
+              color: '#34d399',
+              borderRadius: 8,
+            }}
+          >
+            Xem Trường
+          </Button>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+            style={{
+              background: 'rgba(59,130,246,0.12)',
+              borderColor: 'rgba(59,130,246,0.35)',
+              color: '#60a5fa',
+              borderRadius: 8,
+            }}
+          >
+            Sửa
+          </Button>
+          <Popconfirm
+            title="Xóa khu vực này?"
+            description="Lưu ý: Cần xóa hoặc chuyển các trường trực thuộc trước khi xóa khu vực."
+            onConfirm={() => deleteMutation.mutate(record.id)}
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true }}
+          >
+            <Button size="small" danger icon={<DeleteOutlined />} style={{ borderRadius: 8 }}>
+              Xóa
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
 
-      {/* ── Header ── */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '14px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-        background: 'rgba(15,15,25,0.95)', backdropFilter: 'blur(20px)', flexShrink: 0,
-      }}>
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', background: '#050507' }}>
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 24px',
+          borderBottom: '1px solid rgba(46,48,58,0.65)',
+          background: 'rgba(8,9,15,0.92)',
+          backdropFilter: 'blur(16px)',
+          flexShrink: 0,
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg,#EA4335,#FBBC04)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(234,67,53,0.4)',
-            }}>
-              <EnvironmentOutlined style={{ color: '#fff', fontSize: 15 }} />
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: 'linear-gradient(135deg,#EA4335,#FBBC04)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 10px rgba(234,67,53,0.35)',
+              }}
+            >
+              <EnvironmentOutlined style={{ color: '#fff', fontSize: 16 }} />
             </div>
-            <Title level={4} style={{ margin: 0, color: '#fff' }}>Quản lý Khu vực (Campus)</Title>
+            <div>
+              <Title level={4} style={{ margin: 0, color: '#fff' }}>
+                Quản lý Khu vực (Campus)
+              </Title>
+              <div style={{ color: '#9ca3af', fontSize: 12 }}>
+                Tổng cộng {(campuses as any[]).length} khu vực · {schools.length} trường học trực thuộc
+              </div>
+            </div>
           </div>
-          <p style={{ margin: '3px 0 0 42px', color: '#9aa0a6', fontSize: 12 }}>
-            Bản đồ 3D · {(campuses as any[]).length} khu vực · {schools.length} trường học
-          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Toggle */}
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, overflow: 'hidden' }}>
-            {[{ key: '3d', icon: <GlobalOutlined />, label: '3D Map' }, { key: 'table', icon: <TableOutlined />, label: 'Bảng' }].map(({ key, icon, label }) => (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* View mode switch */}
+          <div
+            style={{
+              display: 'flex',
+              background: '#16171d',
+              border: '1px solid #2e303a',
+              borderRadius: 10,
+              overflow: 'hidden',
+            }}
+          >
+            {[
+              { key: 'table', icon: <TableOutlined />, label: 'Danh sách Bảng' },
+              { key: '3d', icon: <GlobalOutlined />, label: 'Bản đồ 3D' },
+            ].map(({ key, icon, label }) => (
               <button
                 key={key}
                 onClick={() => setViewMode(key as any)}
                 style={{
-                  background: viewMode === key ? 'rgba(234,67,53,0.2)' : 'transparent',
-                  color: viewMode === key ? '#EA4335' : '#9aa0a6',
-                  border: 'none', cursor: 'pointer', padding: '6px 14px',
-                  fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
+                  background: viewMode === key ? 'rgba(170,59,255,0.22)' : 'transparent',
+                  color: viewMode === key ? '#d8b4fe' : '#9ca3af',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '7px 14px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                   transition: 'all 0.2s',
                 }}
               >
@@ -242,30 +340,74 @@ const CampusListPage = () => {
               </button>
             ))}
           </div>
+
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => setIsModalVisible(true)}
-            style={{ background: '#EA4335', border: 'none', height: 38, borderRadius: 10, fontWeight: 600 }}
+            onClick={() => {
+              setEditingId(null);
+              form.resetFields();
+              setIsModalVisible(true);
+            }}
+            style={{
+              background: 'linear-gradient(135deg, #aa3bff, #7b2ae8)',
+              border: 'none',
+              height: 38,
+              borderRadius: 10,
+              fontWeight: 600,
+            }}
           >
             Thêm Khu vực
           </Button>
         </div>
       </div>
 
-      {/* ── Main content ── */}
+      {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {viewMode === 'table' ? (
+          <div className="flex-1 p-6 overflow-y-auto">
+            <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+                <Input
+                  placeholder="Tìm kiếm theo tên khu vực, mã hoặc địa chỉ..."
+                  prefix={<SearchOutlined className="text-gray-500" />}
+                  value={searchText}
+                  onChange={e => setSearchText(e.target.value)}
+                  allowClear
+                  className="max-w-md bg-[#1f2028] border-[#2e303a] text-white"
+                />
+                <div className="text-xs text-gray-400">
+                  Hiển thị <span className="text-white font-semibold">{filteredCampuses.length}</span> khu vực
+                </div>
+              </div>
 
-        {viewMode === '3d' ? (
+              <Table
+                columns={columns}
+                dataSource={filteredCampuses}
+                loading={isLoading}
+                rowKey="id"
+                pagination={{ pageSize: 10, className: 'custom-pagination' }}
+                className="custom-dark-table"
+              />
+            </Card>
+          </div>
+        ) : (
           <>
-            {/* ── 3D Canvas ── */}
+            {/* 3D Map Canvas */}
             <div style={{ flex: 1, position: 'relative' }}>
               {isLoading && (
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(15,15,25,0.9)', zIndex: 20 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <Spin size="large" />
-                    <div style={{ marginTop: 12, color: '#EA4335', fontFamily: 'monospace', fontSize: 12 }}>Loading 3D Map...</div>
-                  </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: 'rgba(15,15,25,0.9)',
+                    zIndex: 20,
+                  }}
+                >
+                  <Spin size="large" />
                 </div>
               )}
 
@@ -282,7 +424,7 @@ const CampusListPage = () => {
                   campuses={campuses as any[]}
                   selectedCampusId={selectedCampusId}
                   schools={schools}
-                  onPinClick={(id) => setSelectedCampusId(prev => prev === id ? null : id)}
+                  onPinClick={id => setSelectedCampusId(prev => (prev === id ? null : id))}
                 />
 
                 <OrbitControls
@@ -296,86 +438,70 @@ const CampusListPage = () => {
                   target={[0, 0, -2]}
                 />
               </Canvas>
-
-              {/* HUD stats */}
-              <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: 8 }}>
-                {[
-                  { label: 'Khu vực', count: (campuses as any[]).length, color: '#EA4335' },
-                  { label: 'Trường học', count: schools.length, color: '#34A853' },
-                ].map(({ label, count, color }) => (
-                  <div key={label} style={{
-                    background: 'rgba(255,255,255,0.92)',
-                    borderRadius: 10, padding: '8px 16px',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
-                    backdropFilter: 'blur(10px)',
-                  }}>
-                    <div style={{ color, fontSize: 20, fontWeight: 800, fontFamily: 'Google Sans, system-ui' }}>{count}</div>
-                    <div style={{ color: '#5f6368', fontSize: 11 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Controls hint */}
-              <div style={{
-                position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: '6px 18px',
-                color: '#5f6368', fontSize: 11, boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
-                fontFamily: 'Google Sans, system-ui', backdropFilter: 'blur(8px)',
-              }}>
-                🖱️ Kéo để xoay · Cuộn để zoom · Click pin để xem chi tiết
-              </div>
             </div>
 
-            {/* ── Right panel (Google Maps info panel style) ── */}
-            <div style={{
-              width: 300, background: '#ffffff', borderLeft: '1px solid #e0e0e0',
-              display: 'flex', flexDirection: 'column', overflow: 'hidden',
-              fontFamily: 'Google Sans, system-ui, sans-serif',
-            }}>
-              {/* Selected campus info */}
+            {/* Dark Right Side Panel */}
+            <div
+              style={{
+                width: 320,
+                background: '#111218',
+                borderLeft: '1px solid #2e303a',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
               {selectedCampus ? (
-                <div style={{ padding: 20, borderBottom: '1px solid #f0f0f0' }}>
+                <div style={{ padding: 20, borderBottom: '1px solid #2e303a' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <div style={{ fontSize: 10, color: '#EA4335', fontWeight: 700, letterSpacing: '0.1em' }}>ĐỊA ĐIỂM ĐÃ CHỌN</div>
+                    <div style={{ fontSize: 10, color: '#f87171', fontWeight: 700, letterSpacing: '0.1em' }}>
+                      KHU VỰC ĐANG CHỌN
+                    </div>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <Tooltip title="Sửa"><Button size="small" type="text" icon={<EditOutlined />} style={{ color: '#1A73E8' }} onClick={() => handleEdit(selectedCampus)} /></Tooltip>
-                      <Popconfirm title="Xóa khu vực?" onConfirm={() => deleteMutation.mutate(selectedCampus.id)} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
-                        <Tooltip title="Xóa"><Button size="small" type="text" icon={<DeleteOutlined />} danger /></Tooltip>
+                      <Tooltip title="Sửa">
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<EditOutlined />}
+                          style={{ color: '#60a5fa' }}
+                          onClick={() => handleEdit(selectedCampus)}
+                        />
+                      </Tooltip>
+                      <Popconfirm
+                        title="Xóa khu vực?"
+                        onConfirm={() => deleteMutation.mutate(selectedCampus.id)}
+                        okText="Xóa"
+                        cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Tooltip title="Xóa">
+                          <Button size="small" type="text" icon={<DeleteOutlined />} danger />
+                        </Tooltip>
                       </Popconfirm>
                     </div>
                   </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: '#202124', marginBottom: 4 }}>{selectedCampus.name}</div>
-                  <Tag style={{ background: '#f1f3f4', color: '#5f6368', border: 'none', borderRadius: 6, fontSize: 11 }}>{selectedCampus.code}</Tag>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{selectedCampus.name}</div>
+                  <Tag className="border-0 bg-purple-500/20 text-purple-300 font-mono-data">{selectedCampus.code}</Tag>
                   {selectedCampus.address && (
-                    <div style={{ color: '#5f6368', fontSize: 12, marginTop: 8, display: 'flex', gap: 6 }}>
-                      <span>📍</span><span>{selectedCampus.address}</span>
-                    </div>
+                    <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 8 }}>📍 {selectedCampus.address}</div>
                   )}
-                  <div style={{
-                    marginTop: 12, background: '#E8F5E9', borderRadius: 10, padding: '10px 14px',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                  }}>
-                    <div style={{ fontSize: 24 }}>🏫</div>
-                    <div>
-                      <div style={{ fontSize: 20, fontWeight: 800, color: '#2E7D32' }}>
-                        {schools.filter((s: any) => s.campusId === selectedCampus.id).length}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#4CAF50' }}>Trường học</div>
-                    </div>
-                  </div>
+                  <Button
+                    type="primary"
+                    icon={<BankOutlined />}
+                    onClick={() => navigate(`/schools?campusId=${selectedCampus.id}`)}
+                    className="w-full mt-4"
+                    style={{ background: '#10b981', border: 'none', borderRadius: 8 }}
+                  >
+                    Xem {schools.filter((s: any) => s.campusId === selectedCampus.id).length} Trường trực thuộc
+                  </Button>
                 </div>
               ) : (
-                <div style={{ padding: 24, borderBottom: '1px solid #f0f0f0', textAlign: 'center', color: '#9aa0a6' }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📍</div>
-                  <div style={{ fontSize: 13, color: '#5f6368' }}>Click vào pin trên bản đồ để xem thông tin khu vực</div>
+                <div style={{ padding: 20, borderBottom: '1px solid #2e303a', textAlign: 'center', color: '#6b7280' }}>
+                  <div style={{ fontSize: 12 }}>Chọn một Khu vực bên dưới hoặc trên bản đồ 3D</div>
                 </div>
               )}
 
-              {/* Campus list */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-                <div style={{ padding: '8px 16px', color: '#9aa0a6', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em' }}>
-                  TẤT CẢ KHU VỰC ({(campuses as any[]).length})
-                </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
                 {(campuses as any[]).map((campus: any, i: number) => {
                   const isActive = campus.id === selectedCampusId;
                   const color = PIN_COLORS[i % PIN_COLORS.length];
@@ -384,24 +510,33 @@ const CampusListPage = () => {
                       key={campus.id}
                       onClick={() => setSelectedCampusId(isActive ? null : campus.id)}
                       style={{
-                        padding: '12px 16px', cursor: 'pointer', transition: 'background 0.15s',
-                        background: isActive ? '#e8f0fe' : 'transparent',
-                        borderLeft: isActive ? `3px solid ${color}` : '3px solid transparent',
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        marginBottom: 6,
+                        cursor: 'pointer',
+                        background: isActive ? 'rgba(170,59,255,0.14)' : '#181922',
+                        border: `1px solid ${isActive ? '#aa3bff' : '#2e303a'}`,
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                          <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{i + 1}</span>
+                        <div
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            background: color,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, color: '#202124', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {campus.name}
-                          </div>
-                          <div style={{ color: '#9aa0a6', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {campus.address}
-                          </div>
+                          <div className="text-white text-sm font-semibold truncate">{campus.name}</div>
+                          <div className="text-gray-400 text-xs truncate">{campus.address}</div>
                         </div>
-                        <span style={{ color: '#9aa0a6', fontSize: 11, fontFamily: 'monospace', flexShrink: 0 }}>{campus.code}</span>
                       </div>
                     </div>
                   );
@@ -409,69 +544,34 @@ const CampusListPage = () => {
               </div>
             </div>
           </>
-        ) : (
-          /* ── Table view ── */
-          <div style={{ flex: 1, padding: 24, overflowY: 'auto', background: '#f8f9fa' }}>
-            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e0e0e0', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ background: '#f8f9fa' }}>
-                  <tr>
-                    {['#', 'Tên Khu vực', 'Mã', 'Địa chỉ', 'Số trường', 'Hành động'].map(h => (
-                      <th key={h} style={{ color: '#5f6368', fontSize: 12, fontWeight: 600, textAlign: 'left', padding: '10px 14px', borderBottom: '1px solid #e0e0e0' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center' }}><Spin /></td></tr>
-                  ) : (campuses as any[]).map((campus: any, i: number) => (
-                    <tr key={campus.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                      <td style={{ padding: '12px 14px' }}>
-                        <div style={{ width: 26, height: 26, borderRadius: '50%', background: PIN_COLORS[i % PIN_COLORS.length], display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 14px', fontWeight: 600, color: '#202124' }}>{campus.name}</td>
-                      <td style={{ padding: '12px 14px', color: '#5f6368', fontFamily: 'monospace' }}>{campus.code}</td>
-                      <td style={{ padding: '12px 14px', color: '#5f6368', fontSize: 12 }}>{campus.address}</td>
-                      <td style={{ padding: '12px 14px', fontWeight: 700, color: '#34A853' }}>{schools.filter((s: any) => s.campusId === campus.id).length}</td>
-                      <td style={{ padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <Tooltip title="Sửa"><Button type="text" icon={<EditOutlined />} style={{ color: '#1A73E8' }} onClick={() => handleEdit(campus)} /></Tooltip>
-                          <Popconfirm title="Xóa khu vực?" onConfirm={() => deleteMutation.mutate(campus.id)} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
-                            <Tooltip title="Xóa"><Button type="text" danger icon={<DeleteOutlined />} /></Tooltip>
-                          </Popconfirm>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         )}
       </div>
 
-      {/* ── Modal ── */}
+      {/* Modal */}
       <Modal
-        title={<span style={{ fontFamily: 'Google Sans, system-ui' }}>{editingId ? 'Chỉnh sửa Khu vực' : 'Thêm Khu vực mới'}</span>}
+        title={editingId ? 'Chỉnh sửa Khu vực (Campus)' : 'Thêm Khu vực mới'}
         open={isModalVisible}
         onOk={() => form.submit()}
         onCancel={handleModalClose}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
+        className="dark-modal"
         okText={editingId ? 'Cập nhật' : 'Thêm mới'}
-        okButtonProps={{ style: { background: '#EA4335', border: 'none' } }}
         cancelText="Hủy"
       >
-        <Form form={form} layout="vertical" onFinish={(v) => editingId ? updateMutation.mutate(v) : createMutation.mutate(v)} style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="Tên khu vực" rules={[{ required: true }]}>
-            <Input placeholder="VD: Cơ sở Gò Vấp" />
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={v => (editingId ? updateMutation.mutate(v) : createMutation.mutate(v))}
+          style={{ marginTop: 16 }}
+        >
+          <Form.Item name="name" label="Tên khu vực" rules={[{ required: true, message: 'Vui lòng nhập tên khu vực' }]}>
+            <Input placeholder="VD: Cơ sở Quận Gò Vấp" />
           </Form.Item>
-          <Form.Item name="code" label="Mã khu vực" rules={[{ required: true }]}>
+          <Form.Item name="code" label="Mã khu vực" rules={[{ required: true, message: 'Vui lòng nhập mã khu vực' }]}>
             <Input placeholder="VD: CS_GV" />
           </Form.Item>
-          <Form.Item name="address" label="Địa chỉ" rules={[{ required: true }]}>
-            <Input placeholder="VD: 123 Đường ABC, Quận Gò Vấp" />
+          <Form.Item name="address" label="Địa chỉ" rules={[{ required: true, message: 'Vui lòng nhập địa chỉ' }]}>
+            <Input placeholder="VD: 12 Nguyễn Văn Bảo, Quận Gò Vấp, TP.HCM" />
           </Form.Item>
         </Form>
       </Modal>
