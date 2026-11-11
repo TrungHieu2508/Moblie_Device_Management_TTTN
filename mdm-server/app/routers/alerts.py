@@ -1,5 +1,5 @@
 """
-Alerts Router — Tương đương AlertController.java.
+Alerts Router — Quản lý Cảnh báo Vi phạm theo Khu vực (Campus Scope).
 """
 
 from typing import Optional
@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_admin, require_any_staff
+from app.core.dependencies import require_admin, resolve_scoped_campus_id
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.enums import AlertStatus
@@ -27,12 +27,13 @@ async def get_alerts(
     search: Optional[str] = Query(None),
     page: int = Query(0, ge=0),
     size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_any_staff),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Lấy danh sách cảnh báo, lọc theo campus và trạng thái."""
+    """Lấy danh sách cảnh báo, lọc theo Khu vực (Campus) được phân công."""
+    scoped_campus_id = resolve_scoped_campus_id(current_user, campus_id)
     data = await AlertService.get_alerts(
-        campus_id=campus_id,
+        campus_id=scoped_campus_id,
         status=status,
         page=page,
         size=size,
@@ -45,10 +46,10 @@ async def get_alerts(
 
 @router.put("/resolve-all", response_model=ApiResponse[dict])
 async def resolve_all_alerts(
-    current_user: User = Depends(require_any_staff),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Đánh dấu tất cả cảnh báo đang mở là RESOLVED."""
+    """Đánh dấu tất cả cảnh báo đang mở thuộc phạm vi Khu vực của Admin là RESOLVED."""
     resolved_count = await AlertService.resolve_all_alerts(current_user, db)
     return ApiResponse.ok({"resolvedCount": resolved_count}, f"Đã xử lý {resolved_count} cảnh báo")
 
@@ -57,7 +58,7 @@ async def resolve_all_alerts(
 async def update_alert_status(
     alert_id: UUID,
     request: AlertUpdateRequest,
-    current_user: User = Depends(require_any_staff),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Cập nhật trạng thái cảnh báo (PROCESSING, RESOLVED, DISMISSED)."""

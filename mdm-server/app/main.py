@@ -26,7 +26,6 @@ from app.models import (  # noqa: F401 — side-effect imports để đảm bả
     AuditLog,
     Alert,
     Campus,
-    ClassSession,
     Classroom,
     Device,
     DeviceCommand,

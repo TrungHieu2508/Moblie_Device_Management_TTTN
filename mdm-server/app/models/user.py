@@ -24,7 +24,7 @@ class User(BaseModelMixin, Base):
     email = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
-    role = Column(String(20), nullable=False)  # Lưu enum dạng string (TEACHER, IT_ADMIN, SUPER_ADMIN)
+    role = Column(String(20), nullable=False)  # Lưu enum dạng string (IT_ADMIN/ADMIN, SUPER_ADMIN)
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 

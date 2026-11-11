@@ -1,7 +1,7 @@
 """
-Dashboard Router — Tương đương DashboardController.java.
-
-BUG-3 FIX: Frontend gọi /dashboard/summary, thêm endpoint phù hợp.
+Dashboard Router — Thống kê Dashboard theo Khu vực (Campus Scope).
+  - SUPER_ADMIN: Xem thống kê tổng hợp toàn bộ hệ thống.
+  - IT_ADMIN / ADMIN: Chỉ xem thống kê thiết bị và cảnh báo thuộc Khu vực (campus_id) được phân công.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_admin, require_any_staff
+from app.core.dependencies import is_super_admin, require_admin, resolve_scoped_campus_id
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.alert import Alert
@@ -24,32 +24,50 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 _WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
 
 
-async def _build_summary(db: AsyncSession) -> dict:
-    """Xây dựng dữ liệu dashboard summary."""
-    # Tổng số thiết bị
-    total_devices = (await db.execute(select(func.count()).select_from(Device))).scalar() or 0
+async def _build_summary(db: AsyncSession, current_user: User) -> dict:
+    """Xây dựng dữ liệu dashboard summary theo phạm vi Khu vực (Campus) của người dùng."""
+    scoped_campus_id = None if is_super_admin(current_user) else resolve_scoped_campus_id(current_user)
+
+    # Tổng số thiết bị trong phạm vi
+    total_q = select(func.count()).select_from(Device)
+    if scoped_campus_id:
+        total_q = total_q.where(Device.campus_id == scoped_campus_id)
+    total_devices = (await db.execute(total_q)).scalar() or 0
 
     # Đếm theo status trong DB
     status_counts = {}
     for status in DeviceStatus:
-        count = (
-            await db.execute(
-                select(func.count()).select_from(Device).where(Device.status == status.value)
-            )
-        ).scalar() or 0
+        st_q = select(func.count()).select_from(Device).where(Device.status == status.value)
+        if scoped_campus_id:
+            st_q = st_q.where(Device.campus_id == scoped_campus_id)
+        count = (await db.execute(st_q)).scalar() or 0
         status_counts[status.value] = count
 
-    # Số device thực sự đang kết nối WS (real-time, chính xác hơn DB)
-    realtime_online = len(manager.get_online_device_ids())
+    # Số device thực sự đang kết nối WS (real-time, lọc theo campus nếu là Admin)
+    online_hw_ids = manager.get_online_device_ids()
+    if scoped_campus_id:
+        if online_hw_ids:
+            online_q = (
+                select(func.count())
+                .select_from(Device)
+                .where(
+                    Device.campus_id == scoped_campus_id,
+                    Device.device_id.in_(online_hw_ids),
+                )
+            )
+            realtime_online = (await db.execute(online_q)).scalar() or 0
+        else:
+            realtime_online = 0
+    else:
+        realtime_online = len(online_hw_ids)
 
     # Alert stats
-    active_alerts = (
-        await db.execute(
-            select(func.count()).select_from(Alert).where(
-                Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value])
-            )
-        )
-    ).scalar() or 0
+    active_alerts_q = select(func.count()).select_from(Alert).where(
+        Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value])
+    )
+    if scoped_campus_id:
+        active_alerts_q = active_alerts_q.where(Alert.campus_id == scoped_campus_id)
+    active_alerts = (await db.execute(active_alerts_q)).scalar() or 0
 
     # Tính safety index (0-100): tỷ lệ thiết bị không có warning/critical
     safe_devices = max(total_devices - status_counts.get("WARNING", 0) - status_counts.get("CRITICAL", 0), 0)
@@ -58,11 +76,10 @@ async def _build_summary(db: AsyncSession) -> dict:
     # Thống kê vi phạm 7 ngày gần nhất từ bảng alerts
     now = datetime.now(timezone.utc)
     start_7d = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-    recent_alerts = (
-        await db.execute(
-            select(Alert.created_at, Alert.alert_code).where(Alert.created_at >= start_7d)
-        )
-    ).all()
+    recent_alerts_q = select(Alert.created_at, Alert.alert_code).where(Alert.created_at >= start_7d)
+    if scoped_campus_id:
+        recent_alerts_q = recent_alerts_q.where(Alert.campus_id == scoped_campus_id)
+    recent_alerts = (await db.execute(recent_alerts_q)).all()
 
     daily_map: dict[str, dict[str, int]] = {}
     ordered_days: list[tuple[str, str]] = []
@@ -105,24 +122,23 @@ async def _build_summary(db: AsyncSession) -> dict:
 
 @router.get("/summary", response_model=ApiResponse[dict])
 async def get_dashboard_summary(
-    _: User = Depends(require_any_staff),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Dashboard Summary — Frontend gọi endpoint này.
-    Trả về dữ liệu khớp với DashboardSummaryDto trong frontend.
+    Dashboard Summary — Trả về dữ liệu thống kê theo Khu vực của người dùng.
     """
-    data = await _build_summary(db)
+    data = await _build_summary(db, current_user)
     return ApiResponse.ok(data)
 
 
 @router.get("/stats", response_model=ApiResponse[dict])
 async def get_dashboard_stats(
-    _: User = Depends(require_any_staff),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Dashboard Stats — Alias cũ, giữ tương thích.
     """
-    data = await _build_summary(db)
+    data = await _build_summary(db, current_user)
     return ApiResponse.ok(data)

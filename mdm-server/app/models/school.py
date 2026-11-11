@@ -1,16 +1,9 @@
 """
-School domain models — Campus, School, Classroom, ClassSession.
-
-Tương đương:
-  - Campus.java
-  - School.java
-  - Classroom.java
-  - ClassSession.java
+School domain models — Campus, School, Classroom.
+(Đã loại bỏ ClassSession theo kiến trúc 2-Role mới).
 """
 
-from datetime import datetime, timezone
-
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -59,19 +52,3 @@ class Classroom(BaseModelMixin, Base):
 
     # Relationships
     school = relationship("School", back_populates="classrooms", lazy="selectin")
-
-
-class ClassSession(BaseModelMixin, Base):
-    __tablename__ = "class_sessions"
-
-    classroom_id = Column(UUID(as_uuid=True), ForeignKey("classrooms.id"), nullable=False)
-    teacher_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    status = Column(String(20), default="ACTIVE", nullable=False)  # ACTIVE, ENDED
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    ended_at = Column(DateTime(timezone=True), nullable=True)
-    scheduled_start_time = Column(DateTime(timezone=True), nullable=True)
-    scheduled_end_time = Column(DateTime(timezone=True), nullable=True)
-
-    # Relationships
-    classroom = relationship("Classroom", lazy="selectin")
-    teacher = relationship("User", lazy="selectin")

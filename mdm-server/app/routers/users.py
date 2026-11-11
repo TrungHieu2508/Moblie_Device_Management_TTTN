@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import get_current_user, require_admin, require_super_admin
-from app.core.exceptions import ConflictException, NotFoundException
+from app.core.dependencies import ALLOWED_USER_ROLES, get_current_user, require_admin, require_super_admin
+from app.core.exceptions import ConflictException, MdmException, NotFoundException
 from app.core.response import ApiResponse
 from app.core.security import hash_password, verify_password
 from app.db.session import get_db
@@ -114,6 +114,13 @@ async def create_user(
     _: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    if request.role not in ALLOWED_USER_ROLES:
+        raise MdmException(
+            f"Vai trò '{request.role}' không còn được hỗ trợ. Hệ thống chỉ hỗ trợ SUPER_ADMIN và IT_ADMIN.",
+            status_code=400,
+            error_code="INVALID_ROLE",
+        )
+
     # Kiểm tra username/email trùng
     existing = await db.execute(
         select(User).where(
@@ -143,7 +150,7 @@ async def create_user(
 async def update_user(
     user_id: UUID,
     request: UserUpdateRequest,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
@@ -172,7 +179,7 @@ async def update_user(
 @router.delete("/{user_id}", response_model=ApiResponse[None])
 async def delete_user(
     user_id: UUID,
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     if user_id == current_user.id:

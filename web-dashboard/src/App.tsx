@@ -12,9 +12,6 @@ import SchoolListPage from './features/schools/views/SchoolListPage';
 import CampusListPage from './features/schools/views/CampusListPage';
 import ClassroomListPage from './features/schools/views/ClassroomListPage';
 import ProfilePage from './features/profile/ProfilePage';
-import TeacherDashboard from './features/schools/views/TeacherDashboard';
-import SessionHistoryPage from './features/schools/views/SessionHistoryPage';
-import LiveClassesPage from './features/schools/views/LiveClassesPage';
 import Map3DPage from './features/map3d/Map3DPage';
 import { useAuthStore } from './store/authStore';
 
@@ -27,25 +24,19 @@ import {
   LogoutOutlined,
   BankOutlined,
   EnvironmentOutlined,
-  HistoryOutlined,
   QrcodeOutlined,
   GlobalOutlined,
   BookOutlined,
-  VideoCameraOutlined,
 } from '@ant-design/icons';
 
 const { Header, Content, Sider } = Layout;
 
 const getPageMeta = (pathname: string): { title: string; subtitle: string } => {
   if (pathname === '/') return { title: 'Dashboard Tổng quan', subtitle: 'Giám sát toàn diện hệ thống MDM học đường' };
-  if (pathname.startsWith('/teacher') || pathname.includes('/dashboard'))
-    return { title: 'Giám sát Lớp học & Màn hình Live', subtitle: 'Điều khiển tiết học và theo dõi màn hình học sinh trực tiếp' };
-  if (pathname.startsWith('/live-classes'))
-    return { title: 'Phiên Học Trực Tuyến', subtitle: 'Điều khiển thiết bị trong phiên học đang diễn ra' };
   if (pathname.startsWith('/devices/'))
     return { title: 'Chi tiết & Điều khiển Thiết bị', subtitle: 'Xem màn hình trực tiếp, khoá máy và theo dõi thông số' };
   if (pathname.startsWith('/devices'))
-    return { title: 'Quản lý Thiết bị', subtitle: 'Danh sách toàn bộ thiết bị học sinh trong hệ thống' };
+    return { title: 'Quản lý & Điều khiển Thiết bị', subtitle: 'Danh sách thiết bị học sinh, giám sát và điều khiển từ xa' };
   if (pathname.startsWith('/enrollments'))
     return { title: 'Mã Ghi Danh (QR Enrollment)', subtitle: 'Tạo và quản lý mã QR đưa thiết bị vào hệ thống' };
   if (pathname.startsWith('/alerts'))
@@ -57,9 +48,7 @@ const getPageMeta = (pathname: string): { title: string; subtitle: string } => {
   if (pathname.startsWith('/classrooms'))
     return { title: 'Quản lý Lớp học', subtitle: 'Quản lý phòng học và sơ đồ thiết bị học sinh' };
   if (pathname.startsWith('/users'))
-    return { title: 'Quản lý Tài khoản & Phân quyền', subtitle: 'Quản lý tài khoản Super Admin, IT Admin và Giáo viên' };
-  if (pathname.startsWith('/history'))
-    return { title: 'Lịch sử Buổi học', subtitle: 'Tra cứu nhật ký các phiên giám sát lớp học' };
+    return { title: 'Quản lý Tài khoản & Phân quyền', subtitle: 'Quản lý tài khoản Super Admin và Admin vận hành' };
   if (pathname.startsWith('/map3d'))
     return { title: 'Bản Đồ Số 3D Học Khu', subtitle: 'Trực quan hóa không gian 3D cơ sở, trường học và phòng học' };
   if (pathname.startsWith('/profile'))
@@ -82,6 +71,7 @@ const MainLayout = () => {
   const { user, logout } = useAuthStore();
   const role = user?.role;
   const username = user?.username;
+  const isSuperAdmin = role === 'SUPER_ADMIN';
 
   const handleLogout = () => {
     logout();
@@ -109,8 +99,8 @@ const MainLayout = () => {
     ],
   };
 
-  const roleLabel = role === 'SUPER_ADMIN' ? 'Super Admin' : role === 'IT_ADMIN' ? 'IT Admin' : 'Giáo viên';
-  const roleColor = role === 'SUPER_ADMIN' ? '#aa3bff' : role === 'IT_ADMIN' ? '#00d4ff' : '#4ade80';
+  const roleLabel = isSuperAdmin ? 'Super Admin' : 'Admin';
+  const roleColor = isSuperAdmin ? '#aa3bff' : '#00d4ff';
   const pageMeta = getPageMeta(location.pathname);
 
   return (
@@ -128,7 +118,7 @@ const MainLayout = () => {
           {/* Logo area */}
           <div
             className="h-16 flex items-center px-5 border-b border-[rgba(170,59,255,0.12)] shrink-0 cursor-pointer"
-            onClick={() => navigate(role === 'TEACHER' ? '/teacher' : '/')}
+            onClick={() => navigate('/')}
             style={{ background: 'linear-gradient(135deg, rgba(170,59,255,0.08), rgba(0,212,255,0.04))' }}
           >
             <div className="flex items-center gap-3">
@@ -149,85 +139,78 @@ const MainLayout = () => {
             </div>
           </div>
 
-          {/* Scrollable Grouped Navigation Menu */}
+          {/* Scrollable Grouped Navigation Menu (2-Role Model: SUPER_ADMIN & ADMIN) */}
           <div className="px-3 py-3 flex-1 overflow-y-auto flex flex-col gap-0.5">
-            {role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? (
+            <SectionLabel label="Tổng quan & Giám sát" />
+            <NavItem
+              path="/"
+              exact
+              icon={<AppstoreOutlined />}
+              label="Dashboard Tổng quan"
+              current={location.pathname}
+              navigate={navigate}
+            />
+            <NavItem
+              path="/map3d"
+              icon={<GlobalOutlined />}
+              label="Bản Đồ Số 3D"
+              current={location.pathname}
+              navigate={navigate}
+              isCyan
+            />
+
+            <SectionLabel label="Thiết bị & Điều khiển" />
+            <NavItem
+              path="/devices"
+              icon={<DesktopOutlined />}
+              label="Thiết bị & Điều khiển"
+              current={location.pathname}
+              navigate={navigate}
+              isCyan
+            />
+            <NavItem
+              path="/enrollments"
+              icon={<QrcodeOutlined />}
+              label="Mã Ghi Danh (QR)"
+              current={location.pathname}
+              navigate={navigate}
+            />
+            <NavItem
+              path="/alerts"
+              icon={<AlertOutlined />}
+              label="Cảnh báo Vi phạm"
+              current={location.pathname}
+              navigate={navigate}
+              isAlert
+            />
+
+            <SectionLabel label="Quản lý Tổ chức" />
+            {isSuperAdmin && (
+              <NavItem
+                path="/campuses"
+                icon={<EnvironmentOutlined />}
+                label="Khu vực (Campus)"
+                current={location.pathname}
+                navigate={navigate}
+              />
+            )}
+            <NavItem
+              path="/schools"
+              icon={<BankOutlined />}
+              label="Trường học"
+              current={location.pathname}
+              navigate={navigate}
+            />
+            <NavItem
+              path="/classrooms"
+              icon={<BookOutlined />}
+              label="Lớp học"
+              current={location.pathname}
+              navigate={navigate}
+            />
+
+            {isSuperAdmin && (
               <>
-                <SectionLabel label="Tổng quan & Giám sát" />
-                <NavItem
-                  path="/"
-                  exact
-                  icon={<AppstoreOutlined />}
-                  label="Dashboard Tổng quan"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/teacher"
-                  icon={<VideoCameraOutlined />}
-                  label="Giám sát Lớp học & Live"
-                  current={location.pathname}
-                  navigate={navigate}
-                  isCyan
-                />
-                <NavItem
-                  path="/map3d"
-                  icon={<GlobalOutlined />}
-                  label="Bản Đồ Số 3D"
-                  current={location.pathname}
-                  navigate={navigate}
-                  isCyan
-                />
-
-                <SectionLabel label="Thiết bị & An ninh" />
-                <NavItem
-                  path="/devices"
-                  icon={<DesktopOutlined />}
-                  label="Quản lý Thiết bị"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/enrollments"
-                  icon={<QrcodeOutlined />}
-                  label="Mã Ghi Danh (QR)"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/alerts"
-                  icon={<AlertOutlined />}
-                  label="Cảnh báo Vi phạm"
-                  current={location.pathname}
-                  navigate={navigate}
-                  isAlert
-                />
-
-                <SectionLabel label="Quản lý Tổ chức" />
-                {role === 'SUPER_ADMIN' && (
-                  <NavItem
-                    path="/campuses"
-                    icon={<EnvironmentOutlined />}
-                    label="Khu vực (Campus)"
-                    current={location.pathname}
-                    navigate={navigate}
-                  />
-                )}
-                <NavItem
-                  path="/schools"
-                  icon={<BankOutlined />}
-                  label="Trường học"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/classrooms"
-                  icon={<BookOutlined />}
-                  label="Lớp học"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-
                 <SectionLabel label="Quản trị Hệ thống" />
                 <NavItem
                   path="/users"
@@ -236,75 +219,8 @@ const MainLayout = () => {
                   current={location.pathname}
                   navigate={navigate}
                 />
-                <NavItem
-                  path="/history"
-                  icon={<HistoryOutlined />}
-                  label="Lịch sử Buổi học"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
               </>
-            ) : null}
-
-            {role === 'TEACHER' ? (
-              <>
-                <SectionLabel label="Giảng dạy & Giám sát" />
-                <NavItem
-                  path="/teacher"
-                  icon={<VideoCameraOutlined />}
-                  label="Lớp học & Giám sát Live"
-                  current={location.pathname}
-                  navigate={navigate}
-                  isCyan
-                />
-                <NavItem
-                  path="/devices"
-                  icon={<DesktopOutlined />}
-                  label="Thiết bị Học sinh"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/enrollments"
-                  icon={<QrcodeOutlined />}
-                  label="Mã Ghi Danh (QR)"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/alerts"
-                  icon={<AlertOutlined />}
-                  label="Cảnh báo Vi phạm"
-                  current={location.pathname}
-                  navigate={navigate}
-                  isAlert
-                />
-
-                <SectionLabel label="Lớp học & Tiện ích" />
-                <NavItem
-                  path="/classrooms"
-                  icon={<BookOutlined />}
-                  label="Quản lý Lớp học"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/history"
-                  icon={<HistoryOutlined />}
-                  label="Lịch sử Buổi học"
-                  current={location.pathname}
-                  navigate={navigate}
-                />
-                <NavItem
-                  path="/map3d"
-                  icon={<GlobalOutlined />}
-                  label="Bản Đồ 3D"
-                  current={location.pathname}
-                  navigate={navigate}
-                  isCyan
-                />
-              </>
-            ) : null}
+            )}
           </div>
 
           {/* Bottom user card */}
@@ -354,14 +270,14 @@ const MainLayout = () => {
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            {/* Quick action shortcuts for Admin/Teacher */}
+            {/* Quick action shortcuts for Super Admin & Admin */}
             <div className="hidden lg:flex items-center gap-2">
               <Button
                 size="small"
-                icon={<VideoCameraOutlined />}
-                onClick={() => navigate('/teacher')}
+                icon={<DesktopOutlined />}
+                onClick={() => navigate('/devices')}
                 style={{
-                  background: location.pathname.startsWith('/teacher') ? 'rgba(0,212,255,0.2)' : 'rgba(20,21,30,0.85)',
+                  background: location.pathname.startsWith('/devices') ? 'rgba(0,212,255,0.2)' : 'rgba(20,21,30,0.85)',
                   borderColor: 'rgba(0,212,255,0.35)',
                   color: '#00d4ff',
                   borderRadius: 8,
@@ -369,7 +285,7 @@ const MainLayout = () => {
                   height: 32,
                 }}
               >
-                Giám sát Live
+                Thiết bị & Điều khiển
               </Button>
               <Button
                 size="small"
@@ -491,15 +407,17 @@ const NavItem = ({ path, exact, icon, label, current, navigate, isCyan, isAlert 
 function App() {
   const { user } = useAuthStore();
   const role = user?.role;
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const isAdmin = isSuperAdmin || role === 'IT_ADMIN' || role === 'ADMIN';
 
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
 
-      {/* Protected Routes */}
+      {/* Protected Routes (Only Super Admin & Admin) */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
-          <Route path="/" element={role !== 'TEACHER' ? <DashboardPage /> : <Navigate to="/teacher" replace />} />
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/map3d" element={<Map3DPage />} />
           <Route path="/devices" element={<DeviceListPage />} />
           <Route path="/devices/:id" element={<DeviceDetailPage />} />
@@ -507,29 +425,13 @@ function App() {
           <Route path="/alerts" element={<AlertListPage />} />
           <Route path="/profile" element={<ProfilePage />} />
 
-          {/* Super Admin & IT Admin Routes */}
-          <Route path="/campuses" element={role === 'SUPER_ADMIN' ? <CampusListPage /> : <Navigate to="/" replace />} />
-          <Route path="/schools" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <SchoolListPage /> : <Navigate to="/" replace />} />
-          <Route
-            path="/classrooms"
-            element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' || role === 'TEACHER' ? <ClassroomListPage /> : <Navigate to="/" replace />}
-          />
-          <Route
-            path="/schools/:schoolId/dashboard"
-            element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <TeacherDashboard /> : <Navigate to="/" replace />}
-          />
-          <Route path="/users" element={role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <UserListPage /> : <Navigate to="/" replace />} />
+          {/* Organization Routes */}
+          <Route path="/campuses" element={isSuperAdmin ? <CampusListPage /> : <Navigate to="/" replace />} />
+          <Route path="/schools" element={isAdmin ? <SchoolListPage /> : <Navigate to="/" replace />} />
+          <Route path="/classrooms" element={isAdmin ? <ClassroomListPage /> : <Navigate to="/" replace />} />
 
-          {/* Classroom & Live Screen Monitoring Route (All Staff Roles) */}
-          <Route
-            path="/teacher"
-            element={role === 'TEACHER' || role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <TeacherDashboard /> : <Navigate to="/" replace />}
-          />
-          <Route
-            path="/history"
-            element={role === 'TEACHER' || role === 'SUPER_ADMIN' || role === 'IT_ADMIN' ? <SessionHistoryPage /> : <Navigate to="/" replace />}
-          />
-          <Route path="/live-classes/:sessionId" element={<LiveClassesPage />} />
+          {/* System User Management (Super Admin only) */}
+          <Route path="/users" element={isSuperAdmin ? <UserListPage /> : <Navigate to="/" replace />} />
         </Route>
       </Route>
 

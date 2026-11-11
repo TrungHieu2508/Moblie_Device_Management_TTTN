@@ -1,15 +1,21 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
-const ProtectedRoute = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+const ALLOWED_ROLES = ['SUPER_ADMIN', 'IT_ADMIN', 'ADMIN'];
 
-  if (!isAuthenticated) {
-    // If not authenticated, redirect to login page
+const ProtectedRoute = () => {
+  const { isAuthenticated, user, logout } = useAuthStore();
+
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
-  // If authenticated, render the child routes
+  // Chặn hoàn toàn phiên đăng nhập cũ có role TEACHER không còn được hỗ trợ
+  if (!ALLOWED_ROLES.includes(user.role)) {
+    logout();
+    return <Navigate to="/login" replace />;
+  }
+
   return <Outlet />;
 };
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   Table,
@@ -14,6 +14,7 @@ import {
   Drawer,
   message,
   Slider,
+  Tooltip,
 } from 'antd';
 import {
   SearchOutlined,
@@ -24,12 +25,14 @@ import {
   EyeOutlined,
   EditOutlined,
   DeleteOutlined,
-  VideoCameraOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  ClearOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_BASE_URL } from '../../../config/axios';
-import { getDevices, updateDevice, deleteDevice } from '../../../services/deviceService';
+import { getDevices, updateDevice, deleteDevice, sendDeviceCommand } from '../../../services/deviceService';
 import { createEnrollmentProfile } from '../../../services/enrollmentService';
 import { getAllCampuses, getSchools, getClassrooms } from '../../../services/schoolService';
 import { useAuthStore } from '../../../store/authStore';
@@ -70,14 +73,25 @@ const getStatusTag = (status: string) => {
 
 const DeviceListPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
-  const [campusFilter, setCampusFilter] = useState<string | undefined>(undefined);
-  const [schoolFilter, setSchoolFilter] = useState<string | undefined>(undefined);
-  const [classroomFilter, setClassroomFilter] = useState<string | undefined>(undefined);
+  const [campusFilter, setCampusFilter] = useState<string | undefined>(searchParams.get('campusId') || undefined);
+  const [schoolFilter, setSchoolFilter] = useState<string | undefined>(searchParams.get('schoolId') || undefined);
+  const [classroomFilter, setClassroomFilter] = useState<string | undefined>(searchParams.get('classroomId') || undefined);
   const [page, setPage] = useState(0);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const { user } = useAuthStore();
   const role = user?.role;
+
+  useEffect(() => {
+    const sId = searchParams.get('schoolId');
+    const cId = searchParams.get('classroomId');
+    const campId = searchParams.get('campusId');
+    if (campId) setCampusFilter(campId);
+    if (sId) setSchoolFilter(sId);
+    if (cId) setClassroomFilter(cId);
+  }, [searchParams]);
 
   // States for Modal and Drawer
   const [isRegisterModalVisible, setIsRegisterModalVisible] = useState(false);
@@ -135,6 +149,8 @@ const DeviceListPage = () => {
         ...advancedFilters,
       }),
   });
+
+  const deviceList: DeviceDto[] = (Array.isArray(data) ? data : data?.content) || [];
 
   const { data: campuses } = useQuery({
     queryKey: ['campuses'],
@@ -200,6 +216,31 @@ const DeviceListPage = () => {
     },
     onError: () => message.error('Xóa thiết bị thất bại'),
   });
+
+  const handleQuickCommand = async (device: DeviceDto, commandType: string, label: string, payload: Record<string, any> = {}) => {
+    try {
+      await sendDeviceCommand(device.id, commandType, payload);
+      message.success(`Đã gửi lệnh "${label}" tới ${device.deviceName || device.model}`);
+    } catch (error: any) {
+      message.error(error.response?.data?.message || `Không thể gửi lệnh ${label}`);
+    }
+  };
+
+  const handleBulkCommand = async (commandType: string, label: string, payload: Record<string, any> = {}) => {
+    if (deviceList.length === 0) {
+      message.warning('Không có thiết bị nào trong danh sách hiện tại để điều khiển.');
+      return;
+    }
+    setBulkLoading(true);
+    try {
+      await Promise.allSettled(deviceList.map(d => sendDeviceCommand(d.id, commandType, payload)));
+      message.success(`Đã gửi lệnh "${label}" tới ${deviceList.length} thiết bị đang hiển thị!`);
+    } catch {
+      message.error(`Có lỗi xảy ra khi gửi lệnh hàng loạt.`);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   const handleEditDevice = (values: any) => {
     if (editingDevice) {
@@ -287,53 +328,87 @@ const DeviceListPage = () => {
       render: (status: string) => getStatusTag(status),
     },
     {
-      title: 'Thao tác',
+      title: 'Điều khiển & Thao tác',
       key: 'actions',
-      width: 280,
+      width: 340,
       render: (_: any, record: DeviceDto) => (
-        <Space size="small">
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => navigate(`/devices/${record.id}`)}
-            style={{
-              background: 'rgba(0,212,255,0.12)',
-              borderColor: 'rgba(0,212,255,0.35)',
-              color: '#00d4ff',
-              borderRadius: 8,
-            }}
-          >
-            Chi tiết / Màn hình
-          </Button>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setEditingDevice(record);
-              editForm.setFieldsValue({
-                deviceName: record.deviceName,
-                campusId: record.campus?.id,
-                schoolId: record.school?.id,
-                classroomId: record.classroom?.id,
-              });
-              setIsEditModalVisible(true);
-            }}
-            style={{
-              background: 'rgba(59,130,246,0.12)',
-              borderColor: 'rgba(59,130,246,0.35)',
-              color: '#60a5fa',
-              borderRadius: 8,
-            }}
-          >
-            Sửa
-          </Button>
-          <Button
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => showDeleteConfirm(record)}
-            style={{ borderRadius: 8 }}
-          />
+        <Space size="small" wrap>
+          <Tooltip title="Xem màn hình Live & Điều khiển chi tiết">
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/devices/${record.id}`)}
+              style={{
+                background: 'rgba(0,212,255,0.12)',
+                borderColor: 'rgba(0,212,255,0.35)',
+                color: '#00d4ff',
+                borderRadius: 8,
+              }}
+            >
+              Chi tiết / Live
+            </Button>
+          </Tooltip>
+          <Tooltip title="Khóa màn hình thiết bị ngay">
+            <Button
+              size="small"
+              icon={<LockOutlined />}
+              onClick={() =>
+                handleQuickCommand(record, 'LOCK_SCREEN', 'Khóa màn hình', {
+                  message: 'Quản trị viên đã khóa màn hình thiết bị!',
+                })
+              }
+              style={{
+                background: 'rgba(239,68,68,0.12)',
+                borderColor: 'rgba(239,68,68,0.35)',
+                color: '#f87171',
+                borderRadius: 8,
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Mở khóa màn hình">
+            <Button
+              size="small"
+              icon={<UnlockOutlined />}
+              onClick={() => handleQuickCommand(record, 'UNLOCK_DEVICE', 'Mở khóa màn hình')}
+              style={{
+                background: 'rgba(34,197,94,0.12)',
+                borderColor: 'rgba(34,197,94,0.35)',
+                color: '#4ade80',
+                borderRadius: 8,
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Chỉnh sửa thiết bị & Gán lớp">
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => {
+                setEditingDevice(record);
+                editForm.setFieldsValue({
+                  deviceName: record.deviceName,
+                  campusId: record.campus?.id,
+                  schoolId: record.school?.id,
+                  classroomId: record.classroom?.id,
+                });
+                setIsEditModalVisible(true);
+              }}
+              style={{
+                background: 'rgba(59,130,246,0.12)',
+                borderColor: 'rgba(59,130,246,0.35)',
+                color: '#60a5fa',
+                borderRadius: 8,
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Xóa thiết bị">
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => showDeleteConfirm(record)}
+              style={{ borderRadius: 8 }}
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -344,16 +419,51 @@ const DeviceListPage = () => {
       <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
         <div>
           <Title level={3} className="!m-0 !text-white">
-            Quản lý Thiết bị
+            Quản lý & Điều khiển Thiết bị
           </Title>
           <p className="text-gray-400 mt-1">
-            Giám sát, xem màn hình trực tiếp và điều khiển toàn bộ thiết bị học sinh trong hệ thống
+            Giám sát, xem màn hình trực tiếp và điều khiển từ xa thiết bị học sinh theo trường học / lớp học
           </p>
         </div>
-        <Space>
+        <Space wrap>
           <Button
-            icon={<VideoCameraOutlined />}
-            onClick={() => navigate('/teacher')}
+            icon={<LockOutlined />}
+            loading={bulkLoading}
+            onClick={() =>
+              handleBulkCommand('LOCK_SCREEN', 'Khóa màn hình hàng loạt', {
+                message: 'Quản trị viên đã khóa màn hình toàn bộ lớp học!',
+              })
+            }
+            style={{
+              background: 'rgba(239,68,68,0.14)',
+              borderColor: 'rgba(239,68,68,0.4)',
+              color: '#f87171',
+              height: 40,
+              borderRadius: 10,
+              fontWeight: 600,
+            }}
+          >
+            Khóa tất cả đang lọc ({deviceList.length})
+          </Button>
+          <Button
+            icon={<UnlockOutlined />}
+            loading={bulkLoading}
+            onClick={() => handleBulkCommand('UNLOCK_DEVICE', 'Mở khóa hàng loạt')}
+            style={{
+              background: 'rgba(34,197,94,0.14)',
+              borderColor: 'rgba(34,197,94,0.4)',
+              color: '#4ade80',
+              height: 40,
+              borderRadius: 10,
+              fontWeight: 600,
+            }}
+          >
+            Mở khóa tất cả
+          </Button>
+          <Button
+            icon={<ClearOutlined />}
+            loading={bulkLoading}
+            onClick={() => handleBulkCommand('CLEAR_BACKGROUND_APPS', 'Dọn RAM hàng loạt')}
             style={{
               background: 'rgba(0,212,255,0.14)',
               borderColor: 'rgba(0,212,255,0.4)',
@@ -363,7 +473,7 @@ const DeviceListPage = () => {
               fontWeight: 600,
             }}
           >
-            Giám sát Lớp học Live
+            Dọn RAM tất cả
           </Button>
           <Button
             type="primary"
@@ -371,6 +481,13 @@ const DeviceListPage = () => {
             className="bg-[var(--color-primary)] border-0 h-10 px-5 font-semibold rounded-xl"
             onClick={() => {
               setCreatedCode(null);
+              registerForm.resetFields();
+              if (role !== 'SUPER_ADMIN') {
+                const defaultCampusId = user?.campusId || campuses?.[0]?.id;
+                if (defaultCampusId) {
+                  registerForm.setFieldsValue({ campusId: defaultCampusId });
+                }
+              }
               setIsRegisterModalVisible(true);
             }}
           >
@@ -423,21 +540,19 @@ const DeviceListPage = () => {
               ]}
             />
           )}
-          {(role === 'SUPER_ADMIN' || role === 'IT_ADMIN') && (
-            <Select
-              value={schoolFilter || 'all'}
-              className="w-52"
-              onChange={value => {
-                setSchoolFilter(value);
-                setClassroomFilter('all');
-                setPage(0);
-              }}
-              options={[
-                { value: 'all', label: 'Tất cả Trường học' },
-                ...(filteredSchoolsForToolbar?.map((s: any) => ({ value: s.id, label: s.name })) || []),
-              ]}
-            />
-          )}
+          <Select
+            value={schoolFilter || 'all'}
+            className="w-52"
+            onChange={value => {
+              setSchoolFilter(value);
+              setClassroomFilter('all');
+              setPage(0);
+            }}
+            options={[
+              { value: 'all', label: 'Tất cả Trường học' },
+              ...(filteredSchoolsForToolbar?.map((s: any) => ({ value: s.id, label: s.name })) || []),
+            ]}
+          />
           {schoolFilter && schoolFilter !== 'all' && (
             <Select
               value={classroomFilter || 'all'}
@@ -471,7 +586,7 @@ const DeviceListPage = () => {
         {/* Data Table */}
         <Table
           columns={columns}
-          dataSource={(Array.isArray(data) ? data : data?.content) || []}
+          dataSource={deviceList}
           loading={isLoading}
           rowKey="id"
           pagination={{
@@ -524,7 +639,11 @@ const DeviceListPage = () => {
         ) : (
           <Form form={registerForm} layout="vertical" onFinish={handleCreateCode} className="mt-4">
             <Form.Item name="campusId" label="Cơ sở (Campus)" rules={[{ required: true, message: 'Vui lòng chọn cơ sở' }]}>
-              <Select placeholder="Chọn cơ sở" onChange={() => registerForm.setFieldValue('schoolId', undefined)}>
+              <Select
+                placeholder="Chọn cơ sở"
+                disabled={role !== 'SUPER_ADMIN' && !!user?.campusId}
+                onChange={() => registerForm.setFieldValue('schoolId', undefined)}
+              >
                 {campuses?.map((campus: any) => (
                   <Select.Option key={campus.id} value={campus.id}>
                     {campus.name}
@@ -592,11 +711,12 @@ const DeviceListPage = () => {
           <Form.Item name="campusId" label="Cơ sở (Campus)">
             <Select
               placeholder="Chọn cơ sở"
+              disabled={role !== 'SUPER_ADMIN'}
               onChange={() => {
                 editForm.setFieldValue('schoolId', undefined);
                 editForm.setFieldValue('classroomId', undefined);
               }}
-              allowClear
+              allowClear={role === 'SUPER_ADMIN'}
             >
               {campuses?.map((campus: any) => (
                 <Select.Option key={campus.id} value={campus.id}>

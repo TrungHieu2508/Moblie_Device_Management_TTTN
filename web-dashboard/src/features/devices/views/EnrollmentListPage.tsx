@@ -6,11 +6,14 @@ import { QRCodeSVG } from 'qrcode.react';
 import axiosInstance, { API_BASE_URL } from '../../../config/axios';
 import { getAllCampuses, getSchools, getClassrooms } from '../../../services/schoolService';
 import { createEnrollmentProfile, deleteEnrollmentProfile } from '../../../services/enrollmentService';
+import { useAuthStore } from '../../../store/authStore';
 
 const { Title, Text } = Typography;
 
 const EnrollmentListPage = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const role = user?.role;
 
   const { data: enrollments, isLoading } = useQuery({
     queryKey: ['enrollments'],
@@ -178,6 +181,13 @@ const EnrollmentListPage = () => {
           className="bg-[var(--color-primary)] border-0 h-10 px-6 font-medium"
           onClick={() => {
             setCreatedCode(null);
+            registerForm.resetFields();
+            if (role !== 'SUPER_ADMIN') {
+              const defaultCampusId = user?.campusId || campuses?.[0]?.id;
+              if (defaultCampusId) {
+                registerForm.setFieldsValue({ campusId: defaultCampusId });
+              }
+            }
             setIsRegisterModalVisible(true);
           }}
         >
@@ -265,6 +275,7 @@ const EnrollmentListPage = () => {
             <Form.Item name="campusId" label="Cơ sở (Campus)" rules={[{ required: true, message: 'Vui lòng chọn cơ sở' }]}>
               <Select 
                 placeholder="Chọn cơ sở"
+                disabled={role !== 'SUPER_ADMIN' && !!user?.campusId}
                 onChange={() => registerForm.setFieldValue('schoolId', undefined)}
               >
                 {campuses?.map((campus: any) => (

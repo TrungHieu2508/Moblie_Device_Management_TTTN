@@ -41,6 +41,9 @@ class AuthService:
         if not user.is_active:
             raise UnauthorizedException("Tài khoản đã bị vô hiệu hóa")
 
+        if user.role not in (UserRole.SUPER_ADMIN.value, UserRole.IT_ADMIN.value, UserRole.ADMIN.value):
+            raise UnauthorizedException("Vai trò tài khoản không còn được hỗ trợ trong hệ thống")
+
         # 2. Tạo tokens
         role_str = f"ROLE_{user.role}"
         access_token = create_access_token(
@@ -127,6 +130,9 @@ class AuthService:
 
         if not user or not user.is_active:
             raise UnauthorizedException("Tài khoản không tồn tại hoặc đã bị khóa")
+
+        if user.role not in (UserRole.SUPER_ADMIN.value, UserRole.IT_ADMIN.value, UserRole.ADMIN.value):
+            raise UnauthorizedException("Vai trò tài khoản không còn được hỗ trợ trong hệ thống")
 
         from app.core.config import settings
         role_str = f"ROLE_{user.role}"

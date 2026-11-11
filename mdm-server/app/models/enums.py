@@ -8,12 +8,12 @@ thành chuỗi trong JSON responses (không cần custom serializer).
 import enum
 
 
-# ── User ──────────────────────────────────────────────────────
+# ── User (2-Role Model: SUPER_ADMIN & ADMIN/IT_ADMIN) ─────────
 
 class UserRole(str, enum.Enum):
-    TEACHER = "TEACHER"
-    IT_ADMIN = "IT_ADMIN"
     SUPER_ADMIN = "SUPER_ADMIN"
+    IT_ADMIN = "IT_ADMIN"
+    ADMIN = "ADMIN"
 
 
 # ── Device ────────────────────────────────────────────────────

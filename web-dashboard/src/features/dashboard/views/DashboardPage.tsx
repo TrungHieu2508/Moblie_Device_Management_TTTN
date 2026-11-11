@@ -7,7 +7,6 @@ import {
   WifiOutlined,
   LoadingOutlined,
   ThunderboltOutlined,
-  VideoCameraOutlined,
   QrcodeOutlined,
   BankOutlined,
   BookOutlined,
@@ -214,13 +213,13 @@ const DashboardPage = () => {
     },
     {
       title: 'Đang Online',
-      subtitle: 'Giám sát & Xem màn hình Live',
+      subtitle: 'Giám sát & Điều khiển Thiết bị',
       value: summary?.onlineDevices || 0,
       icon: <WifiOutlined />,
       color: '#4ade80',
       glowColor: '#22c55e',
       gradient: 'linear-gradient(135deg, rgba(34,197,94,0.14), rgba(34,197,94,0.04))',
-      onClick: () => navigate('/teacher'),
+      onClick: () => navigate('/devices'),
     },
     {
       title: 'Cảnh báo chưa xử lý',
@@ -254,20 +253,12 @@ const DashboardPage = () => {
 
   const quickActions = [
     {
-      label: 'Giám sát Lớp học & Live',
-      icon: <VideoCameraOutlined />,
-      path: '/teacher',
+      label: 'Thiết bị & Điều khiển',
+      icon: <MobileOutlined />,
+      path: '/devices',
       color: '#00d4ff',
       bg: 'rgba(0,212,255,0.12)',
       border: 'rgba(0,212,255,0.35)',
-    },
-    {
-      label: 'Quản lý Thiết bị',
-      icon: <MobileOutlined />,
-      path: '/devices',
-      color: '#c084fc',
-      bg: 'rgba(170,59,255,0.12)',
-      border: 'rgba(170,59,255,0.35)',
     },
     {
       label: 'Tạo Mã QR Ghi Danh',
@@ -293,7 +284,7 @@ const DashboardPage = () => {
       bg: 'rgba(245,158,11,0.12)',
       border: 'rgba(245,158,11,0.35)',
     },
-    ...(role === 'SUPER_ADMIN' || role === 'IT_ADMIN'
+    ...(role === 'SUPER_ADMIN'
       ? [
           {
             label: 'Quản lý Tài khoản',

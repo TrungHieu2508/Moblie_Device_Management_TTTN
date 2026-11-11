@@ -59,6 +59,10 @@ class CommandService:
         if not device:
             raise NotFoundException("Thiết bị không tồn tại")
 
+        if current_user:
+            from app.core.dependencies import verify_campus_access
+            verify_campus_access(current_user, device.campus_id)
+
         # Tạo command record trong DB
         command = DeviceCommand(
             id=uuid.uuid4(),

@@ -27,7 +27,6 @@ import {
   BuildOutlined,
   SearchOutlined,
   BookOutlined,
-  VideoCameraOutlined,
   MobileOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -196,7 +195,7 @@ const SchoolListPage = () => {
           <div>
             <div
               className="text-white font-semibold text-sm cursor-pointer hover:text-emerald-400 transition-colors"
-              onClick={() => navigate(`/schools/${record.id}/dashboard`)}
+              onClick={() => navigate(`/devices?schoolId=${record.id}`)}
             >
               {name}
             </div>
@@ -251,7 +250,7 @@ const SchoolListPage = () => {
         return (
           <Tag
             className="border-0 bg-cyan-500/15 text-cyan-300 font-semibold px-3 py-0.5 rounded-full cursor-pointer"
-            onClick={() => navigate('/devices')}
+            onClick={() => navigate(`/devices?schoolId=${record.id}`)}
           >
             <MobileOutlined className="mr-1" /> {count} máy
           </Tag>
@@ -266,8 +265,8 @@ const SchoolListPage = () => {
         <Space size="small" wrap>
           <Button
             size="small"
-            icon={<VideoCameraOutlined />}
-            onClick={() => navigate(`/schools/${record.id}/dashboard`)}
+            icon={<MobileOutlined />}
+            onClick={() => navigate(`/devices?schoolId=${record.id}`)}
             style={{
               background: 'rgba(0,212,255,0.12)',
               borderColor: 'rgba(0,212,255,0.35)',
@@ -275,7 +274,7 @@ const SchoolListPage = () => {
               borderRadius: 8,
             }}
           >
-            Giám sát Live
+            Thiết bị & Điều khiển
           </Button>
           <Button
             size="small"
@@ -445,17 +444,19 @@ const SchoolListPage = () => {
                   allowClear
                   className="max-w-md bg-[#1f2028] border-[#2e303a] text-white"
                 />
-                <Select
-                  allowClear
-                  placeholder="Lọc theo Khu vực (Campus)"
-                  style={{ width: 240 }}
-                  value={selectedCampusFilter}
-                  onChange={v => {
-                    setSelectedCampusFilter(v || null);
-                    setSelectedSchoolId(null);
-                  }}
-                  options={campusesData?.map((c: any) => ({ value: c.id, label: c.name })) || []}
-                />
+                {role === 'SUPER_ADMIN' && (
+                  <Select
+                    allowClear
+                    placeholder="Lọc theo Khu vực (Campus)"
+                    style={{ width: 240 }}
+                    value={selectedCampusFilter}
+                    onChange={v => {
+                      setSelectedCampusFilter(v || null);
+                      setSelectedSchoolId(null);
+                    }}
+                    options={campusesData?.map((c: any) => ({ value: c.id, label: c.name })) || []}
+                  />
+                )}
               </div>
 
               <Table
@@ -545,13 +546,13 @@ const SchoolListPage = () => {
                       TRƯỜNG ĐÃ CHỌN
                     </div>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      <Tooltip title="Xem Dashboard">
+                      <Tooltip title="Xem Thiết bị Trường">
                         <Button
                           size="small"
                           type="text"
                           icon={<EyeOutlined />}
                           style={{ color: '#ffd700' }}
-                          onClick={() => navigate(`/schools/${selectedSchool.id}/dashboard`)}
+                          onClick={() => navigate(`/devices?schoolId=${selectedSchool.id}`)}
                         />
                       </Tooltip>
                       {role === 'SUPER_ADMIN' && (
@@ -592,12 +593,12 @@ const SchoolListPage = () => {
                   </div>
                   <Button
                     type="primary"
-                    icon={<VideoCameraOutlined />}
-                    onClick={() => navigate(`/schools/${selectedSchool.id}/dashboard`)}
+                    icon={<MobileOutlined />}
+                    onClick={() => navigate(`/devices?schoolId=${selectedSchool.id}`)}
                     className="w-full mt-2"
                     style={{ background: '#00b878', border: 'none' }}
                   >
-                    Giám sát Trường học
+                    Thiết bị & Điều khiển
                   </Button>
                 </div>
               ) : (

@@ -7,9 +7,9 @@ from app.models.alert import Alert
 from app.models.enums import AlertSeverity, AlertStatus
 
 
-async def test_tc43_create_social_media_violation_alert_and_list(client, teacher_headers, db_session):
-    """TC43: Khi học sinh mở ứng dụng Mạng xã hội bị cấm (Facebook/TikTok), Cảnh báo hiển thị trên trang Giáo viên."""
-    list_res = await client.get("/api/devices?search=R58M3575BAK", headers=teacher_headers)
+async def test_tc43_create_social_media_violation_alert_and_list(client, it_admin_headers, db_session):
+    """TC43: Khi học sinh mở ứng dụng Mạng xã hội bị cấm (Facebook/TikTok), Cảnh báo hiển thị trên trang Admin."""
+    list_res = await client.get("/api/devices?search=R58M3575BAK", headers=it_admin_headers)
     device_uuid = uuid.UUID(list_res.json()["data"][0]["id"])
 
     social_alert = Alert(
@@ -28,7 +28,7 @@ async def test_tc43_create_social_media_violation_alert_and_list(client, teacher
     db_session.add(social_alert)
     await db_session.commit()
 
-    alerts_res = await client.get("/api/alerts?page=0&size=20", headers=teacher_headers)
+    alerts_res = await client.get("/api/alerts?page=0&size=20", headers=it_admin_headers)
     assert alerts_res.status_code == 200
     content = alerts_res.json()["data"]["content"]
     assert len(content) >= 1
@@ -36,11 +36,11 @@ async def test_tc43_create_social_media_violation_alert_and_list(client, teacher
     assert "BLACKLIST_APP_DETECTED" in codes
 
 
-async def test_tc44_teacher_filter_alerts_by_severity_and_search(client, teacher_headers):
-    """TC44: Giáo viên lọc danh sách cảnh báo theo mức độ CRITICAL và từ khóa 'Facebook'."""
+async def test_tc44_admin_filter_alerts_by_severity_and_search(client, it_admin_headers):
+    """TC44: Admin lọc danh sách cảnh báo theo mức độ CRITICAL và từ khóa 'Facebook'."""
     res = await client.get(
         "/api/alerts?severity=CRITICAL&search=Facebook",
-        headers=teacher_headers,
+        headers=it_admin_headers,
     )
     assert res.status_code == 200
     content = res.json()["data"]["content"]
@@ -49,28 +49,28 @@ async def test_tc44_teacher_filter_alerts_by_severity_and_search(client, teacher
     assert "Facebook" in content[0]["description"]
 
 
-async def test_tc45_teacher_mark_alert_processing(client, teacher_headers):
-    """TC45: Giáo viên chuyển trạng thái cảnh báo sang Đang xử lý (PROCESSING)."""
-    res_list = await client.get("/api/alerts?search=Facebook", headers=teacher_headers)
+async def test_tc45_admin_mark_alert_processing(client, it_admin_headers):
+    """TC45: Admin chuyển trạng thái cảnh báo sang Đang xử lý (PROCESSING)."""
+    res_list = await client.get("/api/alerts?search=Facebook", headers=it_admin_headers)
     alert_id = res_list.json()["data"]["content"][0]["id"]
 
     patch_res = await client.patch(
         f"/api/alerts/{alert_id}/status",
-        headers=teacher_headers,
-        json={"status": "PROCESSING", "resolutionNote": "Giáo viên đang kiểm tra màn hình học sinh"},
+        headers=it_admin_headers,
+        json={"status": "PROCESSING", "resolutionNote": "Admin đang kiểm tra màn hình học sinh"},
     )
     assert patch_res.status_code == 200
     assert patch_res.json()["data"]["status"] == "PROCESSING"
 
 
-async def test_tc46_teacher_resolve_single_alert(client, teacher_headers):
-    """TC46: Giáo viên đánh dấu Đã xử lý (RESOLVED) một cảnh báo vi phạm."""
-    res_list = await client.get("/api/alerts?search=Facebook", headers=teacher_headers)
+async def test_tc46_admin_resolve_single_alert(client, it_admin_headers):
+    """TC46: Admin đánh dấu Đã xử lý (RESOLVED) một cảnh báo vi phạm."""
+    res_list = await client.get("/api/alerts?search=Facebook", headers=it_admin_headers)
     alert_id = res_list.json()["data"]["content"][0]["id"]
 
     patch_res = await client.patch(
         f"/api/alerts/{alert_id}/status",
-        headers=teacher_headers,
+        headers=it_admin_headers,
         json={"status": "RESOLVED", "resolutionNote": "Đã nhắc nhở học sinh đóng ứng dụng Facebook"},
     )
     assert patch_res.status_code == 200
@@ -79,32 +79,32 @@ async def test_tc46_teacher_resolve_single_alert(client, teacher_headers):
     assert data["resolvedAt"] is not None
 
 
-async def test_tc47_teacher_resolve_all_alerts_bulk(client, teacher_headers):
-    """TC47: Giáo viên bấm 'Xử lý tất cả' để giải quyết toàn bộ cảnh báo tồn đọng (PUT /api/alerts/resolve-all)."""
-    res = await client.put("/api/alerts/resolve-all", headers=teacher_headers)
+async def test_tc47_admin_resolve_all_alerts_bulk(client, it_admin_headers):
+    """TC47: Admin bấm 'Xử lý tất cả' để giải quyết toàn bộ cảnh báo tồn đọng (PUT /api/alerts/resolve-all)."""
+    res = await client.put("/api/alerts/resolve-all", headers=it_admin_headers)
     assert res.status_code == 200
     assert "resolvedCount" in res.json()["data"]
 
 
-async def test_tc48_dashboard_summary_for_teacher_and_admin(
-    client, teacher_headers, super_admin_headers
+async def test_tc48_dashboard_summary_for_admin_and_super_admin(
+    client, it_admin_headers, super_admin_headers
 ):
-    """TC48: Kiểm tra API Tổng quan Dashboard (/api/dashboard/summary) cho cả Giáo viên và Admin."""
-    res_teacher = await client.get("/api/dashboard/summary", headers=teacher_headers)
-    assert res_teacher.status_code == 200
-    summary = res_teacher.json()["data"]
+    """TC48: Kiểm tra API Tổng quan Dashboard (/api/dashboard/summary) cho cả Admin và Super Admin."""
+    res_admin = await client.get("/api/dashboard/summary", headers=it_admin_headers)
+    assert res_admin.status_code == 200
+    summary = res_admin.json()["data"]
     assert summary["totalDevices"] >= 2
     assert "safetyIndex" in summary
     assert "violationData" in summary
     assert "connectionStats" in summary
 
-    res_admin = await client.get("/api/dashboard/summary", headers=super_admin_headers)
-    assert res_admin.status_code == 200
+    res_super = await client.get("/api/dashboard/summary", headers=super_admin_headers)
+    assert res_super.status_code == 200
 
 
-async def test_tc49_dashboard_stats_endpoint(client, teacher_headers):
+async def test_tc49_dashboard_stats_endpoint(client, it_admin_headers):
     """TC49: Kiểm tra endpoint thống kê /api/dashboard/stats hoạt động đồng nhất."""
-    res = await client.get("/api/dashboard/stats", headers=teacher_headers)
+    res = await client.get("/api/dashboard/stats", headers=it_admin_headers)
     assert res.status_code == 200
     assert res.json()["data"]["totalDevices"] >= 2
 

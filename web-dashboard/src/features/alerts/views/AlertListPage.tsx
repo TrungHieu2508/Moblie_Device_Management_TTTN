@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAlerts, updateAlertStatus, resolveAllAlerts } from '../../../services/alertService';
 import type { AlertDto } from '../../../services/alertService';
 import { getAllCampuses } from '../../../services/schoolService';
+import { useAuthStore } from '../../../store/authStore';
 
 const { Title, Text } = Typography;
 
@@ -75,10 +76,13 @@ const AlertListPage = () => {
   const [campusFilter, setCampusFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const role = user?.role;
 
   const { data: campuses = [] } = useQuery({
     queryKey: ['campuses'],
     queryFn: getAllCampuses,
+    enabled: role === 'SUPER_ADMIN',
   });
 
   const { data, isLoading } = useQuery({
@@ -275,15 +279,17 @@ const AlertListPage = () => {
               { value: 'RESOLVED', label: 'Đã giải quyết' },
             ]}
           />
-          <Select
-            defaultValue="all"
-            className="w-48"
-            onChange={value => setCampusFilter(value)}
-            options={[
-              { value: 'all', label: 'Tất cả Cơ sở' },
-              ...campuses.map((c: any) => ({ value: c.id, label: c.name })),
-            ]}
-          />
+          {role === 'SUPER_ADMIN' && (
+            <Select
+              defaultValue="all"
+              className="w-48"
+              onChange={value => setCampusFilter(value)}
+              options={[
+                { value: 'all', label: 'Tất cả Cơ sở' },
+                ...campuses.map((c: any) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          )}
         </div>
 
         <Table

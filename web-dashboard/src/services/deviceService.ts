@@ -60,3 +60,8 @@ export const deleteDevice = async (id: string) => {
   const { data } = await axiosInstance.delete(`/devices/${id}`);
   return data.data;
 };
+
+export const sendDeviceCommand = async (id: string, commandType: string, payload: Record<string, any> = {}) => {
+  const { data } = await axiosInstance.post(`/devices/${id}/command`, { commandType, payload });
+  return data.data;
+};

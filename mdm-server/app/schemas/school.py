@@ -1,8 +1,8 @@
 """
-School Schemas — Campus, School, Classroom, ClassSession DTOs.
+School Schemas — Campus, School, Classroom DTOs.
+(Đã loại bỏ ClassSession DTOs theo kiến trúc 2-Role mới).
 """
 
-from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -85,25 +85,3 @@ class ClassroomDto(CamelModel):
     is_active: bool = True
     school_id: Optional[UUID] = None
     school_name: Optional[str] = None
-
-
-# ── ClassSession ──────────────────────────────────────────────
-
-class ClassSessionCreateRequest(CamelModel):
-    classroom_id: UUID
-    teacher_id: UUID
-    scheduled_start_time: Optional[datetime] = None
-    scheduled_end_time: Optional[datetime] = None
-
-
-class ClassSessionDto(CamelModel):
-    id: UUID
-    classroom_id: UUID
-    classroom_name: Optional[str] = None
-    teacher_id: UUID
-    teacher_name: Optional[str] = None
-    status: str
-    started_at: Optional[datetime] = None
-    ended_at: Optional[datetime] = None
-    scheduled_start_time: Optional[datetime] = None
-    scheduled_end_time: Optional[datetime] = None

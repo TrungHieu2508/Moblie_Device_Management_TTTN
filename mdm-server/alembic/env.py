@@ -39,7 +39,7 @@ from app.core.config import settings
 from app.db.session import Base
 
 # Import toàn bộ models — side-effect: đăng ký vào Base.metadata
-from app.models.school import Campus, School, Classroom, ClassSession      # noqa: F401
+from app.models.school import Campus, School, Classroom                      # noqa: F401
 from app.models.user import User, RefreshToken                              # noqa: F401
 from app.models.device import Device, EnrollmentProfile                    # noqa: F401
 from app.models.rule import Rule                                            # noqa: F401

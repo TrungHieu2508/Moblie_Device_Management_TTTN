@@ -16,7 +16,7 @@ from app.models.enums import (
     RuleType,
     UserRole,
 )
-from app.models.school import Campus, ClassSession, Classroom, School
+from app.models.school import Campus, Classroom, School
 from app.models.user import RefreshToken, User
 from app.models.device import Device, EnrollmentProfile
 from app.models.rule import Rule
@@ -44,7 +44,6 @@ __all__ = [
     "Campus",
     "School",
     "Classroom",
-    "ClassSession",
     "User",
     "RefreshToken",
     "Device",

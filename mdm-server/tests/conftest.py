@@ -1,8 +1,8 @@
 """
 Cấu hình Pytest Fixtures dùng chung cho toàn bộ Unit & Integration Tests (50 Test Cases).
-Sử dụng SQLite in-memory (aiosqlite) độc lập hoàn toàn để:
-1. Chạy siêu nhanh (~2 giây cho 50 test cases).
-2. Không làm ảnh hưởng hay xóa dữ liệu thật trong PostgreSQL của người dùng.
+Mô hình 2 Roles (Sau khi Refactor loại bỏ Teacher Role & Teacher Portal):
+  1. SUPER_ADMIN — Quản trị tổng thể hệ thống, quản lý Campus, quản lý tài khoản Admin.
+  2. IT_ADMIN (Admin) — Quản lý thiết bị, trường học, lớp học, mã QR, cảnh báo và điều khiển thiết bị (dùng chung bởi IT & Giáo viên).
 """
 
 import uuid
@@ -87,7 +87,8 @@ async def setup_test_database():
         db.add_all([campus, school, classroom])
         await db.flush()
 
-        # Tạo 3 tài khoản theo 3 vai trò: SUPER_ADMIN, IT_ADMIN, TEACHER
+        # Tạo tài khoản theo mô hình 2 vai trò: SUPER_ADMIN và IT_ADMIN (Admin dùng chung)
+        # + 1 tài khoản legacy có role='TEACHER' trong DB để kiểm thử chặn đăng nhập role cũ
         super_admin = User(
             id=uuid.UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
             username="admin_test",
@@ -102,24 +103,24 @@ async def setup_test_database():
             username="itadmin_test",
             email="itadmin_test@eduguardian.vn",
             password_hash=hash_password("ItAdmin@123"),
-            full_name="Quản Trị CNTT Trường",
+            full_name="Quản Trị Vận Hành (IT & Giáo viên)",
             role=UserRole.IT_ADMIN.value,
             school_id=school.id,
             campus_id=campus.id,
             is_active=True,
         )
-        teacher = User(
+        legacy_teacher = User(
             id=uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-            username="teacher_test",
-            email="teacher_test@eduguardian.vn",
+            username="legacy_teacher",
+            email="legacy_teacher@eduguardian.vn",
             password_hash=hash_password("Teacher@123"),
-            full_name="Giáo Viên Chủ Nhiệm 12A1",
-            role=UserRole.TEACHER.value,
+            full_name="Tài Khoản Giáo Viên Cũ (Đã Ngưng Hỗ Trợ)",
+            role="TEACHER",
             school_id=school.id,
             campus_id=campus.id,
             is_active=True,
         )
-        db.add_all([super_admin, it_admin, teacher])
+        db.add_all([super_admin, it_admin, legacy_teacher])
         await db.commit()
 
     async def override_get_db():
@@ -171,10 +172,11 @@ def it_admin_headers():
 
 
 @pytest.fixture
-def teacher_headers():
+def legacy_teacher_headers():
+    """Token giả lập của tài khoản có role TEACHER cũ để test RBAC từ chối truy cập."""
     token = create_access_token(
         user_id="cccccccc-cccc-cccc-cccc-cccccccccccc",
-        username="teacher_test",
-        role=f"ROLE_{UserRole.TEACHER.value}",
+        username="legacy_teacher",
+        role="ROLE_TEACHER",
     )
     return {"Authorization": f"Bearer {token}"}

@@ -54,7 +54,7 @@ const ClassroomListPage = () => {
   const role = user?.role;
 
   const [selectedCampusId, setSelectedCampusId] = useState<string | null>(
-    () => localStorage.getItem('lastSelectedCampusId') || null
+    () => (role === 'SUPER_ADMIN' ? localStorage.getItem('lastSelectedCampusId') || null : user?.campusId || null)
   );
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(() => {
     if (role !== 'SUPER_ADMIN') return user?.schoolId || null;
@@ -260,10 +260,10 @@ const ClassroomListPage = () => {
         <Space size="small" wrap>
           <Button
             size="small"
-            icon={<VideoCameraOutlined />}
+            icon={<DesktopOutlined />}
             onClick={() => {
               if (record.schoolId) localStorage.setItem('lastSelectedSchoolId', record.schoolId);
-              navigate('/teacher');
+              navigate(`/devices?schoolId=${record.schoolId || ''}&classroomId=${record.id}`);
             }}
             style={{
               background: 'rgba(0,212,255,0.12)',
@@ -272,7 +272,7 @@ const ClassroomListPage = () => {
               borderRadius: 8,
             }}
           >
-            Giám sát Lớp
+            Thiết bị Lớp
           </Button>
           <Button
             size="small"
@@ -451,20 +451,18 @@ const ClassroomListPage = () => {
                     options={campusesData?.map((c: any) => ({ value: c.id, label: c.name })) || []}
                   />
                 )}
-                {role !== 'TEACHER' && (
-                  <Select
-                    allowClear
-                    placeholder="Lọc theo Trường học (Tất cả)"
-                    style={{ width: 240 }}
-                    value={selectedSchoolId}
-                    onChange={val => {
-                      setSelectedSchoolId(val || null);
-                      setSelectedClassroomId(null);
-                    }}
-                    options={schools.map((s: any) => ({ value: s.id, label: s.name }))}
-                    loading={isLoadingSchools}
-                  />
-                )}
+                <Select
+                  allowClear
+                  placeholder="Lọc theo Trường học (Tất cả)"
+                  style={{ width: 240 }}
+                  value={selectedSchoolId}
+                  onChange={val => {
+                    setSelectedSchoolId(val || null);
+                    setSelectedClassroomId(null);
+                  }}
+                  options={schools.map((s: any) => ({ value: s.id, label: s.name }))}
+                  loading={isLoadingSchools}
+                />
               </div>
 
               <Table
@@ -495,20 +493,18 @@ const ClassroomListPage = () => {
                 <div style={{ color: '#9ca3af', fontSize: 11, fontWeight: 700, marginBottom: 8 }}>
                   CHỌN LỚP HỌC ({classrooms.length})
                 </div>
-                {role !== 'TEACHER' && (
-                  <Select
-                    allowClear
-                    placeholder="Tất cả trường học"
-                    style={{ width: '100%' }}
-                    size="small"
-                    value={selectedSchoolId}
-                    onChange={val => {
-                      setSelectedSchoolId(val || null);
-                      setSelectedClassroomId(null);
-                    }}
-                    options={schools.map((s: any) => ({ value: s.id, label: s.name }))}
-                  />
-                )}
+                <Select
+                  allowClear
+                  placeholder="Tất cả trường học"
+                  style={{ width: '100%' }}
+                  size="small"
+                  value={selectedSchoolId}
+                  onChange={val => {
+                    setSelectedSchoolId(val || null);
+                    setSelectedClassroomId(null);
+                  }}
+                  options={schools.map((s: any) => ({ value: s.id, label: s.name }))}
+                />
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
                 {classrooms.map((classroom: any) => {
@@ -660,17 +656,15 @@ const ClassroomListPage = () => {
             else mutationCreate.mutate({ ...values, schoolId: schoolIdToUse });
           }}
         >
-          {role !== 'TEACHER' && (
-            <Form.Item name="schoolId" label="Trường học" rules={[{ required: true, message: 'Vui lòng chọn trường học' }]}>
-              <Select
-                showSearch
-                optionFilterProp="label"
-                placeholder="Chọn trường học"
-                options={schools.map((s: any) => ({ value: s.id, label: s.name }))}
-                disabled={editingId !== null}
-              />
-            </Form.Item>
-          )}
+          <Form.Item name="schoolId" label="Trường học" rules={[{ required: true, message: 'Vui lòng chọn trường học' }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              placeholder="Chọn trường học"
+              options={schools.map((s: any) => ({ value: s.id, label: s.name }))}
+              disabled={editingId !== null}
+            />
+          </Form.Item>
           <Form.Item name="name" label="Tên Lớp Học" rules={[{ required: true, message: 'Vui lòng nhập tên lớp học' }]}>
             <Input placeholder="Ví dụ: 10A1" />
           </Form.Item>

@@ -226,6 +226,9 @@ class AlertService:
         if not alert:
             raise NotFoundException("Cảnh báo không tồn tại")
 
+        from app.core.dependencies import verify_campus_access
+        verify_campus_access(resolved_by, alert.campus_id)
+
         alert.status = request.status.value
         alert.resolution_note = request.resolution_note
 
@@ -265,12 +268,17 @@ class AlertService:
         resolved_by: User,
         db: AsyncSession,
     ) -> int:
-        """Giải quyết tất cả cảnh báo đang mở (NEW, PROCESSING)."""
-        result = await db.execute(
-            select(Alert).where(
-                Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value])
-            )
+        """Giải quyết tất cả cảnh báo đang mở (NEW, PROCESSING) thuộc phạm vi Khu vực của người dùng."""
+        from app.core.dependencies import is_super_admin, resolve_scoped_campus_id
+
+        query = select(Alert).where(
+            Alert.status.in_([AlertStatus.NEW.value, AlertStatus.PROCESSING.value])
         )
+        if not is_super_admin(resolved_by):
+            scoped_campus_id = resolve_scoped_campus_id(resolved_by)
+            query = query.where(Alert.campus_id == scoped_campus_id)
+
+        result = await db.execute(query)
         active_alerts = result.scalars().all()
         if not active_alerts:
             return 0
