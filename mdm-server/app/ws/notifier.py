@@ -12,18 +12,28 @@ Tất cả message có cấu trúc:
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from app.ws.connection_manager import manager
 
 logger = logging.getLogger(__name__)
 
+_UNSET = object()
+
 
 class Notifier:
     """
-    Tập trung tất cả broadcast logic.
+    Tập trung tất cả broadcast logic theo Campus Scope.
     Tương đương WebSocketNotificationService.java.
     """
+
+    @staticmethod
+    def _resolve_device_scope(device_id: str, campus_id: Any) -> tuple[Optional[str], bool]:
+        if campus_id is not _UNSET:
+            return (str(campus_id) if campus_id else None, True)
+        if device_id in manager.agent_campuses:
+            return (manager.agent_campuses.get(device_id), True)
+        return (None, False)
 
     # ── Device Status ─────────────────────────────────────────
 
@@ -32,11 +42,10 @@ class Notifier:
         device_id: str,
         status: str,
         extra: Optional[dict] = None,
+        campus_id: Any = _UNSET,
     ) -> None:
         """
-        Thông báo trạng thái thiết bị thay đổi tới tất cả Dashboard.
-        Tương đương notifyDeviceStatusChange().
-
+        Thông báo trạng thái thiết bị thay đổi tới Dashboard thuộc phạm vi quản lý.
         status: "ONLINE" | "OFFLINE" | "WARNING" | "CRITICAL"
         """
         payload = {
@@ -49,18 +58,19 @@ class Notifier:
         if extra:
             payload["data"].update(extra)
 
-        await manager.broadcast_to_dashboards(payload)
+        target_campus, scoped = self._resolve_device_scope(device_id, campus_id)
+        await manager.broadcast_to_dashboards(payload, campus_id=target_campus, scoped=scoped)
         logger.debug("Broadcasted status=%s for device=%s", status, device_id)
 
     # ── Device Metrics ────────────────────────────────────────
 
-    async def broadcast_device_metrics(self, device_id: str, metrics: dict) -> None:
-        """
-        Phát sóng metrics real-time lên Dashboard.
-        Tương đương broadcastDeviceMetrics().
-
-        Dashboard dùng để cập nhật biểu đồ RAM, CPU, Pin mà không cần F5.
-        """
+    async def broadcast_device_metrics(
+        self,
+        device_id: str,
+        metrics: dict,
+        campus_id: Any = _UNSET,
+    ) -> None:
+        """Phát sóng metrics real-time lên Dashboard thuộc phạm vi Campus."""
         payload = {
             "type": "DEVICE_METRICS",
             "data": {
@@ -68,12 +78,18 @@ class Notifier:
                 "metrics": metrics,
             },
         }
-        await manager.broadcast_to_dashboards(payload)
+        target_campus, scoped = self._resolve_device_scope(device_id, campus_id)
+        await manager.broadcast_to_dashboards(payload, campus_id=target_campus, scoped=scoped)
 
     # ── Current App & Screen Stream ───────────────────────────
 
-    async def broadcast_current_app(self, device_id: str, current_app: dict) -> None:
-        """Thông báo app đang mở trên thiết bị."""
+    async def broadcast_current_app(
+        self,
+        device_id: str,
+        current_app: dict,
+        campus_id: Any = _UNSET,
+    ) -> None:
+        """Thông báo app đang mở trên thiết bị tới Dashboard thuộc phạm vi Campus."""
         payload = {
             "type": "DEVICE_CURRENT_APP",
             "data": {
@@ -81,10 +97,16 @@ class Notifier:
                 "currentApp": current_app,
             },
         }
-        await manager.broadcast_to_dashboards(payload)
+        target_campus, scoped = self._resolve_device_scope(device_id, campus_id)
+        await manager.broadcast_to_dashboards(payload, campus_id=target_campus, scoped=scoped)
 
-    async def broadcast_screen_frame(self, device_id: str, frame: str) -> None:
-        """Phát sóng khung hình màn hình trực tiếp (Base64 JPEG) lên Dashboard."""
+    async def broadcast_screen_frame(
+        self,
+        device_id: str,
+        frame: str,
+        campus_id: Any = _UNSET,
+    ) -> None:
+        """Phát sóng khung hình màn hình trực tiếp (Base64 JPEG) lên Dashboard cùng Campus."""
         if not frame:
             return
         payload = {
@@ -94,27 +116,37 @@ class Notifier:
                 "frame": frame,
             },
         }
-        await manager.broadcast_to_dashboards(payload)
+        target_campus, scoped = self._resolve_device_scope(device_id, campus_id)
+        await manager.broadcast_to_dashboards(payload, campus_id=target_campus, scoped=scoped)
 
     # ── Alert ────────────────────────────────────────────────
 
-    async def broadcast_new_alert(self, alert: dict) -> None:
-        """
-        Phát sóng alert mới tới tất cả Dashboard.
-        Tương đương broadcastNewAlert().
-        """
+    async def broadcast_new_alert(
+        self,
+        alert: dict,
+        campus_id: Any = _UNSET,
+    ) -> None:
+        """Phát sóng alert mới tới Dashboard cùng Campus (và Super Admin)."""
         payload = {
             "type": "NEW_ALERT",
             "data": alert,
         }
-        await manager.broadcast_to_dashboards(payload)
+        resolved = campus_id if campus_id is not _UNSET else (alert.get("campusId") or alert.get("campus_id"))
+        scoped = (campus_id is not _UNSET) or ("campusId" in alert) or ("campus_id" in alert)
+        await manager.broadcast_to_dashboards(
+            payload,
+            campus_id=str(resolved) if resolved else None,
+            scoped=scoped,
+        )
         logger.info("Broadcasted new alert: %s", alert.get("title", ""))
 
-    async def broadcast_alert_status_change(self, alert_id: str, alert: dict) -> None:
-        """
-        Thông báo alert đã được cập nhật (RESOLVED, DISMISSED).
-        Tương đương broadcastAlertStatusChange().
-        """
+    async def broadcast_alert_status_change(
+        self,
+        alert_id: str,
+        alert: dict,
+        campus_id: Any = _UNSET,
+    ) -> None:
+        """Thông báo alert đã được cập nhật tới Dashboard cùng Campus."""
         payload = {
             "type": "ALERT_STATUS_CHANGED",
             "data": {
@@ -122,7 +154,13 @@ class Notifier:
                 **alert,
             },
         }
-        await manager.broadcast_to_dashboards(payload)
+        resolved = campus_id if campus_id is not _UNSET else (alert.get("campusId") or alert.get("campus_id"))
+        scoped = (campus_id is not _UNSET) or ("campusId" in alert) or ("campus_id" in alert)
+        await manager.broadcast_to_dashboards(
+            payload,
+            campus_id=str(resolved) if resolved else None,
+            scoped=scoped,
+        )
 
     # ── Command ───────────────────────────────────────────────
 
@@ -158,8 +196,9 @@ class Notifier:
         command_id: str,
         status: str,
         error_message: Optional[str] = None,
+        campus_id: Any = _UNSET,
     ) -> None:
-        """Thông báo trạng thái thực thi lệnh (COMMAND_ACK) lên Dashboard."""
+        """Thông báo trạng thái thực thi lệnh (COMMAND_ACK) lên Dashboard cùng Campus."""
         payload = {
             "type": "COMMAND_ACK",
             "data": {
@@ -169,7 +208,8 @@ class Notifier:
                 "errorMessage": error_message,
             },
         }
-        await manager.broadcast_to_dashboards(payload)
+        target_campus, scoped = self._resolve_device_scope(device_id, campus_id)
+        await manager.broadcast_to_dashboards(payload, campus_id=target_campus, scoped=scoped)
 
 
 # ── Singleton Instance ────────────────────────────────────────

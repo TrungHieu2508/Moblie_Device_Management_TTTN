@@ -3,19 +3,24 @@ Users Router — Tương đương UserController.java.
 """
 
 import uuid
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import ALLOWED_USER_ROLES, get_current_user, require_admin, require_super_admin
+from app.core.dependencies import (
+    ALLOWED_USER_ROLES,
+    get_current_user,
+    require_super_admin,
+    validate_org_hierarchy,
+)
 from app.core.exceptions import ConflictException, MdmException, NotFoundException
 from app.core.response import ApiResponse
 from app.core.security import hash_password, verify_password
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import RefreshToken, User
 from app.schemas.device import CampusBasicInfo, SchoolBasicInfo
 from app.schemas.rule_user import (
     ChangePasswordRequest,
@@ -60,6 +65,15 @@ async def get_my_profile(current_user: User = Depends(get_current_user)):
     return ApiResponse.ok(_map_user_to_dto(current_user))
 
 
+async def _ensure_unique_email(db: AsyncSession, email: str, exclude_user_id: Optional[UUID] = None) -> None:
+    """Kiểm tra email chưa thuộc về tài khoản khác (tránh HTTP 500 IntegrityError)."""
+    q = select(User.id).where(User.email == email)
+    if exclude_user_id is not None:
+        q = q.where(User.id != exclude_user_id)
+    if (await db.execute(q)).scalar_one_or_none():
+        raise ConflictException("Email đã được sử dụng bởi tài khoản khác")
+
+
 @router.patch("/me/profile", response_model=ApiResponse[UserDto])
 async def update_my_profile(
     request: ProfileUpdateRequest,
@@ -67,10 +81,11 @@ async def update_my_profile(
     db: AsyncSession = Depends(get_db),
 ):
     """Cập nhật hồ sơ cá nhân: PATCH /users/me/profile."""
+    if request.email is not None and request.email != current_user.email:
+        await _ensure_unique_email(db, request.email, exclude_user_id=current_user.id)
+        current_user.email = request.email
     if request.full_name is not None:
         current_user.full_name = request.full_name
-    if request.email is not None:
-        current_user.email = request.email
     if request.password:
         current_user.password_hash = hash_password(request.password)
 
@@ -79,32 +94,58 @@ async def update_my_profile(
     return ApiResponse.ok(_map_user_to_dto(current_user), "Cập nhật hồ sơ thành công")
 
 
-@router.get("", response_model=ApiResponse[List[UserDto]])
+@router.get("", response_model=ApiResponse[Any])
 async def get_users(
     school_id: Optional[UUID] = Query(None, alias="schoolId"),
     campus_id: Optional[UUID] = Query(None, alias="campusId"),
     role: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    _: User = Depends(require_admin),
+    page: Optional[int] = Query(None, ge=0),
+    size: Optional[int] = Query(None, ge=1, le=500),
+    paged: bool = Query(False),
+    _: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(User).order_by(User.created_at.desc())
+    """Chỉ SUPER_ADMIN mới được xem và tìm kiếm danh sách toàn bộ tài khoản hệ thống."""
+    base_query = select(User)
     if school_id:
-        query = query.where(User.school_id == school_id)
+        base_query = base_query.where(User.school_id == school_id)
     if campus_id:
-        query = query.where(User.campus_id == campus_id)
+        base_query = base_query.where(User.campus_id == campus_id)
     if role:
-        query = query.where(User.role == role)
+        base_query = base_query.where(User.role == role)
     if search:
         pattern = f"%{search.strip()}%"
-        query = query.where(
+        base_query = base_query.where(
             or_(
                 User.username.ilike(pattern),
                 User.email.ilike(pattern),
                 User.full_name.ilike(pattern),
             )
         )
-    items = (await db.execute(query)).scalars().all()
+
+    ordered_query = base_query.order_by(User.created_at.desc())
+
+    if paged:
+        p = page or 0
+        s = size or 10
+        total = (await db.execute(select(func.count()).select_from(base_query.subquery()))).scalar() or 0
+        items = (await db.execute(ordered_query.offset(p * s).limit(s))).scalars().all()
+        total_pages = (total + s - 1) // s if s else 0
+        return ApiResponse.ok({
+            "content": [_map_user_to_dto(u) for u in items],
+            "totalElements": total,
+            "totalPages": total_pages,
+            "size": s,
+            "number": p,
+        })
+
+    if page is not None or size is not None:
+        p = page or 0
+        s = size or 20
+        ordered_query = ordered_query.offset(p * s).limit(s)
+
+    items = (await db.execute(ordered_query)).scalars().all()
     return ApiResponse.ok([_map_user_to_dto(u) for u in items])
 
 
@@ -130,6 +171,12 @@ async def create_user(
     if existing.scalar_one_or_none():
         raise ConflictException("Username hoặc email đã tồn tại")
 
+    await validate_org_hierarchy(
+        db,
+        campus_id=request.campus_id,
+        school_id=request.school_id,
+    )
+
     user = User(
         id=uuid.uuid4(),
         username=request.username,
@@ -150,7 +197,7 @@ async def create_user(
 async def update_user(
     user_id: UUID,
     request: UserUpdateRequest,
-    _: User = Depends(require_super_admin),
+    current_user: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == user_id))
@@ -158,18 +205,50 @@ async def update_user(
     if not user:
         raise NotFoundException("Người dùng không tồn tại")
 
+    if user_id == current_user.id and request.is_active is False:
+        raise MdmException(
+            "Không thể tự vô hiệu hóa tài khoản đang đăng nhập",
+            status_code=400,
+            error_code="SELF_DEACTIVATION",
+        )
+
+    if request.email is not None and request.email != user.email:
+        await _ensure_unique_email(db, request.email, exclude_user_id=user_id)
+
+    eff_campus_id = request.campus_id if request.campus_id is not None else user.campus_id
+    campus_changed_without_school = (
+        request.campus_id is not None
+        and request.campus_id != user.campus_id
+        and request.school_id is None
+    )
+    eff_school_id = (
+        request.school_id
+        if request.school_id is not None
+        else (None if campus_changed_without_school else user.school_id)
+    )
+    if request.campus_id is not None or request.school_id is not None:
+        await validate_org_hierarchy(db, campus_id=eff_campus_id, school_id=eff_school_id)
+
     if request.full_name is not None:
         user.full_name = request.full_name
     if request.email is not None:
         user.email = request.email
     if request.password:
         user.password_hash = hash_password(request.password)
-    if request.school_id is not None:
-        user.school_id = request.school_id
     if request.campus_id is not None:
         user.campus_id = request.campus_id
+        if campus_changed_without_school:
+            user.school_id = None
+    if request.school_id is not None:
+        user.school_id = request.school_id
     if request.is_active is not None:
         user.is_active = request.is_active
+        if request.is_active is False:
+            await db.execute(
+                update(RefreshToken)
+                .where(RefreshToken.user_id == user.id, RefreshToken.is_revoked == False)
+                .values(is_revoked=True)
+            )
 
     await db.commit()
     await db.refresh(user)

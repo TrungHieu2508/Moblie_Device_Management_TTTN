@@ -18,9 +18,10 @@ from app.core.dependencies import (
     require_admin,
     require_super_admin,
     resolve_scoped_campus_id,
+    validate_org_hierarchy,
     verify_campus_access,
 )
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import ConflictException, NotFoundException
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.school import Campus, Classroom, School
@@ -38,6 +39,36 @@ from app.schemas.school import (
 )
 
 router = APIRouter(tags=["Schools"])
+
+
+async def _ensure_unique_code(
+    model_cls: type,
+    code: str,
+    label: str,
+    db: AsyncSession,
+    exclude_id: Optional[UUID] = None,
+) -> str:
+    norm_code = code.strip().upper()
+    q = select(model_cls.id).where(model_cls.code == norm_code)
+    if exclude_id is not None:
+        q = q.where(model_cls.id != exclude_id)
+    if (await db.execute(q)).scalar_one_or_none():
+        raise ConflictException(f"Mã {label} '{norm_code}' đã tồn tại")
+    return norm_code
+
+
+def _school_to_dto(s: School, campus_name: Optional[str] = None) -> SchoolDto:
+    return SchoolDto(
+        id=s.id,
+        name=s.name,
+        code=s.code,
+        address=s.address,
+        phone=s.phone,
+        email=s.email,
+        is_active=s.is_active,
+        campus_id=s.campus_id,
+        campus_name=campus_name if campus_name is not None else (s.campus.name if s.campus else None),
+    )
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -64,10 +95,11 @@ async def create_campus(
     _: User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    code = await _ensure_unique_code(Campus, request.code, "cơ sở", db)
     campus = Campus(
         id=uuid.uuid4(),
         name=request.name,
-        code=request.code.upper(),
+        code=code,
         address=request.address,
     )
     db.add(campus)
@@ -91,7 +123,7 @@ async def update_campus(
     if request.name is not None:
         campus.name = request.name
     if request.code is not None:
-        campus.code = request.code.upper()
+        campus.code = await _ensure_unique_code(Campus, request.code, "cơ sở", db, exclude_id=campus_id)
     if request.address is not None:
         campus.address = request.address
 
@@ -132,21 +164,7 @@ async def get_schools(
     if scoped_campus_id:
         query = query.where(School.campus_id == scoped_campus_id)
     items = (await db.execute(query.offset(page * size).limit(size))).scalars().all()
-
-    dtos = []
-    for s in items:
-        dtos.append(SchoolDto(
-            id=s.id,
-            name=s.name,
-            code=s.code,
-            address=s.address,
-            phone=s.phone,
-            email=s.email,
-            is_active=s.is_active,
-            campus_id=s.campus_id,
-            campus_name=s.campus.name if s.campus else None,
-        ))
-    return ApiResponse.ok(dtos)
+    return ApiResponse.ok([_school_to_dto(s) for s in items])
 
 
 @router.post("/schools", response_model=ApiResponse[SchoolDto])
@@ -156,10 +174,12 @@ async def create_school(
     db: AsyncSession = Depends(get_db),
 ):
     verify_campus_access(current_user, request.campus_id)
+    campus, _, _ = await validate_org_hierarchy(db, campus_id=request.campus_id)
+    code = await _ensure_unique_code(School, request.code, "trường học", db)
     school = School(
         id=uuid.uuid4(),
         name=request.name,
-        code=request.code.upper(),
+        code=code,
         address=request.address,
         phone=request.phone,
         email=request.email,
@@ -168,12 +188,7 @@ async def create_school(
     db.add(school)
     await db.commit()
     await db.refresh(school)
-    return ApiResponse.ok(SchoolDto(
-        id=school.id, name=school.name, code=school.code,
-        address=school.address, phone=school.phone, email=school.email,
-        is_active=school.is_active, campus_id=school.campus_id,
-        campus_name=None,
-    ), "Trường đã được tạo")
+    return ApiResponse.ok(_school_to_dto(school, campus_name=campus.name if campus else None), "Trường đã được tạo")
 
 
 @router.put("/schools/{school_id}", response_model=ApiResponse[SchoolDto])
@@ -189,13 +204,15 @@ async def update_school(
         raise NotFoundException("Trường không tồn tại")
 
     verify_campus_access(current_user, school.campus_id)
+    campus_obj = None
     if request.campus_id is not None:
         verify_campus_access(current_user, request.campus_id)
+        campus_obj, _, _ = await validate_org_hierarchy(db, campus_id=request.campus_id)
 
     if request.name is not None:
         school.name = request.name
     if request.code is not None:
-        school.code = request.code.upper()
+        school.code = await _ensure_unique_code(School, request.code, "trường học", db, exclude_id=school_id)
     if request.address is not None:
         school.address = request.address
     if request.phone is not None:
@@ -207,12 +224,8 @@ async def update_school(
 
     await db.commit()
     await db.refresh(school)
-    return ApiResponse.ok(SchoolDto(
-        id=school.id, name=school.name, code=school.code,
-        address=school.address, phone=school.phone, email=school.email,
-        is_active=school.is_active, campus_id=school.campus_id,
-        campus_name=None,
-    ), "Cập nhật trường thành công")
+    c_name = campus_obj.name if campus_obj else (school.campus.name if school.campus else None)
+    return ApiResponse.ok(_school_to_dto(school, campus_name=c_name), "Cập nhật trường thành công")
 
 
 @router.delete("/schools/{school_id}", response_model=ApiResponse[None])
@@ -292,6 +305,29 @@ async def get_classrooms_by_school(
     return ApiResponse.ok([_classroom_to_dto(c) for c in items])
 
 
+async def _create_classroom_for_school(
+    school_id: UUID,
+    request: ClassroomCreateRequest,
+    current_user: User,
+    db: AsyncSession,
+) -> ClassroomDto:
+    _, school, _ = await validate_org_hierarchy(db, school_id=school_id)
+    verify_campus_access(current_user, school.campus_id if school else None)
+    code = await _ensure_unique_code(Classroom, request.code, "lớp học", db)
+
+    classroom = Classroom(
+        id=uuid.uuid4(),
+        name=request.name,
+        code=code,
+        school_id=school_id,
+        capacity=request.capacity,
+    )
+    db.add(classroom)
+    await db.commit()
+    await db.refresh(classroom)
+    return _classroom_to_dto(classroom)
+
+
 @router.post("/schools/{school_id}/classrooms", response_model=ApiResponse[ClassroomDto])
 async def create_classroom_nested(
     school_id: UUID,
@@ -299,23 +335,8 @@ async def create_classroom_nested(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(School).where(School.id == school_id))
-    school = result.scalar_one_or_none()
-    if not school:
-        raise NotFoundException("Trường không tồn tại")
-    verify_campus_access(current_user, school.campus_id)
-
-    classroom = Classroom(
-        id=uuid.uuid4(),
-        name=request.name,
-        code=request.code.upper(),
-        school_id=school_id,
-        capacity=request.capacity,
-    )
-    db.add(classroom)
-    await db.commit()
-    await db.refresh(classroom)
-    return ApiResponse.ok(_classroom_to_dto(classroom), "Lớp học đã được tạo")
+    dto = await _create_classroom_for_school(school_id, request, current_user, db)
+    return ApiResponse.ok(dto, "Lớp học đã được tạo")
 
 
 @router.post("/classrooms", response_model=ApiResponse[ClassroomDto])
@@ -327,24 +348,8 @@ async def create_classroom(
 ):
     if not school_id:
         raise NotFoundException("Thiếu school_id")
-
-    result = await db.execute(select(School).where(School.id == school_id))
-    school = result.scalar_one_or_none()
-    if not school:
-        raise NotFoundException("Trường không tồn tại")
-    verify_campus_access(current_user, school.campus_id)
-
-    classroom = Classroom(
-        id=uuid.uuid4(),
-        name=request.name,
-        code=request.code.upper(),
-        school_id=school_id,
-        capacity=request.capacity,
-    )
-    db.add(classroom)
-    await db.commit()
-    await db.refresh(classroom)
-    return ApiResponse.ok(_classroom_to_dto(classroom), "Lớp học đã được tạo")
+    dto = await _create_classroom_for_school(school_id, request, current_user, db)
+    return ApiResponse.ok(dto, "Lớp học đã được tạo")
 
 
 @router.put("/classrooms/{classroom_id}", response_model=ApiResponse[ClassroomDto])
@@ -363,7 +368,7 @@ async def update_classroom(
     if request.name is not None:
         classroom.name = request.name
     if request.code is not None:
-        classroom.code = request.code.upper()
+        classroom.code = await _ensure_unique_code(Classroom, request.code, "lớp học", db, exclude_id=classroom_id)
     if request.capacity is not None:
         classroom.capacity = request.capacity
 

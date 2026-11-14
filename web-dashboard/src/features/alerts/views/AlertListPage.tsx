@@ -255,12 +255,18 @@ const AlertListPage = () => {
             prefix={<SearchOutlined className="text-gray-500" />}
             className="max-w-md bg-[#1f2028] border-[#2e303a] text-white hover:border-gray-500 focus:border-[var(--color-primary)]"
             allowClear
-            onChange={e => setSearchText(e.target.value)}
+            onChange={e => {
+              setSearchText(e.target.value);
+              setPage(0);
+            }}
           />
           <Select
             defaultValue="all"
             className="w-40"
-            onChange={val => setSeverityFilter(val)}
+            onChange={val => {
+              setSeverityFilter(val);
+              setPage(0);
+            }}
             options={[
               { value: 'all', label: 'Mọi mức độ' },
               { value: 'CRITICAL', label: 'Nghiêm trọng' },
@@ -271,7 +277,10 @@ const AlertListPage = () => {
           <Select
             defaultValue="all"
             className="w-40"
-            onChange={val => setStatusFilter(val)}
+            onChange={val => {
+              setStatusFilter(val);
+              setPage(0);
+            }}
             options={[
               { value: 'all', label: 'Mọi trạng thái' },
               { value: 'NEW', label: 'Mới' },
@@ -283,7 +292,10 @@ const AlertListPage = () => {
             <Select
               defaultValue="all"
               className="w-48"
-              onChange={value => setCampusFilter(value)}
+              onChange={value => {
+                setCampusFilter(value);
+                setPage(0);
+              }}
               options={[
                 { value: 'all', label: 'Tất cả Cơ sở' },
                 ...campuses.map((c: any) => ({ value: c.id, label: c.name })),

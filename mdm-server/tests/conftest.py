@@ -131,9 +131,12 @@ async def setup_test_database():
     yield
     app.dependency_overrides.clear()
     manager.agent_connections.clear()
+    manager.agent_campuses.clear()
     manager.dashboard_connections.clear()
+    manager.dashboard_scopes.clear()
     manager.device_metrics.clear()
     manager.device_current_app.clear()
+    await engine_test.dispose()
 
 
 @pytest_asyncio.fixture

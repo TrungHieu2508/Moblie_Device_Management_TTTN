@@ -22,7 +22,7 @@ const UserListPage = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['users', page, searchText, selectedRole, selectedCampus],
-    queryFn: () => getUsers({ page, size: 10, search: searchText || undefined, role: selectedRole || undefined, campusId: selectedCampus || undefined }),
+    queryFn: () => getUsers({ page, size: 10, search: searchText || undefined, role: selectedRole || undefined, campusId: selectedCampus || undefined, paged: true }),
   });
 
   const { data: campusesData } = useQuery({
@@ -121,6 +121,45 @@ const UserListPage = () => {
       updateMutation.mutate({ id: editingUserId, payload });
     }
   };
+
+  /** Render Campus -> School cascade fields for IT_ADMIN role. */
+  const renderScopeFields = (targetForm: any, schoolPlaceholder: string) => (
+    <Form.Item noStyle dependencies={['role', 'campusId']}>
+      {({ getFieldValue }) => {
+        const role = getFieldValue('role');
+        if (role !== 'IT_ADMIN') return null;
+
+        const campusId = getFieldValue('campusId');
+        const allSchools = Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content || []);
+        const filteredSchools = campusId
+          ? allSchools.filter((school: any) => school.campusId === campusId)
+          : allSchools;
+
+        return (
+          <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
+            <p className="text-gray-300 mb-4 text-sm">Phân bổ phạm vi quản lý cho Admin (IT & Giáo viên)</p>
+            <Form.Item name="campusId" label="Khu vực (Campus)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
+              <Select
+                placeholder="-- Chọn Khu vực --"
+                onChange={() => targetForm.setFieldValue('schoolId', undefined)}
+              >
+                {campusesData?.map((campus: any) => (
+                  <Select.Option key={campus.id} value={campus.id}>{campus.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="schoolId" label="Trường học (Tùy chọn)">
+              <Select allowClear placeholder={schoolPlaceholder} disabled={!campusId}>
+                {filteredSchools.map((school: any) => (
+                  <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
+        );
+      }}
+    </Form.Item>
+  );
 
   const columns = [
     {
@@ -266,7 +305,7 @@ const UserListPage = () => {
           pagination={{ 
             current: page + 1,
             pageSize: 10,
-            total: data?.totalElements || 0,
+            total: Array.isArray(data) ? data.length : (data?.totalElements ?? 0),
             onChange: (p) => setPage(p - 1),
             className: 'custom-pagination' 
           }}
@@ -302,34 +341,7 @@ const UserListPage = () => {
           </Form.Item>
           
           {/* Chọn Trường và Cơ sở dựa trên Role */}
-          <Form.Item noStyle dependencies={['role']}>
-            {({ getFieldValue }) => {
-              const role = getFieldValue('role');
-              if (role === 'IT_ADMIN') {
-                return (
-                  <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
-                    <p className="text-gray-300 mb-4 text-sm">Phân bổ phạm vi quản lý cho Admin (IT & Giáo viên)</p>
-                    
-                    <Form.Item name="campusId" label="Khu vực (Campus)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
-                      <Select placeholder="-- Chọn Khu vực --">
-                        {campusesData?.map((campus: any) => (
-                          <Select.Option key={campus.id} value={campus.id}>{campus.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                    <Form.Item name="schoolId" label="Trường học (Tùy chọn)">
-                      <Select allowClear placeholder="-- Chọn Trường học (Nếu quản lý theo trường) --">
-                        {(Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content))?.map((school: any) => (
-                          <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </div>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
+          {renderScopeFields(form, '-- Chọn Trường học (Nếu quản lý theo trường) --')}
 
           <Button type="primary" htmlType="submit" className="w-full bg-[var(--color-primary)] border-0" loading={createMutation.isPending}>
             Tạo tài khoản
@@ -372,33 +384,7 @@ const UserListPage = () => {
           </Form.Item>
           
           {/* Chọn Trường và Cơ sở dựa trên Role */}
-          <Form.Item noStyle dependencies={['role']}>
-            {({ getFieldValue }) => {
-              const role = getFieldValue('role');
-              if (role === 'IT_ADMIN') {
-                return (
-                  <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
-                    <p className="text-gray-300 mb-4 text-sm">Phân bổ phạm vi quản lý cho Admin (IT & Giáo viên)</p>
-                    <Form.Item name="campusId" label="Khu vực (Campus)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
-                      <Select placeholder="-- Chọn Khu vực --">
-                        {campusesData?.map((campus: any) => (
-                          <Select.Option key={campus.id} value={campus.id}>{campus.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                    <Form.Item name="schoolId" label="Trường học (Tùy chọn)">
-                      <Select allowClear placeholder="-- Chọn Trường học --">
-                        {(Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content))?.map((school: any) => (
-                          <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </div>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
+          {renderScopeFields(editForm, '-- Chọn Trường học --')}
 
           <Button type="primary" htmlType="submit" className="w-full bg-[var(--color-primary)] border-0" loading={updateMutation.isPending}>
             Lưu thay đổi

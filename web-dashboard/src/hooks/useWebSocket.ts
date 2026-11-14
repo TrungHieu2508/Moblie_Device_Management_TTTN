@@ -14,6 +14,7 @@ export const useWebSocket = (deviceId?: string) => {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const deviceIdRef = useRef<string | undefined>(deviceId);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
   useEffect(() => {
     deviceIdRef.current = deviceId;
@@ -21,20 +22,34 @@ export const useWebSocket = (deviceId?: string) => {
   }, [deviceId]);
 
   useEffect(() => {
-    const token = useAuthStore.getState().accessToken;
-    if (!token) return;
+    if (!accessToken) {
+      setIsConnected(false);
+      return;
+    }
 
     // Convert API_BASE_URL (http://host:8081/api) -> ws://host:8081/ws/dashboard
     const baseUrl = API_BASE_URL.replace(/^http/, 'ws').replace(/\/api\/?$/, '');
-    const wsUrl = `${baseUrl}/ws/dashboard?token=${token}`;
+    let isDisposed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+    let reconnectAttempt = 0;
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    const connect = () => {
+      if (isDisposed) return;
 
-    ws.onopen = () => {
-      console.log('Dashboard WebSocket Connected');
-      setIsConnected(true);
-    };
+      const wsUrl = `${baseUrl}/ws/dashboard?token=${accessToken}`;
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (isDisposed || wsRef.current !== ws) {
+          ws.close();
+          return;
+        }
+        reconnectAttempt = 0;
+        console.log('Dashboard WebSocket Connected');
+        setIsConnected(true);
+      };
 
     ws.onmessage = (event) => {
       try {
@@ -104,29 +119,47 @@ export const useWebSocket = (deviceId?: string) => {
       }
     };
 
-    ws.onclose = () => {
-      console.log('Dashboard WebSocket Disconnected');
-      setIsConnected(false);
+      ws.onclose = (event) => {
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        setIsConnected(false);
+        if (isDisposed || wsRef.current !== ws) return;
+        // Skip reconnect on explicit auth/policy rejection (1008 / 4001)
+        if (event.code === 1008 || event.code === 4001) return;
+
+        const delayMs = Math.min(1000 * Math.pow(2, reconnectAttempt), 15000);
+        reconnectAttempt += 1;
+        console.log(`Dashboard WebSocket Disconnected, retrying in ${delayMs}ms`);
+        reconnectTimer = setTimeout(connect, delayMs);
+      };
+
+      ws.onerror = (err) => {
+        console.error('WebSocket Error:', err);
+      };
+
+      // Ping interval to keep connection alive
+      pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'PING' }));
+        }
+      }, 15000);
     };
 
-    ws.onerror = (err) => {
-      console.error('WebSocket Error:', err);
-    };
-
-    // Ping interval to keep connection alive
-    const pingInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'PING' }));
-      }
-    }, 15000);
+    connect();
 
     return () => {
-      clearInterval(pingInterval);
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
+      isDisposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingInterval) clearInterval(pingInterval);
+      const activeWs = wsRef.current;
+      wsRef.current = null;
+      if (activeWs && (activeWs.readyState === WebSocket.OPEN || activeWs.readyState === WebSocket.CONNECTING)) {
+        activeWs.close();
       }
     };
-  }, []);
+  }, [accessToken]);
 
   const clearScreenFrame = () => setScreenFrame(null);
 

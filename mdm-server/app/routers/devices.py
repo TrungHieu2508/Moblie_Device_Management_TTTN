@@ -63,6 +63,8 @@ async def get_devices(
     status: Optional[DeviceStatus] = Query(None),
     search: Optional[str] = Query(None),
     android_version: Optional[str] = Query(None, alias="androidVersion"),
+    min_battery: Optional[int] = Query(None, alias="minBattery", ge=0, le=100),
+    max_battery: Optional[int] = Query(None, alias="maxBattery", ge=0, le=100),
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -76,6 +78,8 @@ async def get_devices(
         status=status,
         search=search,
         android_version=android_version,
+        min_battery=min_battery,
+        max_battery=max_battery,
     )
     return ApiResponse.ok(data)
 
@@ -130,7 +134,7 @@ async def update_device_put(
     verify_campus_access(current_user, existing.campus.id if existing.campus else None)
     if request.campus_id is not None:
         verify_campus_access(current_user, request.campus_id)
-    data = await DeviceService.update_device(device_uuid, request, db)
+    data = await DeviceService.update_device(device_uuid, request, db, current_user=current_user)
     return ApiResponse.ok(data, "Cập nhật thành công")
 
 
@@ -146,7 +150,7 @@ async def update_device_patch(
     verify_campus_access(current_user, existing.campus.id if existing.campus else None)
     if request.campus_id is not None:
         verify_campus_access(current_user, request.campus_id)
-    data = await DeviceService.update_device(device_uuid, request, db)
+    data = await DeviceService.update_device(device_uuid, request, db, current_user=current_user)
     return ApiResponse.ok(data, "Cập nhật thành công")
 
 
@@ -162,7 +166,7 @@ async def assign_device(
     verify_campus_access(current_user, existing.campus.id if existing.campus else None)
     if request.campus_id is not None:
         verify_campus_access(current_user, request.campus_id)
-    data = await DeviceService.assign_device(device_uuid, request, db)
+    data = await DeviceService.assign_device(device_uuid, request, db, current_user=current_user)
     return ApiResponse.ok(data, "Thiết bị đã được gán thành công")
 
 

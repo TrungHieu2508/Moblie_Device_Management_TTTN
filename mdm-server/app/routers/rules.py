@@ -7,29 +7,68 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import require_admin
-from app.core.exceptions import NotFoundException
+from app.core.dependencies import (
+    is_super_admin,
+    require_admin,
+    resolve_scoped_campus_id,
+    validate_org_hierarchy,
+    verify_campus_access,
+)
+from app.core.exceptions import ForbiddenException, NotFoundException
 from app.core.response import ApiResponse
 from app.db.session import get_db
 from app.models.rule import Rule
+from app.models.school import School
 from app.models.user import User
 from app.schemas.rule_user import RuleCreateRequest, RuleDto, RuleUpdateRequest
 
 router = APIRouter(prefix="/rules", tags=["Rules"])
 
 
+async def _get_rule_with_campus_access(
+    rule_id: UUID,
+    current_user: User,
+    db: AsyncSession,
+) -> Rule:
+    """Lấy Rule theo ID và xác thực quyền thao tác theo Campus Scope."""
+    result = await db.execute(select(Rule).where(Rule.id == rule_id))
+    rule = result.scalar_one_or_none()
+    if not rule:
+        raise NotFoundException("Quy tắc không tồn tại")
+
+    if rule.school_id is None:
+        if not is_super_admin(current_user):
+            raise ForbiddenException("Chỉ Super Admin mới có quyền chỉnh sửa quy tắc toàn hệ thống")
+    else:
+        verify_campus_access(current_user, rule.school.campus_id if rule.school else None)
+    return rule
+
+
 @router.get("", response_model=ApiResponse[List[RuleDto]])
 async def get_rules(
     school_id: Optional[UUID] = Query(None),
-    _: User = Depends(require_admin),
+    school_id_alias: Optional[UUID] = Query(None, alias="schoolId"),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    target_school_id = school_id_alias or school_id
     query = select(Rule).where(Rule.is_active == True)
-    if school_id:
-        query = query.where(Rule.school_id == school_id)
+
+    if target_school_id:
+        _, school, _ = await validate_org_hierarchy(db, school_id=target_school_id)
+        verify_campus_access(current_user, school.campus_id if school else None)
+        query = query.where(Rule.school_id == target_school_id)
+    elif not is_super_admin(current_user):
+        scoped_campus_id = resolve_scoped_campus_id(current_user)
+        scoped_school_ids = select(School.id).where(
+            School.campus_id == scoped_campus_id,
+            School.is_active == True,
+        )
+        query = query.where(or_(Rule.school_id.is_(None), Rule.school_id.in_(scoped_school_ids)))
+
     items = (await db.execute(query)).scalars().all()
     return ApiResponse.ok([RuleDto.model_validate(r) for r in items])
 
@@ -40,6 +79,13 @@ async def create_rule(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    if request.school_id is None:
+        if not is_super_admin(current_user):
+            raise ForbiddenException("Chỉ Super Admin mới được phép tạo quy tắc chung toàn hệ thống")
+    else:
+        _, school, _ = await validate_org_hierarchy(db, school_id=request.school_id)
+        verify_campus_access(current_user, school.campus_id if school else None)
+
     rule = Rule(
         id=uuid.uuid4(),
         name=request.name,
@@ -61,13 +107,10 @@ async def create_rule(
 async def update_rule(
     rule_id: UUID,
     request: RuleUpdateRequest,
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Rule).where(Rule.id == rule_id))
-    rule = result.scalar_one_or_none()
-    if not rule:
-        raise NotFoundException("Quy tắc không tồn tại")
+    rule = await _get_rule_with_campus_access(rule_id, current_user, db)
 
     if request.name is not None:
         rule.name = request.name
@@ -88,13 +131,10 @@ async def update_rule(
 @router.delete("/{rule_id}", response_model=ApiResponse[None])
 async def delete_rule(
     rule_id: UUID,
-    _: User = Depends(require_admin),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Rule).where(Rule.id == rule_id))
-    rule = result.scalar_one_or_none()
-    if not rule:
-        raise NotFoundException("Quy tắc không tồn tại")
+    rule = await _get_rule_with_campus_access(rule_id, current_user, db)
     rule.is_active = False
     await db.commit()
     return ApiResponse.ok(message="Quy tắc đã bị xóa")

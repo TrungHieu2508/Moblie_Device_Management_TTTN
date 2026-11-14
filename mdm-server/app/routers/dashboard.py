@@ -34,14 +34,13 @@ async def _build_summary(db: AsyncSession, current_user: User) -> dict:
         total_q = total_q.where(Device.campus_id == scoped_campus_id)
     total_devices = (await db.execute(total_q)).scalar() or 0
 
-    # Đếm theo status trong DB
-    status_counts = {}
-    for status in DeviceStatus:
-        st_q = select(func.count()).select_from(Device).where(Device.status == status.value)
-        if scoped_campus_id:
-            st_q = st_q.where(Device.campus_id == scoped_campus_id)
-        count = (await db.execute(st_q)).scalar() or 0
-        status_counts[status.value] = count
+    # Đếm theo status trong DB bằng 1 query GROUP BY duy nhất
+    status_counts = {status.value: 0 for status in DeviceStatus}
+    grp_q = select(Device.status, func.count()).group_by(Device.status)
+    if scoped_campus_id:
+        grp_q = grp_q.where(Device.campus_id == scoped_campus_id)
+    for st_val, cnt in (await db.execute(grp_q)).all():
+        status_counts[st_val] = cnt or 0
 
     # Số device thực sự đang kết nối WS (real-time, lọc theo campus nếu là Admin)
     online_hw_ids = manager.get_online_device_ids()

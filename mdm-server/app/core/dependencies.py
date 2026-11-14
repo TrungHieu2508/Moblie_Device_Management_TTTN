@@ -14,11 +14,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ForbiddenException, UnauthorizedException
+from app.core.exceptions import ForbiddenException, MdmException, NotFoundException, UnauthorizedException
 from app.core.security import decode_token
 from app.db.session import get_db
 from app.models.device import Device
 from app.models.enums import UserRole
+from app.models.school import Campus, Classroom, School
 from app.models.user import User
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -162,6 +163,61 @@ def verify_campus_access(
 
     if not current_user.campus_id or target_campus_id != current_user.campus_id:
         raise ForbiddenException("Bạn không có quyền truy cập hoặc thao tác dữ liệu thuộc Khu vực (Campus) khác")
+
+
+async def validate_org_hierarchy(
+    db: AsyncSession,
+    campus_id: Optional[UUID] = None,
+    school_id: Optional[UUID] = None,
+    classroom_id: Optional[UUID] = None,
+) -> tuple[Optional[Campus], Optional[School], Optional[Classroom]]:
+    """
+    Xác thực tồn tại (is_active=True) và quan hệ phân cấp Campus -> School -> Classroom.
+    """
+    campus: Optional[Campus] = None
+    school: Optional[School] = None
+    classroom: Optional[Classroom] = None
+
+    if campus_id is not None:
+        campus = (
+            await db.execute(select(Campus).where(Campus.id == campus_id, Campus.is_active == True))
+        ).scalar_one_or_none()
+        if not campus:
+            raise NotFoundException("Cơ sở không tồn tại")
+
+    if school_id is not None:
+        school = (
+            await db.execute(select(School).where(School.id == school_id, School.is_active == True))
+        ).scalar_one_or_none()
+        if not school:
+            raise NotFoundException("Trường học không tồn tại")
+        if campus_id is not None and school.campus_id != campus_id:
+            raise MdmException(
+                "Trường học không thuộc Khu vực (Campus) đã chọn",
+                status_code=400,
+                error_code="INVALID_HIERARCHY",
+            )
+
+    if classroom_id is not None:
+        classroom = (
+            await db.execute(select(Classroom).where(Classroom.id == classroom_id, Classroom.is_active == True))
+        ).scalar_one_or_none()
+        if not classroom:
+            raise NotFoundException("Lớp học không tồn tại")
+        if school_id is not None and classroom.school_id != school_id:
+            raise MdmException(
+                "Lớp học không thuộc Trường học đã chọn",
+                status_code=400,
+                error_code="INVALID_HIERARCHY",
+            )
+        if campus_id is not None and classroom.school and classroom.school.campus_id != campus_id:
+            raise MdmException(
+                "Lớp học không thuộc Khu vực (Campus) đã chọn",
+                status_code=400,
+                error_code="INVALID_HIERARCHY",
+            )
+
+    return campus, school, classroom
 
 
 # ── WebSocket Auth Helper ─────────────────────────────────────

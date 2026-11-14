@@ -99,7 +99,10 @@ class AlertService:
         await db.commit()
         await db.refresh(alert)
 
-        await notifier.broadcast_new_alert(_map_to_dto(alert).model_dump(mode="json"))
+        await notifier.broadcast_new_alert(
+            _map_to_dto(alert).model_dump(mode="json", by_alias=True),
+            campus_id=alert.campus_id,
+        )
 
     @staticmethod
     async def create_manual_alert(
@@ -162,7 +165,10 @@ class AlertService:
 
         await db.commit()
         await db.refresh(alert)
-        await notifier.broadcast_new_alert(_map_to_dto(alert).model_dump(mode="json"))
+        await notifier.broadcast_new_alert(
+            _map_to_dto(alert).model_dump(mode="json", by_alias=True),
+            campus_id=alert.campus_id,
+        )
 
     @staticmethod
     async def get_alerts(
@@ -260,7 +266,11 @@ class AlertService:
         await db.refresh(alert)
 
         dto = _map_to_dto(alert)
-        await notifier.broadcast_alert_status_change(str(alert.id), dto.model_dump(mode="json"))
+        await notifier.broadcast_alert_status_change(
+            str(alert.id),
+            dto.model_dump(mode="json", by_alias=True),
+            campus_id=alert.campus_id,
+        )
         return dto
 
     @staticmethod

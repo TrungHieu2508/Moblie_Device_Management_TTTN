@@ -11,6 +11,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any, Optional
+import uuid
 
 from jose import JWTError, jwt
 import bcrypt
@@ -75,6 +76,7 @@ def _create_token(subject: str, expire_seconds: int, extra_claims: dict = None) 
         "sub": subject,
         "iat": now,
         "exp": expire,
+        "jti": uuid.uuid4().hex,
     }
     if extra_claims:
         payload.update(extra_claims)

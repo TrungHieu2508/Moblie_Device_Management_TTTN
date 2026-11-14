@@ -9,15 +9,18 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import ConflictException, NotFoundException
+from app.core.dependencies import validate_org_hierarchy, verify_campus_access
+from app.core.exceptions import ConflictException, MdmException, NotFoundException
 from app.core.security import create_device_token
 from app.models.device import Device, EnrollmentProfile
 from app.models.enums import DeviceStatus
 from app.models.school import Campus, Classroom, School
+from app.models.user import User
 from app.schemas.device import (
     CreateEnrollmentRequest,
     DeviceAssignRequest,
@@ -69,16 +72,55 @@ class DeviceService:
     ) -> DeviceRegistrationResponse:
         """
         Đăng ký thiết bị mới hoặc update thiết bị đã tồn tại.
-        Tương đương DeviceService.registerDevice().
+        Kiểm tra hợp lệ & tiêu thụ atomic lượt dùng EnrollmentProfile khi có enrollmentCode.
         """
-        # Tìm thiết bị đã tồn tại chưa
+        # 1. Xác thực mã ghi danh QR trước khi tạo/cập nhật device (nếu được cung cấp)
+        profile: Optional[EnrollmentProfile] = None
+        raw_code = (request.enrollment_code or "").strip()
+        if raw_code:
+            res_prof = await db.execute(
+                select(EnrollmentProfile).where(
+                    EnrollmentProfile.code == raw_code.upper(),
+                    EnrollmentProfile.is_active == True,
+                )
+            )
+            profile = res_prof.scalar_one_or_none()
+            if not profile:
+                raise NotFoundException("Mã ghi danh QR không tồn tại hoặc đã bị vô hiệu hóa")
+
+            if profile.expires_at:
+                exp_at = (
+                    profile.expires_at
+                    if profile.expires_at.tzinfo
+                    else profile.expires_at.replace(tzinfo=timezone.utc)
+                )
+                if exp_at < datetime.now(timezone.utc):
+                    raise ValueError("Mã đăng ký đã hết hạn")
+
+            # Tiêu thụ lượt sử dụng theo kiểu atomic để chống race condition vượt max_uses
+            quota_stmt = (
+                update(EnrollmentProfile)
+                .where(
+                    EnrollmentProfile.id == profile.id,
+                    EnrollmentProfile.is_active == True,
+                    or_(
+                        EnrollmentProfile.max_uses == 0,
+                        EnrollmentProfile.current_uses < EnrollmentProfile.max_uses,
+                    ),
+                )
+                .values(current_uses=EnrollmentProfile.current_uses + 1)
+            )
+            quota_res = await db.execute(quota_stmt)
+            if quota_res.rowcount == 0:
+                raise ValueError("Mã đăng ký đã đạt giới hạn sử dụng")
+
+        # 2. Tìm thiết bị đã tồn tại hoặc tạo mới (xử lý race condition tạo trùng đồng thời)
         result = await db.execute(
             select(Device).where(Device.device_id == request.device_id)
         )
         device = result.scalar_one_or_none()
 
         if device is None:
-            # Thiết bị mới → tạo mới
             device = Device(
                 id=uuid.uuid4(),
                 device_id=request.device_id,
@@ -90,8 +132,24 @@ class DeviceService:
                 status=DeviceStatus.PENDING,
             )
             db.add(device)
+            try:
+                await db.flush()
+            except IntegrityError:
+                await db.rollback()
+                # Một request song song vừa kịp tạo device này → tải lại bản ghi vừa tạo
+                res_retry = await db.execute(
+                    select(Device).where(Device.device_id == request.device_id)
+                )
+                device = res_retry.scalar_one_or_none()
+                if not device:
+                    raise
+                if request.device_name:
+                    device.device_name = request.device_name
+                if request.android_version:
+                    device.android_version = request.android_version
+                if request.agent_version:
+                    device.agent_version = request.agent_version
         else:
-            # Thiết bị đã tồn tại → cập nhật thông tin
             if request.device_name:
                 device.device_name = request.device_name
             if request.android_version:
@@ -99,33 +157,10 @@ class DeviceService:
             if request.agent_version:
                 device.agent_version = request.agent_version
 
-        # Nếu có enrollment code → gán vào school/campus/classroom
-        if request.enrollment_code:
-            result = await db.execute(
-                select(EnrollmentProfile).where(
-                    EnrollmentProfile.code == request.enrollment_code.upper(),
-                    EnrollmentProfile.is_active == True,
-                )
-            )
-            profile = result.scalar_one_or_none()
-
-            if profile:
-                if profile.expires_at:
-                    exp_at = (
-                        profile.expires_at
-                        if profile.expires_at.tzinfo
-                        else profile.expires_at.replace(tzinfo=timezone.utc)
-                    )
-                    if exp_at < datetime.now(timezone.utc):
-                        raise ValueError("Mã đăng ký đã hết hạn")
-                if profile.max_uses > 0 and profile.current_uses >= profile.max_uses:
-                    raise ValueError("Mã đăng ký đã đạt giới hạn sử dụng")
-
-                device.school_id = profile.school_id
-                device.campus_id = profile.campus_id
-                device.classroom_id = profile.classroom_id
-
-                profile.current_uses += 1
+        if profile is not None:
+            device.school_id = profile.school_id
+            device.campus_id = profile.campus_id
+            device.classroom_id = profile.classroom_id
 
         # Tạo device JWT token
         device_token = create_device_token(device.device_id)
@@ -133,6 +168,7 @@ class DeviceService:
 
         await db.commit()
         await db.refresh(device)
+        manager.set_device_campus(device.device_id, device.campus_id)
 
         return DeviceRegistrationResponse(
             device_uuid=device.id,
@@ -156,8 +192,10 @@ class DeviceService:
         status: Optional[DeviceStatus] = None,
         search: Optional[str] = None,
         android_version: Optional[str] = None,
+        min_battery: Optional[int] = None,
+        max_battery: Optional[int] = None,
     ) -> List[DeviceDto]:
-        """Lấy danh sách thiết bị với filter."""
+        """Lấy danh sách thiết bị với filter (bao gồm lọc mức pin real-time)."""
         query = select(Device)
 
         if school_id:
@@ -184,7 +222,22 @@ class DeviceService:
         query = query.order_by(Device.created_at.desc())
         result = await db.execute(query)
         devices = result.scalars().all()
-        return [_map_device_to_dto(d) for d in devices]
+        dtos = [_map_device_to_dto(d) for d in devices]
+
+        if min_battery is not None or max_battery is not None:
+            filtered: List[DeviceDto] = []
+            for dto in dtos:
+                bat = (dto.metrics or {}).get("batteryLevel")
+                if not isinstance(bat, (int, float)):
+                    continue
+                if min_battery is not None and bat < min_battery:
+                    continue
+                if max_battery is not None and bat > max_battery:
+                    continue
+                filtered.append(dto)
+            return filtered
+
+        return dtos
 
     @staticmethod
     async def get_device_by_id(device_uuid: UUID, db: AsyncSession) -> DeviceDto:
@@ -196,32 +249,68 @@ class DeviceService:
 
     @staticmethod
     async def assign_device(
-        device_uuid: UUID, request: DeviceAssignRequest, db: AsyncSession
+        device_uuid: UUID,
+        request: DeviceAssignRequest,
+        db: AsyncSession,
+        current_user: Optional[User] = None,
     ) -> DeviceDto:
-        """Gán thiết bị vào trường/cơ sở/lớp."""
+        """Gán thiết bị vào trường/cơ sở/lớp sau khi kiểm tra phân cấp hợp lệ."""
         result = await db.execute(select(Device).where(Device.id == device_uuid))
         device = result.scalar_one_or_none()
         if not device:
             raise NotFoundException("Thiết bị không tồn tại")
 
+        _, school, classroom = await validate_org_hierarchy(
+            db,
+            campus_id=request.campus_id,
+            school_id=request.school_id,
+            classroom_id=request.classroom_id,
+        )
+        eff_campus_id = request.campus_id
+        if eff_campus_id is None and school is not None:
+            eff_campus_id = school.campus_id
+        elif eff_campus_id is None and classroom is not None and classroom.school is not None:
+            eff_campus_id = classroom.school.campus_id
+
+        if current_user is not None:
+            verify_campus_access(current_user, eff_campus_id)
+
         device.school_id = request.school_id
-        device.campus_id = request.campus_id
+        device.campus_id = eff_campus_id
         device.classroom_id = request.classroom_id
         if request.notes is not None:
             device.notes = request.notes
 
         await db.commit()
         await db.refresh(device)
+        manager.set_device_campus(device.device_id, device.campus_id)
         return _map_device_to_dto(device)
 
     @staticmethod
     async def update_device(
-        device_uuid: UUID, request: DeviceUpdateRequest, db: AsyncSession
+        device_uuid: UUID,
+        request: DeviceUpdateRequest,
+        db: AsyncSession,
+        current_user: Optional[User] = None,
     ) -> DeviceDto:
         result = await db.execute(select(Device).where(Device.id == device_uuid))
         device = result.scalar_one_or_none()
         if not device:
             raise NotFoundException("Thiết bị không tồn tại")
+
+        eff_campus = request.campus_id if request.campus_id is not None else device.campus_id
+        eff_school = request.school_id if request.school_id is not None else device.school_id
+        eff_classroom = request.classroom_id if request.classroom_id is not None else device.classroom_id
+        if request.campus_id is not None or request.school_id is not None or request.classroom_id is not None:
+            await validate_org_hierarchy(
+                db,
+                campus_id=eff_campus,
+                school_id=eff_school,
+                classroom_id=eff_classroom,
+            )
+
+        if current_user is not None:
+            verify_campus_access(current_user, eff_campus)
 
         if request.device_name is not None:
             device.device_name = request.device_name
@@ -236,6 +325,7 @@ class DeviceService:
 
         await db.commit()
         await db.refresh(device)
+        manager.set_device_campus(device.device_id, device.campus_id)
         return _map_device_to_dto(device)
 
     @staticmethod
@@ -256,21 +346,13 @@ class DeviceService:
         """Tương đương EnrollmentService.createEnrollmentProfile()."""
         from datetime import timedelta
 
-        # Validate FK
-        for model_cls, id_val, name in [
-            (School, request.school_id, "School"),
-            (Campus, request.campus_id, "Campus"),
-        ]:
-            res = await db.execute(select(model_cls).where(model_cls.id == id_val))
-            if not res.scalar_one_or_none():
-                raise NotFoundException(f"{name} không tồn tại")
-
-        classroom = None
-        if request.classroom_id:
-            res = await db.execute(select(Classroom).where(Classroom.id == request.classroom_id))
-            classroom = res.scalar_one_or_none()
-            if not classroom:
-                raise NotFoundException("Classroom không tồn tại")
+        # Validate FK + phân cấp Campus -> School -> Classroom
+        await validate_org_hierarchy(
+            db,
+            campus_id=request.campus_id,
+            school_id=request.school_id,
+            classroom_id=request.classroom_id,
+        )
 
         # Sinh code 6 ký tự unique
         chars = string.ascii_uppercase + string.digits

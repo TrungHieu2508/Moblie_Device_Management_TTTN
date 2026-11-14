@@ -285,8 +285,8 @@ async def _handle_event(device_id: str, event_data: dict) -> None:
             await db.refresh(new_alert)
 
             alert_dto = _map_to_dto(new_alert).model_dump(mode="json", by_alias=True)
-            await notifier.broadcast_new_alert(alert_dto)
-            await notifier.broadcast_device_status(device_id, dev.status)
+            await notifier.broadcast_new_alert(alert_dto, campus_id=dev.campus_id)
+            await notifier.broadcast_device_status(device_id, dev.status, campus_id=dev.campus_id)
 
         except Exception as e:
             logger.error("Failed to process event from device %s: %s", device_id, e)
@@ -367,14 +367,15 @@ async def agent_websocket_endpoint(
         await websocket.close(code=4003, reason="Forbidden: Token does not match device_id")
         return
 
-    # 2. Chấp nhận kết nối → lưu vào ConnectionManager
-    await manager.agent_connect(device_id, websocket)
+    # 2. Chấp nhận kết nối → lưu vào ConnectionManager kèm Campus Scope
+    dev_campus_id = str(device.campus_id) if device.campus_id else None
+    await manager.agent_connect(device_id, websocket, campus_id=dev_campus_id)
 
     # 3. Cập nhật trạng thái ONLINE trong DB
     await _update_device_status(device_id, DeviceStatus.ONLINE)
 
-    # 4. Broadcast ONLINE cho tất cả Dashboard
-    await notifier.broadcast_device_status(device_id, "ONLINE")
+    # 4. Broadcast ONLINE cho Dashboard thuộc Campus quản lý
+    await notifier.broadcast_device_status(device_id, "ONLINE", campus_id=dev_campus_id)
 
     # 5. Gửi xuống Agent các lệnh đang PENDING và chính sách Rule đang active
     await _send_pending_commands(device_id, websocket)
@@ -393,11 +394,16 @@ async def agent_websocket_endpoint(
 
             msg_type = data.get("type", "")
             msg_data = data.get("data", {})
+            active_campus = (
+                manager.get_device_campus(device_id)
+                if device_id in manager.agent_campuses
+                else dev_campus_id
+            )
 
             if msg_type == "METRICS":
                 # 1. Cập nhật in-memory cache → real-time cho Dashboard
                 manager.update_metrics(device_id, msg_data)
-                await notifier.broadcast_device_metrics(device_id, msg_data)
+                await notifier.broadcast_device_metrics(device_id, msg_data, campus_id=active_campus)
 
                 # 2. Cập nhật last_heartbeat_at định kỳ khi nhận metrics
                 await _touch_device_heartbeat(device_id)
@@ -411,10 +417,14 @@ async def agent_websocket_endpoint(
 
             elif msg_type == "CURRENT_APP":
                 manager.update_current_app(device_id, msg_data)
-                await notifier.broadcast_current_app(device_id, msg_data)
+                await notifier.broadcast_current_app(device_id, msg_data, campus_id=active_campus)
 
             elif msg_type == "SCREEN_FRAME":
-                await notifier.broadcast_screen_frame(device_id, msg_data.get("frame", ""))
+                await notifier.broadcast_screen_frame(
+                    device_id,
+                    msg_data.get("frame", ""),
+                    campus_id=active_campus,
+                )
 
             elif msg_type == "EVENT":
                 await _handle_event(device_id, msg_data)
@@ -432,14 +442,18 @@ async def agent_websocket_endpoint(
         logger.error("Unexpected error for device %s: %s", device_id, e)
 
     finally:
-        # 7. Dọn dẹp kết nối
-        manager.agent_disconnect(device_id)
+        # 7. Chỉ dọn kết nối & mark OFFLINE nếu đây vẫn là socket đang active (tránh WS cũ đá WS mới)
+        final_campus = (
+            manager.get_device_campus(device_id)
+            if device_id in manager.agent_campuses
+            else dev_campus_id
+        )
+        if manager.agent_disconnect(device_id, websocket=websocket):
+            # 8. Xoá counter metrics của device này (giải phóng bộ nhớ)
+            MetricsPersistenceService.reset_counter(device_id)
 
-        # 8. Xoá counter metrics của device này (giải phóng bộ nhớ)
-        MetricsPersistenceService.reset_counter(device_id)
+            # 9. Cập nhật OFFLINE trong DB
+            await _update_device_status(device_id, DeviceStatus.OFFLINE)
 
-        # 9. Cập nhật OFFLINE trong DB
-        await _update_device_status(device_id, DeviceStatus.OFFLINE)
-
-        # 10. Broadcast OFFLINE cho tất cả Dashboard
-        await notifier.broadcast_device_status(device_id, "OFFLINE")
+            # 10. Broadcast OFFLINE cho Dashboard thuộc Campus
+            await notifier.broadcast_device_status(device_id, "OFFLINE", campus_id=final_campus)
