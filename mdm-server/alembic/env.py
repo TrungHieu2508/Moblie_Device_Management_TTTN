@@ -47,6 +47,7 @@ from app.models.event import DeviceEvent                                    # no
 from app.models.alert import Alert                                          # noqa: F401
 from app.models.command import DeviceCommand                               # noqa: F401
 from app.models.audit import AuditLog                                       # noqa: F401
+from app.models.metrics import DeviceMetricsSnapshot                        # noqa: F401
 
 # ── Alembic config ────────────────────────────────────────────
 config = context.config

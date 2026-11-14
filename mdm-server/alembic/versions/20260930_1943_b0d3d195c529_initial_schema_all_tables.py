@@ -272,6 +272,25 @@ def upgrade() -> None:
     op.create_index("ix_audit_logs_action", "audit_logs", ["action"])
     op.create_index("ix_audit_logs_created_at", "audit_logs", ["created_at"])
 
+    # ── 14. device_metrics_snapshots ──────────────────────────
+    op.create_table(
+        "device_metrics_snapshots",
+        sa.Column("id", sa.BigInteger, primary_key=True, autoincrement=True),
+        sa.Column("device_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("devices.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("ram_usage_mb", sa.Integer, nullable=True),
+        sa.Column("ram_total_mb", sa.Integer, nullable=True),
+        sa.Column("cpu_usage_percent", sa.Float, nullable=True),
+        sa.Column("battery_level", sa.Integer, nullable=True),
+        sa.Column("battery_charging", sa.String(20), nullable=True),
+        sa.Column("storage_used_mb", sa.Integer, nullable=True),
+        sa.Column("storage_total_mb", sa.Integer, nullable=True),
+        sa.Column("wifi_ssid", sa.String(100), nullable=True),
+        sa.Column("wifi_signal_strength", sa.Integer, nullable=True),
+        sa.Column("recorded_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+    )
+    op.create_index("ix_device_metrics_snapshots_device_id", "device_metrics_snapshots", ["device_id"])
+    op.create_index("ix_device_metrics_snapshots_recorded_at", "device_metrics_snapshots", ["recorded_at"])
+
     # ── Seed: SUPER_ADMIN mặc định ────────────────────────────
     # Password: Admin@123 (bcrypt hash)
     op.execute("""
@@ -293,6 +312,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Xóa theo thứ tự ngược (FK dependencies)
+    op.drop_table("device_metrics_snapshots")
     op.drop_table("audit_logs")
     op.drop_table("device_commands")
     op.drop_table("alerts")

@@ -1,16 +1,3 @@
-"""
-EduGuardian MDM Server — FastAPI Application Entry Point.
-
-Thay thế MdmServerApplication.java (Spring Boot).
-Khởi động ứng dụng với:
-  - Async SQLAlchemy engine
-  - CORS middleware
-  - Tất cả HTTP routers
-  - Tất cả WebSocket endpoints
-  - Global exception handlers
-  - Swagger UI (tương đương SpringDoc)
-"""
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -73,21 +60,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="EduGuardian MDM Server",
-    description="""
-## EduGuardian Mobile Device Management Server
-
-REST API + WebSocket server để quản lý thiết bị Android tại các trường học.
-
-### Phương Án B — WebSocket-First Architecture
-- **Không dùng Redis** cho trạng thái thiết bị
-- **Không dùng Heartbeat polling** (30s interval)
-- **Không có Cron Job** phát hiện OFFLINE
-- **WebSocket connection** là nguồn sự thật: connect = ONLINE, disconnect = OFFLINE
-
-### WebSocket Endpoints
-- `ws://{host}/api/ws/agent/{device_id}?token=<device_jwt>` — Android Agent
-- `ws://{host}/api/ws/dashboard?token=<user_jwt>` — Web Dashboard Admin
-    """,
     version="2.0.0",
     docs_url="/swagger-ui.html",
     redoc_url="/redoc",

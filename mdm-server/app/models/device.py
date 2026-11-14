@@ -56,9 +56,9 @@ class EnrollmentProfile(BaseModelMixin, Base):
 
     code = Column(String(20), unique=True, nullable=False)
 
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=False)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=False)
-    classroom_id = Column(UUID(as_uuid=True), ForeignKey("classrooms.id"), nullable=True)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="CASCADE"), nullable=False)
+    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id", ondelete="CASCADE"), nullable=False)
+    classroom_id = Column(UUID(as_uuid=True), ForeignKey("classrooms.id", ondelete="SET NULL"), nullable=True)
 
     expires_at = Column(DateTime(timezone=True), nullable=True)
     max_uses = Column(Integer, default=0, nullable=False)

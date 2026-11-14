@@ -25,11 +25,11 @@ class User(BaseModelMixin, Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(100), nullable=False)
     role = Column(String(20), nullable=False)  # Lưu enum dạng string (IT_ADMIN/ADMIN, SUPER_ADMIN)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True, nullable=False)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
 
-    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id"), nullable=True)
-    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id"), nullable=True)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="SET NULL"), nullable=True)
+    campus_id = Column(UUID(as_uuid=True), ForeignKey("campuses.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
     school = relationship("School", lazy="selectin")
@@ -42,7 +42,7 @@ class RefreshToken(UUIDPrimaryKeyMixin, Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token = Column(Text, unique=True, nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
-    is_revoked = Column(Boolean, default=False)
+    is_revoked = Column(Boolean, default=False, nullable=False)
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

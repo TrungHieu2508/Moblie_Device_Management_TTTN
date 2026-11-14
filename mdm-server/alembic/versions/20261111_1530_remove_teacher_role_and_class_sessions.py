@@ -22,15 +22,33 @@ def upgrade() -> None:
     """
     1. Chuyển đổi an toàn toàn bộ tài khoản có role = 'TEACHER' sang 'IT_ADMIN' (Admin dùng chung).
     2. Xóa bảng class_sessions và các index liên quan đến lịch sử/phiên học của Teacher Portal.
+    3. Đảm bảo bảng device_metrics_snapshots và các index tồn tại đồng bộ (idempotent).
     """
     # 1. Migrate existing TEACHER accounts to IT_ADMIN
     op.execute("UPDATE users SET role = 'IT_ADMIN' WHERE role = 'TEACHER'")
 
-    # 2. Drop indexes and table class_sessions
-    op.drop_index('idx_class_sessions_teacher_id', table_name='class_sessions')
-    op.drop_index('idx_class_sessions_status', table_name='class_sessions')
-    op.drop_index('idx_class_sessions_classroom_id', table_name='class_sessions')
-    op.drop_table('class_sessions')
+    # 2. Drop table class_sessions safely (PostgreSQL drops associated indexes automatically)
+    op.execute("DROP TABLE IF EXISTS class_sessions CASCADE")
+
+    # 3. Ensure device_metrics_snapshots exists (idempotent for existing/fresh DBs)
+    op.execute("""
+        CREATE TABLE IF NOT EXISTS device_metrics_snapshots (
+            id BIGSERIAL PRIMARY KEY,
+            device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+            ram_usage_mb INTEGER,
+            ram_total_mb INTEGER,
+            cpu_usage_percent DOUBLE PRECISION,
+            battery_level INTEGER,
+            battery_charging VARCHAR(20),
+            storage_used_mb INTEGER,
+            storage_total_mb INTEGER,
+            wifi_ssid VARCHAR(100),
+            wifi_signal_strength INTEGER,
+            recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS ix_device_metrics_snapshots_device_id ON device_metrics_snapshots (device_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_device_metrics_snapshots_recorded_at ON device_metrics_snapshots (recorded_at)")
 
 
 def downgrade() -> None:
