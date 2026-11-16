@@ -101,7 +101,15 @@ tasks.matching { it.name == "installDebug" || it.name == "installRelease" }.conf
                         .start()
                         .waitFor()
                 }
-                println("Auto-granted PROJECT_MEDIA, GET_USAGE_STATS, SYSTEM_ALERT_WINDOW on device: $serial")
+                ProcessBuilder(adbExe, "-s", serial, "shell", "dpm", "set-active-admin", "com.edusphere.agent/.receiver.MDMAdminReceiver")
+                    .redirectErrorStream(true)
+                    .start()
+                    .waitFor()
+                ProcessBuilder(adbExe, "-s", serial, "shell", "dpm", "set-device-owner", "com.edusphere.agent/.receiver.MDMAdminReceiver")
+                    .redirectErrorStream(true)
+                    .start()
+                    .waitFor()
+                println("Auto-granted PROJECT_MEDIA, GET_USAGE_STATS, SYSTEM_ALERT_WINDOW & Device Owner on device: $serial")
             }
         } catch (e: Exception) {
             println("Note: Could not auto-grant appops via ADB: ${e.message}")

@@ -198,13 +198,10 @@ class HeartbeatService : Service() {
                 try {
                     val isPaused = sharedPreferencesManager.isMdmPaused()
                     if (!isPaused) {
-                        val currentApp = deviceMonitor.getCurrentApp(includeIcon = false)
                         if (sharedPreferencesManager.isDeviceLocked()) {
-                            val pkg = currentApp?.packageName
-                            if (pkg != null && pkg != packageName && pkg != "com.edusphere.agent") {
-                                actionManager.lockScreen(sharedPreferencesManager.getLockMessage())
-                            }
+                            actionManager.ensureLockOverlayVisible(sharedPreferencesManager.getLockMessage())
                         } else {
+                            val currentApp = deviceMonitor.getCurrentApp(includeIcon = false)
                             ruleDetector.checkForegroundApp(currentApp)
                         }
                     }
@@ -213,6 +210,13 @@ class HeartbeatService : Service() {
                 }
                 delay(1500) // Check foreground app every 1.5 seconds
             }
+        }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        if (!sharedPreferencesManager.isMdmPaused() && sharedPreferencesManager.isDeviceLocked()) {
+            actionManager.ensureLockOverlayVisible(sharedPreferencesManager.getLockMessage())
         }
     }
 
