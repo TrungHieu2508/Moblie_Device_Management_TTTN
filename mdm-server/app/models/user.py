@@ -1,11 +1,3 @@
-"""
-User domain models — User, RefreshToken.
-
-Tương đương:
-  - User.java
-  - RefreshToken.java
-"""
-
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text

@@ -1,6 +1,4 @@
-"""
-Auth Router — Tương đương AuthController.java.
-"""
+
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession

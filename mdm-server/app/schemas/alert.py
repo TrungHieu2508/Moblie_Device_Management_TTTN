@@ -1,7 +1,3 @@
-"""
-Alert Schemas — Tương đương DTOs trong domain/alert/dto/.
-"""
-
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
@@ -22,7 +18,6 @@ class RuleBasicInfo(CamelModel):
 
 
 class AlertDto(CamelModel):
-    """Tương đương AlertDto.java"""
     id: UUID
     alert_code: str
     title: str

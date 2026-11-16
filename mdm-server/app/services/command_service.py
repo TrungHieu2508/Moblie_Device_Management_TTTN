@@ -1,8 +1,4 @@
-"""
-CommandService — Tương đương CommandService.java.
 
-Phương Án B: Dispatch lệnh TRỰC TIẾP qua WebSocket, không dùng Redis queue.
-"""
 
 import uuid
 from datetime import datetime, timezone

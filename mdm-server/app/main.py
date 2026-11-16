@@ -45,7 +45,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Quản lý vòng đời ứng dụng.
-    Tương đương @PostConstruct và @PreDestroy trong Spring Boot.
     """
     logger.info("🚀 EduGuardian MDM Server (FastAPI) starting up...")
     logger.info("📡 WebSocket endpoint: %s", settings.ws_url)
@@ -67,8 +66,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── CORS Middleware ────────────────────────────────────────────
-# Tương đương SecurityConfig.corsConfigurationSource()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -77,12 +75,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Exception Handlers ────────────────────────────────────────
-# Tương đương GlobalExceptionHandler.java
+
 register_exception_handlers(app)
 
-# ── HTTP Routers ──────────────────────────────────────────────
-# Tất cả routes đều có prefix /api (tương đương server.servlet.context-path=/api)
+
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(devices.router, prefix=settings.api_prefix)
 app.include_router(enrollments.router, prefix=settings.api_prefix)
@@ -93,8 +89,7 @@ app.include_router(rules.router, prefix=settings.api_prefix)
 app.include_router(users.router, prefix=settings.api_prefix)
 app.include_router(dashboard.router, prefix=settings.api_prefix)
 
-# ── WebSocket Routers ─────────────────────────────────────────
-# WebSocket endpoints KHÔNG có prefix /api để Android Agent kết nối đơn giản hơn
+
 app.include_router(agent_ws.router)
 app.include_router(dashboard_ws.router)
 
@@ -122,7 +117,7 @@ if __name__ == "__main__":
         "app.main:app",
         host=settings.server_host,
         port=settings.server_port,
-        reload=True,           # Auto-reload khi phát triển (tương đương spring-boot-devtools)
+        reload=True,          
         log_level=settings.log_level.lower(),
         ws_ping_interval=20,   # Ping WebSocket mỗi 20s để giữ kết nối
         ws_ping_timeout=20,    # Timeout nếu không nhận pong sau 20s

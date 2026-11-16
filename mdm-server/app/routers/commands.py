@@ -1,6 +1,4 @@
-"""
-Commands Router — Tương đương CommandAdminController.java.
-"""
+
 
 from typing import Optional
 from uuid import UUID

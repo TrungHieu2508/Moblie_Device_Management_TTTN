@@ -1,6 +1,4 @@
-"""
-Rules Router — Tương đương RuleController.java.
-"""
+
 
 import uuid
 from typing import List, Optional

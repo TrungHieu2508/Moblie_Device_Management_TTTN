@@ -11,7 +11,6 @@ from app.schemas.base import CamelModel
 
 
 class CommandCreateRequest(CamelModel):
-    """Tương đương CommandCreateRequest.java"""
     command_type: CommandType
     payload: Optional[Dict[str, Any]] = None
 
@@ -19,14 +18,12 @@ class CommandCreateRequest(CamelModel):
 class CommandAckRequest(CamelModel):
     """
     Agent gửi ACK về sau khi nhận/thực thi lệnh.
-    Tương đương CommandAckRequest.java.
     """
     status: CommandStatus  # ACKNOWLEDGED | EXECUTED | FAILED
     error_message: Optional[str] = None
 
 
 class CommandDto(CamelModel):
-    """Tương đương CommandDto.java"""
     id: UUID
     device_id: str
     command_type: CommandType

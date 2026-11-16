@@ -1,8 +1,4 @@
-"""
-AuthService — Tương đương AuthService.java.
 
-Xử lý: login, refresh token, logout.
-"""
 
 import uuid
 from datetime import datetime, timezone

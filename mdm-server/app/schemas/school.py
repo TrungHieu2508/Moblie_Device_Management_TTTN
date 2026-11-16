@@ -1,8 +1,3 @@
-"""
-School Schemas — Campus, School, Classroom DTOs.
-(Đã loại bỏ ClassSession DTOs theo kiến trúc 2-Role mới).
-"""
-
 from typing import Optional
 from uuid import UUID
 

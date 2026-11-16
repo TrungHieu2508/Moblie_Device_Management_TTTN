@@ -1,6 +1,3 @@
-"""
-Command model — Tương đương DeviceCommand.java.
-"""
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID

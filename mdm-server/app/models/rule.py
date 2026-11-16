@@ -1,6 +1,4 @@
-"""
-Rule model — Tương đương Rule.java.
-"""
+
 
 from sqlalchemy import Boolean, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID

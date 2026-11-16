@@ -226,17 +226,18 @@ async def get_device_from_ws_token(
     token: Optional[str],
     db: AsyncSession,
 ) -> Optional[Device]:
-    if not token:
+    if not token:                       #url ko kèm token thì từ chối
         return None
 
-    payload = decode_token(token)
-    if not payload or payload.get("type") != "DEVICE":
+    payload = decode_token(token) #Giải mã JWT bằng jwt_secret. Nếu token bị sửa bậy hoặc hết hạn → trả None
+    if not payload or payload.get("type") != "DEVICE":#Bắt buộc đây phải là Device Token
         return None
 
-    device_id = payload.get("sub")
+    device_id = payload.get("sub") 
     if not device_id:
         return None
-
+#Lấy sub (chính là chuỗi device_id), tìm trong bảng devices xem thiết bị đó có thực sự tồn tại trong hệ thống không. 
+# Có thì trả về đối tượng Device, không có trả None
     result = await db.execute(select(Device).where(Device.device_id == device_id))
     return result.scalar_one_or_none()
 
@@ -249,13 +250,13 @@ async def get_user_from_ws_token(
         return None
 
     payload = decode_token(token)
-    if not payload or payload.get("type") == "DEVICE":
+    if not payload or payload.get("type") == "DEVICE": #Không cho phép thiết bị học sinh lấy token của mình nối vào kênh Dashboard để nghe trộm dữ liệu toàn trường.
         return None
 
     username = payload.get("sub")
     if not username:
         return None
-
+#Kiểm tra thêm: tài khoản phải còn kích hoạt (is_active == True) và có role nằm trong ALLOWED_USER_ROLES (SUPER_ADMIN, IT_ADMIN, ADMIN).
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalar_one_or_none()
     if not user or not user.is_active or user.role not in ALLOWED_USER_ROLES:

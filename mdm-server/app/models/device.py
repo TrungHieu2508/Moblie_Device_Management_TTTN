@@ -1,11 +1,3 @@
-"""
-Device domain models — Device, EnrollmentProfile.
-
-Tương đương:
-  - Device.java
-  - EnrollmentProfile.java
-"""
-
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text

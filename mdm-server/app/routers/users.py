@@ -1,6 +1,3 @@
-"""
-Users Router — Tương đương UserController.java.
-"""
 
 import uuid
 from typing import Any, List, Optional

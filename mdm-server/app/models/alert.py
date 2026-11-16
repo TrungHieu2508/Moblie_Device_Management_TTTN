@@ -1,7 +1,3 @@
-"""
-Alert model — Tương đương Alert.java.
-"""
-
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text, BigInteger
