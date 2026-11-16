@@ -332,11 +332,7 @@ class CommandReceiver @Inject constructor(
                     actionManager.lockScreen(message)
                 }
                 "UNLOCK_DEVICE" -> {
-                    sharedPreferencesManager.setDeviceLocked(false)
-                    val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE").apply {
-                        setPackage(context.packageName)
-                    }
-                    context.sendBroadcast(intent)
+                    actionManager.unlockScreen()
                 }
                 "UPDATE_APP" -> {
                     val url = payload?.optString("url")

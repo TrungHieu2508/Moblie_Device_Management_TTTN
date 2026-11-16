@@ -37,6 +37,9 @@ class LockActivity : AppCompatActivity() {
     @Inject
     lateinit var sharedPreferencesManager: SharedPreferencesManager
 
+    @Inject
+    lateinit var actionManager: com.edusphere.agent.domain.action.DeviceActionManager
+
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.edusphere.agent.ACTION_UNLOCK_DEVICE") {
@@ -148,6 +151,7 @@ class LockActivity : AppCompatActivity() {
     fun onUnlockCodeEntered(code: String) {
         if (code == "1234") {
             sharedPreferencesManager.setDeviceLocked(false)
+            actionManager.unlockScreen()
             try {
                 stopLockTask()
             } catch (e: Exception) {

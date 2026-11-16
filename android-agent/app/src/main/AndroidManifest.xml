@@ -86,8 +86,7 @@
 
         <activity
             android:name=".presentation.main.LockActivity"
-            android:launchMode="singleInstance"
-            android:taskAffinity=""
+            android:launchMode="singleTop"
             android:excludeFromRecents="true"
             android:showOnLockScreen="true"
             android:exported="false" />
@@ -95,8 +94,7 @@
         <activity
             android:name=".presentation.main.AlertActivity"
             android:theme="@style/Theme.EduSphereAgent.TransparentDialog"
-            android:launchMode="singleInstance"
-            android:taskAffinity=""
+            android:launchMode="singleTop"
             android:excludeFromRecents="true"
             android:showOnLockScreen="true"
             android:exported="false" />
