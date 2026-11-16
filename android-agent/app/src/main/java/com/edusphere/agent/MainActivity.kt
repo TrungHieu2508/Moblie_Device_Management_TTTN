@@ -29,6 +29,24 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnForceSync: MaterialButton
     private lateinit var btnPauseMdm: MaterialButton
     private lateinit var btnUnenroll: MaterialButton
+    private var hasRequestedMediaPrewarm = false
+
+    private val mediaProjectionPrewarmLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK && result.data != null) {
+            val serviceIntent = android.content.Intent(this, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java).apply {
+                action = "PREWARM"
+                putExtra("RESULT_CODE", result.resultCode)
+                putExtra("RESULT_DATA", result.data)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +108,17 @@ class MainActivity : AppCompatActivity() {
                     putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Cấp quyền Quản trị thiết bị để hỗ trợ khóa màn hình và quản lý trong giờ học.")
                 }
                 startActivity(intent)
+                return
+            } catch (_: Exception) {}
+        }
+
+        // 4. Khởi tạo sẵn quyền truyền màn hình (PROJECT_MEDIA) ở chế độ chờ (PREWARM) cho mọi thiết bị
+        // để khi Admin bấm "Xem màn hình" trên Web sẽ mở xem ngay lập tức mà không hỏi lại trên điện thoại
+        if (!com.edusphere.agent.presentation.service.ScreenCaptureService.canStartDirectly() && !hasRequestedMediaPrewarm) {
+            hasRequestedMediaPrewarm = true
+            try {
+                val mpm = getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                mediaProjectionPrewarmLauncher.launch(mpm.createScreenCaptureIntent())
             } catch (_: Exception) {}
         }
     }

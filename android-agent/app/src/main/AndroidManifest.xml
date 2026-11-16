@@ -79,12 +79,15 @@
         <activity
             android:name=".presentation.main.ScreenCaptureActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
             android:excludeFromRecents="true"
             android:exported="false" />
 
         <activity
             android:name=".presentation.main.LockActivity"
             android:launchMode="singleInstance"
+            android:taskAffinity=""
             android:excludeFromRecents="true"
             android:showOnLockScreen="true"
             android:exported="false" />
@@ -92,6 +95,8 @@
         <activity
             android:name=".presentation.main.AlertActivity"
             android:theme="@style/Theme.EduSphereAgent.TransparentDialog"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
             android:excludeFromRecents="true"
             android:showOnLockScreen="true"
             android:exported="false" />

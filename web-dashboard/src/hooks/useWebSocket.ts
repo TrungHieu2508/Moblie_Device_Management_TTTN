@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { API_BASE_URL } from '../config/axios';
+
+export type ScreenFrameListener = (frame: string | null) => void;
 
 export const useWebSocket = (deviceId?: string) => {
   const [metrics, setMetrics] = useState<any>(null);
   const [deviceStatus, setDeviceStatus] = useState<string>('');
   const [alertInfo, setAlertInfo] = useState<any>(null);
-  const [screenFrame, setScreenFrame] = useState<string | null>(null);
   const [currentApp, setCurrentApp] = useState<any>(null);
   const [commandAck, setCommandAck] = useState<any>(null);
   const [lastEvent, setLastEvent] = useState<any>(null);
@@ -14,12 +15,29 @@ export const useWebSocket = (deviceId?: string) => {
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const deviceIdRef = useRef<string | undefined>(deviceId);
+  const screenFrameRef = useRef<string | null>(null);
+  const frameListenersRef = useRef<Set<ScreenFrameListener>>(new Set());
   const accessToken = useAuthStore((state) => state.accessToken);
+
+  const notifyFrameListeners = useCallback((frame: string | null) => {
+    screenFrameRef.current = frame;
+    frameListenersRef.current.forEach((listener) => listener(frame));
+  }, []);
+
+  const subscribeScreenFrame = useCallback((listener: ScreenFrameListener) => {
+    frameListenersRef.current.add(listener);
+    if (screenFrameRef.current) {
+      listener(screenFrameRef.current);
+    }
+    return () => {
+      frameListenersRef.current.delete(listener);
+    };
+  }, []);
 
   useEffect(() => {
     deviceIdRef.current = deviceId;
-    setScreenFrame(null);
-  }, [deviceId]);
+    notifyFrameListeners(null);
+  }, [deviceId, notifyFrameListeners]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -94,7 +112,7 @@ export const useWebSocket = (deviceId?: string) => {
             break;
           case 'SCREEN_FRAME':
             if (targetId && data.deviceId === targetId) {
-              setScreenFrame(data.frame);
+              notifyFrameListeners(data.frame);
             }
             break;
           case 'COMMAND_ACK':
@@ -161,7 +179,20 @@ export const useWebSocket = (deviceId?: string) => {
     };
   }, [accessToken]);
 
-  const clearScreenFrame = () => setScreenFrame(null);
+  const clearScreenFrame = useCallback(() => {
+    notifyFrameListeners(null);
+  }, [notifyFrameListeners]);
 
-  return { isConnected, metrics, deviceStatus, alertInfo, screenFrame, clearScreenFrame, currentApp, commandAck, lastEvent, liveDevicesMap };
+  return {
+    isConnected,
+    metrics,
+    deviceStatus,
+    alertInfo,
+    subscribeScreenFrame,
+    clearScreenFrame,
+    currentApp,
+    commandAck,
+    lastEvent,
+    liveDevicesMap,
+  };
 };

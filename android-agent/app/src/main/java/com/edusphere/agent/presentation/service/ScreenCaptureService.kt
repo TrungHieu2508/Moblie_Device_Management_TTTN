@@ -45,6 +45,10 @@ class ScreenCaptureService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     @Volatile
     private var isCapturing = false
+    @Volatile
+    private var isStreamingPaused = false
+    @Volatile
+    private var forceSendImmediate = false
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -60,10 +64,60 @@ class ScreenCaptureService : Service() {
         createNotificationChannel()
     }
 
+    private fun promoteToForeground() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                createNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "STOP") {
+            // Tạm dừng gửi frame nhưng giữ nguyên phiên MediaProjection để lần bấm Xem màn hình tiếp theo mở ngay lập tức
+            if (isCapturing && mediaProjection != null) {
+                isStreamingPaused = true
+                Log.i("ScreenCapture", "Screen stream paused (MediaProjection kept alive)")
+                return START_STICKY
+            }
             stopCaptureResources()
             stopSelf()
+            return START_NOT_STICKY
+        }
+
+        if (intent?.action == "RESUME_OR_RESEND") {
+            try {
+                promoteToForeground()
+                if (isCapturing && mediaProjection != null && captureJob?.isActive == true) {
+                    isStreamingPaused = false
+                    forceSendImmediate = true
+                    Log.i("ScreenCapture", "Resumed existing screen stream immediately")
+                    return START_STICKY
+                }
+                val savedCode = cachedResultCode
+                val savedData = cachedResultData
+                if (savedCode != 0 && savedData != null) {
+                    isStreamingPaused = false
+                    forceSendImmediate = true
+                    startCapture(savedCode, Intent(savedData))
+                    return START_STICKY
+                }
+            } catch (e: Exception) {
+                Log.e("ScreenCapture", "Direct resume failed, falling back to activity", e)
+            }
+            // Fallback: mở ScreenCaptureActivity nếu chưa có phiên hoặc bị thu hồi
+            try {
+                val actIntent = Intent(this, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                }
+                startActivity(actIntent)
+            } catch (e: Exception) {
+                Log.e("ScreenCapture", "Fallback launch ScreenCaptureActivity failed", e)
+            }
             return START_NOT_STICKY
         }
 
@@ -77,15 +131,11 @@ class ScreenCaptureService : Service() {
 
         if (resultCode != 0 && resultData != null) {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    startForeground(
-                        NOTIFICATION_ID,
-                        createNotification(),
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-                    )
-                } else {
-                    startForeground(NOTIFICATION_ID, createNotification())
-                }
+                saveGrant(resultCode, resultData)
+                promoteToForeground()
+                val isPrewarm = intent?.action == "PREWARM"
+                isStreamingPaused = isPrewarm
+                forceSendImmediate = !isPrewarm
                 startCapture(resultCode, resultData)
             } catch (e: Exception) {
                 Log.e("ScreenCapture", "Failed to start foreground screen capture", e)
@@ -95,7 +145,7 @@ class ScreenCaptureService : Service() {
             stopSelf()
         }
 
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun startCapture(resultCode: Int, resultData: Intent) {
@@ -105,6 +155,7 @@ class ScreenCaptureService : Service() {
         mediaProjection = mpm.getMediaProjection(resultCode, resultData)
         if (mediaProjection == null) {
             Log.e("ScreenCapture", "MediaProjection is null")
+            hasActiveProjection = false
             stopSelf()
             return
         }
@@ -121,12 +172,12 @@ class ScreenCaptureService : Service() {
         val originalWidth = metrics.widthPixels.coerceAtLeast(360)
         val originalHeight = metrics.heightPixels.coerceAtLeast(640)
         
-        // Giảm độ phân giải về ~480p (chiều ngang chẵn) để mượt và rõ nét qua WebSocket
-        val scale = 0.45f
+        // Tối ưu độ phân giải ~432p (scale 0.40f) để đạt ~18-20 FPS siêu mượt qua WebSocket
+        val scale = 0.40f
         val width = ((originalWidth * scale).toInt() / 2) * 2
         val height = ((originalHeight * scale).toInt() / 2) * 2
 
-        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3)
         
         virtualDisplay = mediaProjection?.createVirtualDisplay(
             "EduSphereLiveScreen",
@@ -136,68 +187,93 @@ class ScreenCaptureService : Service() {
         )
 
         isCapturing = true
+        hasActiveProjection = true
         Log.i("ScreenCapture", "Started live screen capture: ${width}x${height}")
 
         captureJob = scope.launch {
             var lastBase64Frame: String? = null
             var lastSentTime = 0L
+            var reusableBitmap: Bitmap? = null
+            var reusableBitmapWidth = 0
+            val reusableBaos = ByteArrayOutputStream(65536)
+            val targetIntervalMs = 50L // ~20 FPS tối đa
 
-            while (isCapturing && isActive) {
-                try {
-                    val image = imageReader?.acquireLatestImage()
-                    if (image != null) {
-                        val planes = image.planes
-                        val buffer = planes[0].buffer
-                        val pixelStride = planes[0].pixelStride
-                        val rowStride = planes[0].rowStride
-                        val rowPadding = rowStride - pixelStride * width
+            try {
+                while (isCapturing && isActive) {
+                    try {
+                        if (isStreamingPaused) {
+                            // Xả bớt frame tồn trong hàng đợi khi đang tạm dừng
+                            try { imageReader?.acquireLatestImage()?.close() } catch (_: Exception) {}
+                            delay(150)
+                            continue
+                        }
 
-                        val bitmap = Bitmap.createBitmap(
-                            width + rowPadding / pixelStride,
-                            height,
-                            Bitmap.Config.ARGB_8888
-                        )
-                        bitmap.copyPixelsFromBuffer(buffer)
-                        image.close()
+                        val frameStart = System.currentTimeMillis()
+                        val image = imageReader?.acquireLatestImage()
+                        if (image != null) {
+                            val base64 = try {
+                                val planes = image.planes
+                                val buffer = planes[0].buffer
+                                val pixelStride = planes[0].pixelStride
+                                val rowStride = planes[0].rowStride
+                                val rowPadding = rowStride - pixelStride * width
+                                val bufferWidth = width + rowPadding / pixelStride
 
-                        val croppedBitmap = if (rowPadding > 0) {
-                            val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-                            bitmap.recycle()
-                            cropped
+                                buffer.rewind()
+                                if (reusableBitmap == null || reusableBitmapWidth != bufferWidth) {
+                                    reusableBitmap?.recycle()
+                                    reusableBitmap = Bitmap.createBitmap(bufferWidth, height, Bitmap.Config.ARGB_8888)
+                                    reusableBitmapWidth = bufferWidth
+                                }
+                                val bmp = reusableBitmap!!
+                                bmp.copyPixelsFromBuffer(buffer)
+
+                                reusableBaos.reset()
+                                if (rowPadding > 0) {
+                                    val cropped = Bitmap.createBitmap(bmp, 0, 0, width, height)
+                                    cropped.compress(Bitmap.CompressFormat.JPEG, 38, reusableBaos)
+                                    cropped.recycle()
+                                } else {
+                                    bmp.compress(Bitmap.CompressFormat.JPEG, 38, reusableBaos)
+                                }
+
+                                Base64.encodeToString(reusableBaos.toByteArray(), Base64.NO_WRAP)
+                            } finally {
+                                try { image.close() } catch (_: Exception) {}
+                            }
+
+                            lastBase64Frame = base64
+                            lastSentTime = System.currentTimeMillis()
+                            forceSendImmediate = false
+
+                            commandReceiver.sendScreenFrame(base64)
+                            val elapsed = System.currentTimeMillis() - frameStart
+                            val waitMs = (targetIntervalMs - elapsed).coerceAtLeast(12L)
+                            delay(waitMs)
                         } else {
-                            bitmap
+                            // Nếu màn hình đang đứng yên không đổi pixel, gửi lại frame cuối mỗi 500ms
+                            val now = System.currentTimeMillis()
+                            if (lastBase64Frame != null && (forceSendImmediate || now - lastSentTime >= 500L)) {
+                                forceSendImmediate = false
+                                lastSentTime = now
+                                commandReceiver.sendScreenFrame(lastBase64Frame!!)
+                            }
+                            delay(18)
                         }
-
-                        val baos = ByteArrayOutputStream()
-                        croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 45, baos)
-                        croppedBitmap.recycle()
-
-                        val base64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-                        lastBase64Frame = base64
-                        lastSentTime = System.currentTimeMillis()
-
-                        commandReceiver.sendScreenFrame(base64)
-                        delay(150) // ~6-7 FPS
-                    } else {
-                        // Nếu màn hình điện thoại đang đứng yên không đổi pixel, gửi lại frame cuối mỗi 1 giây
-                        // để Web Dashboard luôn hiển thị hình ngay lập tức
-                        val now = System.currentTimeMillis()
-                        if (lastBase64Frame != null && now - lastSentTime >= 1000L) {
-                            lastSentTime = now
-                            commandReceiver.sendScreenFrame(lastBase64Frame)
-                        }
-                        delay(80)
+                    } catch (e: Exception) {
+                        Log.e("ScreenCapture", "Error capturing frame", e)
+                        delay(50)
                     }
-                } catch (e: Exception) {
-                    Log.e("ScreenCapture", "Error capturing frame", e)
-                    delay(150)
                 }
+            } finally {
+                try { reusableBitmap?.recycle() } catch (_: Exception) {}
             }
         }
     }
 
     private fun stopCaptureResources() {
         isCapturing = false
+        hasActiveProjection = false
         captureJob?.cancel()
         captureJob = null
         try { virtualDisplay?.release() } catch (_: Exception) {}
@@ -243,5 +319,26 @@ class ScreenCaptureService : Service() {
     companion object {
         private const val CHANNEL_ID = "ScreenCaptureChannel"
         private const val NOTIFICATION_ID = 200
+
+        @Volatile
+        private var hasActiveProjection = false
+
+        @Volatile
+        private var cachedResultCode: Int = 0
+
+        @Volatile
+        private var cachedResultData: Intent? = null
+
+        fun saveGrant(resultCode: Int, resultData: Intent) {
+            cachedResultCode = resultCode
+            cachedResultData = Intent(resultData)
+        }
+
+        fun canStartDirectly(): Boolean {
+            return hasActiveProjection ||
+                (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+                    cachedResultCode != 0 &&
+                    cachedResultData != null)
+        }
     }
 }

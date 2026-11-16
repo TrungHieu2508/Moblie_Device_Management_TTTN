@@ -1,4 +1,4 @@
-# CHƯƠNG 2: PHÂN TÍCH, THIẾT KẾ VÀ CÀI ĐẶT HỆ THỐNG
+    # CHƯƠNG 2: PHÂN TÍCH, THIẾT KẾ VÀ CÀI ĐẶT HỆ THỐNG
 
 *(Bản hoàn chỉnh đã được cập nhật đồng bộ 100% với kiến trúc hiện tại của dự án: Mô hình phân quyền 2 vai trò `SUPER_ADMIN` & `IT_ADMIN`/`ADMIN` giới hạn theo Khu vực `campus_id`, Backend FastAPI + SQLAlchemy AsyncPG + Pure WebSocket + In-Memory Realtime Store, Chặn ứng dụng giải trí/mạng xã hội tự động khóa màn hình và Truyền phát màn hình trực tiếp Live Stream).*
 

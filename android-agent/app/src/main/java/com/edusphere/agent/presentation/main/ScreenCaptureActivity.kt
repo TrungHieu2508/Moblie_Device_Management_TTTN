@@ -16,6 +16,8 @@ class ScreenCaptureActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -33,6 +35,8 @@ class ScreenCaptureActivity : Activity() {
         } catch (e: Exception) {
             Log.e("ScreenCaptureActivity", "Failed to request screen capture", e)
             finish()
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
         }
     }
 
@@ -55,6 +59,8 @@ class ScreenCaptureActivity : Activity() {
             }
         }
         finish()
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
     }
 
     companion object {

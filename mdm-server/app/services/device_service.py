@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import delete as sa_delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,10 +17,15 @@ from app.core.config import settings
 from app.core.dependencies import validate_org_hierarchy, verify_campus_access
 from app.core.exceptions import ConflictException, MdmException, NotFoundException
 from app.core.security import create_device_token
+from app.models.alert import Alert
+from app.models.command import DeviceCommand
 from app.models.device import Device, EnrollmentProfile
 from app.models.enums import DeviceStatus
+from app.models.event import DeviceEvent
+from app.models.metrics import DeviceMetricsSnapshot
 from app.models.school import Campus, Classroom, School
 from app.models.user import User
+from app.services.metrics_service import MetricsPersistenceService
 from app.schemas.device import (
     CreateEnrollmentRequest,
     DeviceAssignRequest,
@@ -334,8 +339,26 @@ class DeviceService:
         device = result.scalar_one_or_none()
         if not device:
             raise NotFoundException("Thiết bị không tồn tại")
+
+        hardware_id = device.device_id
+        # Xóa tường minh các bảng con để tránh kẹt khóa ngoại (vd: fk_device_command_device NO ACTION)
+        await db.execute(sa_delete(Alert).where(Alert.device_id == device_uuid))
+        await db.execute(sa_delete(DeviceEvent).where(DeviceEvent.device_id == device_uuid))
+        await db.execute(sa_delete(DeviceCommand).where(DeviceCommand.device_id == device_uuid))
+        await db.execute(sa_delete(DeviceMetricsSnapshot).where(DeviceMetricsSnapshot.device_id == device_uuid))
+
         await db.delete(device)
         await db.commit()
+
+        # Dọn kết nối WebSocket (nếu còn) & cache RAM của thiết bị vừa xóa
+        active_ws = manager.agent_connections.get(hardware_id)
+        manager.agent_disconnect(hardware_id)
+        MetricsPersistenceService.reset_counter(hardware_id)
+        if active_ws is not None:
+            try:
+                await active_ws.close(code=1000, reason="Device deleted")
+            except Exception:
+                pass
 
     # ── Enrollment ─────────────────────────────────────────────
 

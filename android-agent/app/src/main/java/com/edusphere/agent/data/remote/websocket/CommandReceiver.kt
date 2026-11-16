@@ -174,7 +174,8 @@ class CommandReceiver @Inject constructor(
             }
         }
         
-        webSocketClient?.setConnectionLostTimeout(30)
+        // Tắt timeout tự ngắt kết nối khi đường truyền đang bận gửi frame hình ảnh liên tục
+        webSocketClient?.setConnectionLostTimeout(0)
         
         try {
             webSocketClient?.connect()
@@ -255,11 +256,22 @@ class CommandReceiver @Inject constructor(
                 "START_STREAM" -> {
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         try {
-                            val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            context.startActivity(intent)
+                            if (com.edusphere.agent.presentation.service.ScreenCaptureService.canStartDirectly()) {
+                                val serviceIntent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java).apply {
+                                    action = "RESUME_OR_RESEND"
+                                }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    context.startForegroundService(serviceIntent)
+                                } else {
+                                    context.startService(serviceIntent)
+                                }
+                            } else {
+                                val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                context.startActivity(intent)
+                            }
                         } catch (e: Exception) {
-                            Log.e(TAG, "Failed to launch ScreenCaptureActivity", e)
+                            Log.e(TAG, "Failed to start screen stream", e)
                         }
                     }
                 }
@@ -353,26 +365,37 @@ class CommandReceiver @Inject constructor(
     }
 
     fun sendScreenFrame(base64Frame: String) {
-        if (_isConnected.value && currentDeviceId != null) {
-            val dataJson = JSONObject().apply {
-                put("deviceId", currentDeviceId)
-                put("frame", base64Frame)
+        val client = webSocketClient
+        if (_isConnected.value && currentDeviceId != null && client?.isOpen == true) {
+            // Tránh dồn ứ hàng đợi TCP gây trễ hình (lag): nếu frame trước đang gửi dở thì bỏ qua frame trung gian
+            if (client.hasBufferedData()) return
+            try {
+                val dataJson = JSONObject().apply {
+                    put("deviceId", currentDeviceId)
+                    put("frame", base64Frame)
+                }
+                val json = JSONObject().apply {
+                    put("type", "SCREEN_FRAME")
+                    put("data", dataJson)
+                }
+                client.send(json.toString())
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to send screen frame: ${e.message}")
             }
-            val json = JSONObject().apply {
-                put("type", "SCREEN_FRAME")
-                put("data", dataJson)
-            }
-            webSocketClient?.send(json.toString())
         }
     }
 
     fun sendMetrics(metricsJson: JSONObject) {
-        if (_isConnected.value && currentDeviceId != null) {
-            val json = JSONObject().apply {
-                put("type", "METRICS")
-                put("data", metricsJson)
+        if (_isConnected.value && currentDeviceId != null && webSocketClient?.isOpen == true) {
+            try {
+                val json = JSONObject().apply {
+                    put("type", "METRICS")
+                    put("data", metricsJson)
+                }
+                webSocketClient?.send(json.toString())
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to send metrics: ${e.message}")
             }
-            webSocketClient?.send(json.toString())
         }
     }
 

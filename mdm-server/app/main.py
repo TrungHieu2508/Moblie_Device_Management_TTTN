@@ -1,4 +1,5 @@
 import logging
+import socket
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -101,16 +102,34 @@ app.include_router(dashboard_ws.router)
 
 # ── Health Check ──────────────────────────────────────────────
 
+def _detect_lan_ip() -> str | None:
+    """Phát hiện IPv4 LAN thực tế hiện tại của máy chủ (bỏ qua card ảo/loopback)."""
+    for target in (("8.8.8.8", 80), ("10.255.255.255", 1)):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect(target)
+            ip = sock.getsockname()[0]
+            if ip and not ip.startswith("127.") and not ip.startswith("169.254."):
+                return ip
+        except OSError:
+            pass
+        finally:
+            sock.close()
+    return None
+
+
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint cho Docker/Kubernetes."""
+    """Health check endpoint cho Docker/Kubernetes và tự động cấp LAN URL cho mã QR."""
     from app.ws.connection_manager import manager
+    lan_ip = _detect_lan_ip()
     return {
         "status": "UP",
         "service": "EduGuardian MDM Server",
         "version": "2.0.0",
         "architecture": "WebSocket-First (Plan B - No Redis)",
+        "lanUrl": f"http://{lan_ip}:{settings.server_port}" if lan_ip else None,
         **manager.get_connection_stats(),
     }
 

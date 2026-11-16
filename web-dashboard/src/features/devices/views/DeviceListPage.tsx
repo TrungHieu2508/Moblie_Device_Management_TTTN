@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import {
   Table,
   Tag,
@@ -13,6 +12,7 @@ import {
   Form,
   Drawer,
   message,
+  Popconfirm,
   Slider,
   Tooltip,
 } from 'antd';
@@ -31,7 +31,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { API_BASE_URL } from '../../../config/axios';
+import EnrollmentQrBox from '../components/EnrollmentQrBox';
 import { getDevices, updateDevice, deleteDevice, sendDeviceCommand } from '../../../services/deviceService';
 import { createEnrollmentProfile } from '../../../services/enrollmentService';
 import { getAllCampuses, getSchools, getClassrooms } from '../../../services/schoolService';
@@ -213,8 +213,12 @@ const DeviceListPage = () => {
     onSuccess: () => {
       message.success('Xóa thiết bị thành công!');
       queryClient.invalidateQueries({ queryKey: ['devices'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
     },
-    onError: () => message.error('Xóa thiết bị thất bại'),
+    onError: (error: any) => {
+      message.error(error.response?.data?.message || error.response?.data?.detail || 'Xóa thiết bị thất bại');
+    },
   });
 
   const handleQuickCommand = async (device: DeviceDto, commandType: string, label: string, payload: Record<string, any> = {}) => {
@@ -246,19 +250,6 @@ const DeviceListPage = () => {
     if (editingDevice) {
       updateDeviceMutation.mutate({ id: editingDevice.id, payload: values });
     }
-  };
-
-  const showDeleteConfirm = (device: DeviceDto) => {
-    Modal.confirm({
-      title: 'Xác nhận xóa thiết bị',
-      content: `Bạn có chắc chắn muốn xóa thiết bị "${device.deviceName || device.model}"? Hành động này không thể hoàn tác.`,
-      okText: 'Xóa',
-      okType: 'danger',
-      cancelText: 'Hủy',
-      onOk() {
-        deleteDeviceMutation.mutate(device.id);
-      },
-    });
   };
 
   const columns = [
@@ -400,15 +391,23 @@ const DeviceListPage = () => {
               }}
             />
           </Tooltip>
-          <Tooltip title="Xóa thiết bị">
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => showDeleteConfirm(record)}
-              style={{ borderRadius: 8 }}
-            />
-          </Tooltip>
+          <Popconfirm
+            title="Xác nhận xóa thiết bị"
+            description={`Bạn có chắc muốn xóa "${record.deviceName || record.model}"?`}
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true, loading: deleteDeviceMutation.isPending }}
+            onConfirm={() => deleteDeviceMutation.mutateAsync(record.id)}
+          >
+            <Tooltip title="Xóa thiết bị">
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                style={{ borderRadius: 8 }}
+              />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -614,16 +613,7 @@ const DeviceListPage = () => {
               Quét mã QR dưới đây để cấu hình thiết bị:
             </Typography.Text>
 
-            <div className="flex justify-center my-6 bg-white p-4 rounded-xl inline-block">
-              <QRCodeSVG
-                value={JSON.stringify({
-                  serverUrl: API_BASE_URL.replace('/api', ''),
-                  code: createdCode,
-                })}
-                size={200}
-                level="M"
-              />
-            </div>
+            <EnrollmentQrBox code={createdCode} size={200} />
 
             <Typography.Text className="text-gray-400 block mb-2">Hoặc nhập thủ công mã Ghi Danh sau:</Typography.Text>
             <Typography.Title
