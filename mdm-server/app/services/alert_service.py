@@ -1,6 +1,4 @@
-"""
-AlertService — Tương đương AlertService.java.
-"""
+
 
 import uuid
 from datetime import datetime, timezone

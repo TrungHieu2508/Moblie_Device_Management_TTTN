@@ -1,7 +1,3 @@
-"""
-School domain models — Campus, School, Classroom.
-(Đã loại bỏ ClassSession theo kiến trúc 2-Role mới).
-"""
 
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID

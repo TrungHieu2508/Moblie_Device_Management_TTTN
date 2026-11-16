@@ -1,9 +1,3 @@
-"""
-Python Enums — Tương đương tất cả Java Enums trong dự án.
-
-Sử dụng Python str + Enum để giá trị enum tự động serialize
-thành chuỗi trong JSON responses (không cần custom serializer).
-"""
 
 import enum
 

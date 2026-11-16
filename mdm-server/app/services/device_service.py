@@ -1,6 +1,3 @@
-"""
-DeviceService — Tương đương DeviceService.java + EnrollmentService.java.
-"""
 
 import secrets
 import string

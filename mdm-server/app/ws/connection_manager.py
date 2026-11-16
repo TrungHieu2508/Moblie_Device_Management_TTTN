@@ -1,16 +1,3 @@
-"""
-ConnectionManager — Trung tâm quản lý tất cả WebSocket connections.
-
-Thay thế hoàn toàn:
-  - Redis key "device:{id}:status" (TTL 90s)
-  - Redis key "device:{id}:metrics"
-  - Redis key "device:{id}:currentApp"
-  - Redis key "device:{id}:commands:pending" (queue)
-  - OfflineDetectionJob.java (@Scheduled mỗi 60s)
-
-Phương án B: Trạng thái ONLINE/OFFLINE được xác định bởi
-WebSocket session còn tồn tại hay không, không phải Redis TTL.
-"""
 
 import asyncio
 import logging
@@ -24,16 +11,6 @@ _UNSET = object()
 
 
 class ConnectionManager:
-    """
-    Singleton quản lý toàn bộ WebSocket connections.
-
-    agent_connections    : {device_id → WebSocket}         ← Android Agent kết nối
-    agent_campuses       : {device_id → campus_id | None}  ← Campus cache phục vụ phân luồng WS
-    dashboard_connections: {user_id   → [WebSocket, ...]}  ← Cho phép 1 Admin mở nhiều tab Dashboard
-    dashboard_scopes     : {id(ws)    → (role, campus_id)} ← Phân quyền nhận event theo Campus
-    device_metrics       : {device_id → dict}              ← Cache metrics (thay Redis)
-    device_current_app   : {device_id → dict}              ← Cache app đang mở (thay Redis)
-    """
 
     def __init__(self):
         # ── Agent connections ─────────────────────────────────
@@ -58,11 +35,6 @@ class ConnectionManager:
         websocket: WebSocket,
         campus_id: Any = _UNSET,
     ) -> None:
-        """
-        Agent mở WebSocket connection.
-        Chấp nhận kết nối, lưu vào dict.
-        DB update status=ONLINE được thực hiện trong agent_ws.py.
-        """
         await websocket.accept()
         self.agent_connections[device_id] = websocket
         if campus_id is not _UNSET:

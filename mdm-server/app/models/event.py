@@ -1,6 +1,3 @@
-"""
-DeviceEvent model — Tương đương DeviceEvent.java.
-"""
 
 from datetime import datetime, timezone
 

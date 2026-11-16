@@ -1,7 +1,3 @@
-"""
-Device Schemas — Tương đương DTOs trong domain/device/dto/.
-Bao gồm cả Registration Response khớp với Android Agent.
-"""
 
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -55,7 +51,6 @@ class DeviceDto(CamelModel):
 
 
 class DeviceRegistrationRequest(CamelModel):
-    """Tương đương DeviceRegistrationRequest.java — Agent tự đăng ký."""
     device_id: str
     device_name: Optional[str] = None
     serial_number: Optional[str] = None
@@ -73,7 +68,6 @@ class ServerConfig(CamelModel):
 
 class DeviceRegistrationResponse(CamelModel):
     """
-    Tương đương DeviceRegistrationResponse.java — trả về JWT device token.
     Khớp với Android Agent: RegistrationResponse.kt
     """
     device_uuid: UUID

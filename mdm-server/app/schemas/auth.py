@@ -1,6 +1,3 @@
-"""
-Auth Schemas — Tương đương DTOs trong domain/auth/dto/.
-"""
 
 from typing import Optional
 from uuid import UUID
@@ -10,7 +7,6 @@ from app.schemas.base import CamelModel
 
 
 class LoginRequest(CamelModel):
-    """Tương đương LoginRequest.java"""
     username: str
     password: str
 
@@ -26,7 +22,6 @@ class UserDto(CamelModel):
 
 
 class AuthResponse(CamelModel):
-    """Tương đương AuthResponse.java"""
     access_token: str
     refresh_token: str
     token_type: str = "Bearer"

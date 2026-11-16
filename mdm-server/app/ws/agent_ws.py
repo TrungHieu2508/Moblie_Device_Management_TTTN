@@ -1,23 +1,3 @@
-"""
-Agent WebSocket Endpoint — Trái tim của Phương Án B.
-
-Thay thế hoàn toàn:
-  - HeartbeatController.java (POST /devices/heartbeat)
-  - HeartbeatService.java
-  - OfflineDetectionJob.java (@Scheduled)
-  - CommandQueueService.java (Redis queue)
-  - JwtChannelInterceptor.java (STOMP auth)
-
-Luồng hoạt động:
-  1. Agent kết nối WS + gửi JWT token trong query param
-  2. Server xác thực token, chấp nhận kết nối
-  3. Server update DB: status = ONLINE
-  4. Server broadcast ONLINE event lên Dashboard
-  5. Server gửi xuống Agent các lệnh đang PENDING trong DB
-  6. Agent gửi metrics, events, command ACKs qua WS message
-  7. Khi Agent ngắt kết nối → Server update DB: status = OFFLINE
-  8. Server broadcast OFFLINE event lên Dashboard
-"""
 
 import asyncio
 import logging
@@ -49,11 +29,7 @@ router = APIRouter(tags=["WebSocket - Agent"])
 # ── Helper Functions ──────────────────────────────────────────
 
 async def _update_device_status(device_id: str, status: DeviceStatus) -> None:
-    """
-    Cập nhật trạng thái device trong DB.
-    Dùng session độc lập (không share với WS session) để tránh lỗi
-    khi connection bị đứt giữa chừng.
-    """
+ 
     async with async_session_factory() as db:
         try:
             now = datetime.now(timezone.utc)
@@ -69,10 +45,7 @@ async def _update_device_status(device_id: str, status: DeviceStatus) -> None:
 
 
 async def _send_pending_commands(device_id: str, websocket: WebSocket) -> None:
-    """
-    Gửi tất cả lệnh đang PENDING trong DB xuống Agent khi device vừa kết nối.
-    Thay thế CommandQueueService.drainPendingCommands() (Redis).
-    """
+   
     async with async_session_factory() as db:
         try:
             result = await db.execute(
@@ -114,10 +87,6 @@ async def _send_pending_commands(device_id: str, websocket: WebSocket) -> None:
 
 
 async def _touch_device_heartbeat(device_id: str) -> None:
-    """
-    Cập nhật last_heartbeat_at khi nhận METRICS định kỳ.
-    Không ghi đè status nếu thiết bị đang ở trạng thái WARNING hoặc CRITICAL.
-    """
     async with async_session_factory() as db:
         try:
             now = datetime.now(timezone.utc)
