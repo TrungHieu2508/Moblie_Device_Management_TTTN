@@ -39,9 +39,14 @@ class HeartbeatService : Service() {
     lateinit var ruleDetector: RuleDetector
 
     @Inject
+    lateinit var actionManager: com.edusphere.agent.domain.action.DeviceActionManager
+
+    @Inject
     lateinit var sharedPreferencesManager: SharedPreferencesManager
 
     private val serviceScope = CoroutineScope(Dispatchers.IO)
+    private var heartbeatJob: kotlinx.coroutines.Job? = null
+    private var appBlockerJob: kotlinx.coroutines.Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -55,9 +60,33 @@ class HeartbeatService : Service() {
                     token = deviceInfo.registrationToken,
                     deviceId = deviceInfo.deviceId
                 )
-                startHeartbeatLoop(deviceInfo.deviceId)
-                startAppBlockerLoop()
+                ensureLoopsRunning(deviceInfo.deviceId)
             }
+        }
+    }
+
+    private fun ensureLoopsRunning(deviceId: String) {
+        if (heartbeatJob == null || heartbeatJob?.isActive != true) {
+            heartbeatJob = startHeartbeatLoop(deviceId)
+        }
+        if (appBlockerJob == null || appBlockerJob?.isActive != true) {
+            appBlockerJob = startAppBlockerLoop()
+        }
+    }
+
+    private suspend fun sendCurrentTelemetry(deviceId: String) {
+        val gson = com.google.gson.Gson()
+        val metrics = deviceMonitor.getDeviceMetrics()
+        val currentApp = deviceMonitor.getCurrentApp()
+        
+        val metricsJson = org.json.JSONObject(gson.toJson(metrics))
+        metricsJson.put("deviceId", deviceId)
+        commandReceiver.sendMetrics(metricsJson)
+        
+        if (currentApp != null) {
+            val currentAppJson = org.json.JSONObject(gson.toJson(currentApp))
+            currentAppJson.put("deviceId", deviceId)
+            commandReceiver.sendCurrentApp(currentAppJson)
         }
     }
 
@@ -66,21 +95,28 @@ class HeartbeatService : Service() {
             serviceScope.launch {
                 val deviceInfo = deviceRepository.getDeviceInfo()
                 if (deviceInfo != null && deviceInfo.isRegistered) {
-                    val metrics = deviceMonitor.getDeviceMetrics()
-                    val currentApp = deviceMonitor.getCurrentApp()
-                    val request = HeartbeatRequest(
-                        deviceId = deviceInfo.deviceId,
-                        timestamp = System.currentTimeMillis(),
-                        metrics = metrics,
-                        currentApp = currentApp
-                    )
-                    deviceRepository.sendHeartbeat(request)
+                    if (!commandReceiver.isConnected.value) {
+                        commandReceiver.connect(
+                            serverUrl = deviceInfo.serverUrl,
+                            token = deviceInfo.registrationToken,
+                            deviceId = deviceInfo.deviceId
+                        )
+                        var waited = 0
+                        while (!commandReceiver.isConnected.value && waited < 3000) {
+                            delay(200)
+                            waited += 200
+                        }
+                    }
+                    ensureLoopsRunning(deviceInfo.deviceId)
+                    if (commandReceiver.isConnected.value) {
+                        sendCurrentTelemetry(deviceInfo.deviceId)
+                    }
                 }
             }
             return START_STICKY
         }
 
-        // This service runs continuously. Try to reconnect if dropped.
+        // This service runs continuously. Try to reconnect and ensure loops are running.
         serviceScope.launch {
             val deviceInfo = deviceRepository.getDeviceInfo()
             if (deviceInfo != null && deviceInfo.isRegistered) {
@@ -91,6 +127,7 @@ class HeartbeatService : Service() {
                         deviceId = deviceInfo.deviceId
                     )
                 }
+                ensureLoopsRunning(deviceInfo.deviceId)
             }
         }
         return START_STICKY
@@ -121,14 +158,13 @@ class HeartbeatService : Service() {
         startForeground(1, notification)
     }
 
-    private fun startHeartbeatLoop(deviceId: String) {
-        serviceScope.launch {
+    private fun startHeartbeatLoop(deviceId: String): kotlinx.coroutines.Job {
+        return serviceScope.launch {
             while (isActive) {
                 try {
                     val isPaused = sharedPreferencesManager.isMdmPaused()
                     
                     if (!isPaused) {
-                        // Attempt reconnect if backend restarted or connection dropped
                         if (!commandReceiver.isConnected.value) {
                             val deviceInfo = deviceRepository.getDeviceInfo()
                             if (deviceInfo != null && deviceInfo.isRegistered) {
@@ -137,28 +173,15 @@ class HeartbeatService : Service() {
                                     token = deviceInfo.registrationToken,
                                     deviceId = deviceInfo.deviceId
                                 )
+                                var waited = 0
+                                while (!commandReceiver.isConnected.value && waited < 3000) {
+                                    delay(200)
+                                    waited += 200
+                                }
                             }
                         }
-
-                        val metrics = deviceMonitor.getDeviceMetrics()
-                        val currentApp = deviceMonitor.getCurrentApp()
-                        
-                        val request = HeartbeatRequest(
-                            deviceId = deviceId,
-                            timestamp = System.currentTimeMillis(),
-                            metrics = metrics,
-                            currentApp = currentApp
-                        )
-                        
-                        val pendingCount = deviceRepository.sendHeartbeat(request)
-                        
-                        if (pendingCount > 0) {
-                            val pendingCommands = deviceRepository.fetchPendingCommands()
-                            pendingCommands.forEach { cmd ->
-                                val payloadJson = if (cmd.payload != null) org.json.JSONObject(cmd.payload as Map<*, *>) else null
-                                commandReceiver.executeCommand(cmd.commandType, payloadJson)
-                                deviceRepository.acknowledgeCommand(cmd.id, "EXECUTED")
-                            }
+                        if (commandReceiver.isConnected.value) {
+                            sendCurrentTelemetry(deviceId)
                         }
                     }
                 } catch (e: Exception) {
@@ -169,14 +192,21 @@ class HeartbeatService : Service() {
         }
     }
 
-    private fun startAppBlockerLoop() {
-        serviceScope.launch {
+    private fun startAppBlockerLoop(): kotlinx.coroutines.Job {
+        return serviceScope.launch {
             while (isActive) {
                 try {
                     val isPaused = sharedPreferencesManager.isMdmPaused()
                     if (!isPaused) {
-                        val currentApp = deviceMonitor.getCurrentApp()
-                        ruleDetector.checkForegroundApp(currentApp)
+                        val currentApp = deviceMonitor.getCurrentApp(includeIcon = false)
+                        if (sharedPreferencesManager.isDeviceLocked()) {
+                            val pkg = currentApp?.packageName
+                            if (pkg != null && pkg != packageName && pkg != "com.edusphere.agent") {
+                                actionManager.lockScreen(sharedPreferencesManager.getLockMessage())
+                            }
+                        } else {
+                            ruleDetector.checkForegroundApp(currentApp)
+                        }
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()

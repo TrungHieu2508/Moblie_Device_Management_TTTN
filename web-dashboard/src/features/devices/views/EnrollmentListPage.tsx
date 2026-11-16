@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import { Table, Card, Typography, Button, message, Modal, QRCode, Form, Select, Input, Popconfirm } from 'antd';
+import { Table, Card, Typography, Button, message, Modal, Form, Select, Input, Popconfirm } from 'antd';
 import { CopyOutlined, QrcodeOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { QRCodeSVG } from 'qrcode.react';
-import axiosInstance, { API_BASE_URL } from '../../../config/axios';
+import axiosInstance from '../../../config/axios';
+import EnrollmentQrBox from '../components/EnrollmentQrBox';
 import { getAllCampuses, getSchools, getClassrooms } from '../../../services/schoolService';
 import { createEnrollmentProfile, deleteEnrollmentProfile } from '../../../services/enrollmentService';
+import { useAuthStore } from '../../../store/authStore';
 
 const { Title, Text } = Typography;
 
 const EnrollmentListPage = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const role = user?.role;
 
   const { data: enrollments, isLoading } = useQuery({
     queryKey: ['enrollments'],
     queryFn: async () => {
       const res = await axiosInstance.get('/enrollments');
       return res.data?.data || [];
-    }
+    },
+    refetchOnMount: 'always',
   });
 
   const { data: campuses } = useQuery({
@@ -29,7 +33,7 @@ const EnrollmentListPage = () => {
     queryKey: ['schools', { size: 100 }],
     queryFn: () => getSchools({ page: 0, size: 100 }),
   });
-  const schools = schoolsData?.content || [];
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
 
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [selectedCode, setSelectedCode] = useState('');
@@ -177,6 +181,13 @@ const EnrollmentListPage = () => {
           className="bg-[var(--color-primary)] border-0 h-10 px-6 font-medium"
           onClick={() => {
             setCreatedCode(null);
+            registerForm.resetFields();
+            if (role !== 'SUPER_ADMIN') {
+              const defaultCampusId = user?.campusId || campuses?.[0]?.id;
+              if (defaultCampusId) {
+                registerForm.setFieldsValue({ campusId: defaultCampusId });
+              }
+            }
             setIsRegisterModalVisible(true);
           }}
         >
@@ -190,7 +201,7 @@ const EnrollmentListPage = () => {
           dataSource={enrollments} 
           loading={isLoading}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          pagination={{ pageSize: 10, className: 'custom-pagination' }}
           className="custom-dark-table"
         />
       </Card>
@@ -201,20 +212,11 @@ const EnrollmentListPage = () => {
         onCancel={() => setQrModalVisible(false)}
         footer={null}
         centered
-        width={350}
+        width={400}
         styles={{ body: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px' } }}
       >
-        <QRCode 
-          value={JSON.stringify({ 
-            serverUrl: API_BASE_URL.replace('/api', ''),
-            code: selectedCode 
-          })} 
-          size={250} 
-          bordered={false} 
-          color="#000000" 
-          bgColor="#FFFFFF" 
-        />
-        <div className="mt-4 text-center">
+        <EnrollmentQrBox code={selectedCode} size={240} />
+        <div className="mt-2 text-center">
           <Text className="text-gray-500">Mã thiết bị / Ghi danh:</Text>
           <Title level={4} className="!mt-1 !mb-0 font-mono text-[var(--color-primary)]">{selectedCode}</Title>
         </div>
@@ -235,18 +237,7 @@ const EnrollmentListPage = () => {
           <div className="text-center py-8">
             <Typography.Text className="text-gray-400 block mb-2">Quét mã QR dưới đây để cấu hình thiết bị:</Typography.Text>
             
-            <div className="flex justify-center my-6 bg-white p-4 rounded-xl inline-block">
-              <QRCodeSVG 
-                value={JSON.stringify({ 
-                  serverUrl: API_BASE_URL.replace('/api', ''),
-                  code: createdCode 
-                })} 
-                size={200}
-                level="M"
-                fgColor="#000000"
-                bgColor="#FFFFFF"
-              />
-            </div>
+            <EnrollmentQrBox code={createdCode} size={200} />
             
             <Typography.Text className="text-gray-400 block mb-2">Hoặc nhập thủ công mã Ghi Danh sau:</Typography.Text>
             <Typography.Title level={2} className="!text-[var(--color-primary)] tracking-widest bg-[var(--color-primary)]/10 py-4 rounded-xl border border-[var(--color-primary)]/30">
@@ -264,6 +255,7 @@ const EnrollmentListPage = () => {
             <Form.Item name="campusId" label="Cơ sở (Campus)" rules={[{ required: true, message: 'Vui lòng chọn cơ sở' }]}>
               <Select 
                 placeholder="Chọn cơ sở"
+                disabled={role !== 'SUPER_ADMIN' && !!user?.campusId}
                 onChange={() => registerForm.setFieldValue('schoolId', undefined)}
               >
                 {campuses?.map((campus: any) => (

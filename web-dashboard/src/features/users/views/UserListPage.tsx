@@ -22,7 +22,7 @@ const UserListPage = () => {
 
   const { data, isLoading } = useQuery({
     queryKey: ['users', page, searchText, selectedRole, selectedCampus],
-    queryFn: () => getUsers({ page, size: 10, search: searchText || undefined, role: selectedRole || undefined, campusId: selectedCampus || undefined }),
+    queryFn: () => getUsers({ page, size: 10, search: searchText || undefined, role: selectedRole || undefined, campusId: selectedCampus || undefined, paged: true }),
   });
 
   const { data: campusesData } = useQuery({
@@ -122,6 +122,45 @@ const UserListPage = () => {
     }
   };
 
+  /** Render Campus -> School cascade fields for IT_ADMIN role. */
+  const renderScopeFields = (targetForm: any, schoolPlaceholder: string) => (
+    <Form.Item noStyle dependencies={['role', 'campusId']}>
+      {({ getFieldValue }) => {
+        const role = getFieldValue('role');
+        if (role !== 'IT_ADMIN') return null;
+
+        const campusId = getFieldValue('campusId');
+        const allSchools = Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content || []);
+        const filteredSchools = campusId
+          ? allSchools.filter((school: any) => school.campusId === campusId)
+          : allSchools;
+
+        return (
+          <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
+            <p className="text-gray-300 mb-4 text-sm">Phân bổ phạm vi quản lý cho Admin (IT & Giáo viên)</p>
+            <Form.Item name="campusId" label="Khu vực (Campus)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
+              <Select
+                placeholder="-- Chọn Khu vực --"
+                onChange={() => targetForm.setFieldValue('schoolId', undefined)}
+              >
+                {campusesData?.map((campus: any) => (
+                  <Select.Option key={campus.id} value={campus.id}>{campus.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="schoolId" label="Trường học (Tùy chọn)">
+              <Select allowClear placeholder={schoolPlaceholder} disabled={!campusId}>
+                {filteredSchools.map((school: any) => (
+                  <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
+        );
+      }}
+    </Form.Item>
+  );
+
   const columns = [
     {
       title: 'Tài khoản',
@@ -152,12 +191,10 @@ const UserListPage = () => {
       dataIndex: 'role',
       key: 'role',
       render: (role: string) => {
-        let color = 'blue';
-        if (role === 'SUPER_ADMIN') color = 'purple';
-        else if (role === 'TEACHER') color = 'green';
+        const isSuper = role === 'SUPER_ADMIN';
         return (
-          <Tag color={color} className="border-0 font-bold">
-            {role}
+          <Tag color={isSuper ? 'purple' : 'blue'} className="border-0 font-bold">
+            {isSuper ? 'SUPER_ADMIN' : 'ADMIN (IT & Giáo viên)'}
           </Tag>
         );
       }
@@ -167,17 +204,13 @@ const UserListPage = () => {
       key: 'scope',
       render: (_: any, record: UserDto) => {
         if (record.role === 'SUPER_ADMIN') return <span className="text-purple-400">Toàn hệ thống</span>;
+        if (record.school && record.campus) return <span className="text-blue-300">{record.campus.name} · {record.school.name}</span>;
         if (record.campus) return <span className="text-blue-400">{record.campus.name}</span>;
-        if (record.school) return <span className="text-blue-300">Toàn trường ({record.school.name})</span>;
+        if (record.school) return <span className="text-blue-300">{record.school.name}</span>;
         return <span className="text-gray-500">Chưa phân bổ</span>;
       }
     },
-    {
-      title: 'Đăng nhập cuối',
-      dataIndex: 'lastLoginAt',
-      key: 'lastLoginAt',
-      render: (text: string) => <span className="text-gray-500">{text ? new Date(text).toLocaleString() : 'Chưa đăng nhập'}</span>
-    },
+
     {
       title: 'Thao tác',
       key: 'action',
@@ -213,8 +246,8 @@ const UserListPage = () => {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <Title level={3} className="!m-0 !text-white">Quản lý Tài khoản (User Admin)</Title>
-          <p className="text-gray-400 mt-1">Tạo và phân quyền cho các Admin cơ sở (IT_ADMIN) và Giáo viên (TEACHER)</p>
+          <Title level={3} className="!m-0 !text-white">Quản lý Tài khoản & Phân quyền</Title>
+          <p className="text-gray-400 mt-1">Quản lý tài khoản Super Admin và Admin vận hành (dùng chung cho bộ phận IT & Giáo viên)</p>
         </div>
         <Button 
           type="primary" 
@@ -240,16 +273,15 @@ const UserListPage = () => {
           <Select
             allowClear
             placeholder="Lọc theo Vai trò"
-            className="w-48 custom-select"
+            className="w-56 custom-select"
             value={selectedRole}
             onChange={(val) => {
               setSelectedRole(val);
               setPage(0);
             }}
             options={[
-              { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN' },
-              { value: 'IT_ADMIN', label: 'IT_ADMIN' },
-              { value: 'TEACHER', label: 'TEACHER' },
+              { value: 'SUPER_ADMIN', label: 'SUPER_ADMIN (Quản trị Tối cao)' },
+              { value: 'IT_ADMIN', label: 'IT_ADMIN (Admin Vận hành)' },
             ]}
           />
           <Select
@@ -267,13 +299,13 @@ const UserListPage = () => {
 
         <Table 
           columns={columns} 
-          dataSource={data?.content || []} 
+          dataSource={(Array.isArray(data) ? data : (data?.content)) || []} 
           loading={isLoading}
           rowKey="id"
           pagination={{ 
             current: page + 1,
             pageSize: 10,
-            total: data?.totalElements || 0,
+            total: Array.isArray(data) ? data.length : (data?.totalElements ?? 0),
             onChange: (p) => setPage(p - 1),
             className: 'custom-pagination' 
           }}
@@ -303,49 +335,13 @@ const UserListPage = () => {
           </Form.Item>
           <Form.Item name="role" label="Vai trò" rules={[{ required: true }]} initialValue="IT_ADMIN">
             <Select>
-              <Select.Option value="SUPER_ADMIN">SUPER_ADMIN (Toàn quyền)</Select.Option>
-              <Select.Option value="IT_ADMIN">IT_ADMIN (Quản trị Cơ sở)</Select.Option>
-              <Select.Option value="TEACHER">TEACHER (Giáo viên)</Select.Option>
+              <Select.Option value="SUPER_ADMIN">SUPER_ADMIN (Quản trị Tối cao Toàn hệ thống)</Select.Option>
+              <Select.Option value="IT_ADMIN">IT_ADMIN (Admin Quản lý Thiết bị & Vận hành)</Select.Option>
             </Select>
           </Form.Item>
           
           {/* Chọn Trường và Cơ sở dựa trên Role */}
-          <Form.Item noStyle dependencies={['role']}>
-            {({ getFieldValue }) => {
-              const role = getFieldValue('role');
-              if (role === 'IT_ADMIN') {
-                return (
-                  <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
-                    <p className="text-gray-300 mb-4 text-sm">Phân bổ quyền quản lý cho Admin cơ sở (IT_ADMIN)</p>
-                    
-                    <Form.Item name="campusId" label="Khu vực (Campus) (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
-                      <Select placeholder="-- Chọn Khu vực --">
-                        {campusesData?.map((campus: any) => (
-                          <Select.Option key={campus.id} value={campus.id}>{campus.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </div>
-                );
-              }
-              if (role === 'TEACHER') {
-                return (
-                  <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
-                    <p className="text-gray-300 mb-4 text-sm">Phân bổ Giáo viên (TEACHER) về Trường</p>
-                    
-                    <Form.Item name="schoolId" label="Trường học (School) (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn trường' }]}>
-                      <Select placeholder="-- Chọn Trường --">
-                        {schoolsData?.content?.map((school: any) => (
-                          <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </div>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
+          {renderScopeFields(form, '-- Chọn Trường học (Nếu quản lý theo trường) --')}
 
           <Button type="primary" htmlType="submit" className="w-full bg-[var(--color-primary)] border-0" loading={createMutation.isPending}>
             Tạo tài khoản
@@ -376,9 +372,8 @@ const UserListPage = () => {
           </Form.Item>
           <Form.Item name="role" label="Vai trò" rules={[{ required: true }]}>
             <Select disabled>
-              <Select.Option value="SUPER_ADMIN">SUPER_ADMIN (Toàn quyền)</Select.Option>
-              <Select.Option value="IT_ADMIN">IT_ADMIN (Quản trị Cơ sở)</Select.Option>
-              <Select.Option value="TEACHER">TEACHER (Giáo viên)</Select.Option>
+              <Select.Option value="SUPER_ADMIN">SUPER_ADMIN (Quản trị Tối cao)</Select.Option>
+              <Select.Option value="IT_ADMIN">IT_ADMIN (Admin Quản lý Thiết bị & Vận hành)</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="isActive" label="Trạng thái">
@@ -389,40 +384,7 @@ const UserListPage = () => {
           </Form.Item>
           
           {/* Chọn Trường và Cơ sở dựa trên Role */}
-          <Form.Item noStyle dependencies={['role']}>
-            {({ getFieldValue }) => {
-              const role = getFieldValue('role');
-              if (role === 'IT_ADMIN') {
-                return (
-                  <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
-                    <p className="text-gray-300 mb-4 text-sm">Phân bổ quyền quản lý cho Admin cơ sở (IT_ADMIN)</p>
-                    <Form.Item name="campusId" label="Khu vực (Campus) (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn khu vực' }]}>
-                      <Select placeholder="-- Chọn Khu vực --">
-                        {campusesData?.map((campus: any) => (
-                          <Select.Option key={campus.id} value={campus.id}>{campus.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </div>
-                );
-              }
-              if (role === 'TEACHER') {
-                return (
-                  <div className="p-4 bg-[#1f2028] border border-[#2e303a] rounded-lg mb-4 mt-2">
-                    <p className="text-gray-300 mb-4 text-sm">Phân bổ Giáo viên (TEACHER) về Trường</p>
-                    <Form.Item name="schoolId" label="Trường học (School) (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn trường' }]}>
-                      <Select placeholder="-- Chọn Trường --">
-                        {schoolsData?.content?.map((school: any) => (
-                          <Select.Option key={school.id} value={school.id}>{school.name}</Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </div>
-                );
-              }
-              return null;
-            }}
-          </Form.Item>
+          {renderScopeFields(editForm, '-- Chọn Trường học --')}
 
           <Button type="primary" htmlType="submit" className="w-full bg-[var(--color-primary)] border-0" loading={updateMutation.isPending}>
             Lưu thay đổi

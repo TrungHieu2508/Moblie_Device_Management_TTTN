@@ -5,26 +5,49 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import com.edusphere.agent.data.remote.model.ViolationRequest
+import com.edusphere.agent.data.remote.websocket.CommandReceiver
 import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.domain.action.DeviceActionManager
 import com.edusphere.agent.data.local.SharedPreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import org.json.JSONObject
 import javax.inject.Inject
+import javax.inject.Singleton
 
+@Singleton
 class RuleDetector @Inject constructor(
     @ApplicationContext private val context: Context,
     private val deviceRepository: DeviceRepository,
     private val actionManager: DeviceActionManager,
-    private val sharedPreferencesManager: SharedPreferencesManager
+    private val sharedPreferencesManager: SharedPreferencesManager,
+    private val commandReceiver: CommandReceiver
 ) {
-    // In a real scenario, these lists would be fetched from the server and cached locally
     private var whitelist: List<String> = emptyList()
     private var blacklist: List<String> = emptyList()
     private var isWhitelistMode = false
 
     private var violatingPackage: String? = null
     private var lastViolationSentTime: Long = 0L
+
+    private val forbiddenSocialAndEntertainmentApps = setOf(
+        "com.facebook.katana",       // Facebook
+        "com.facebook.lite",         // Facebook Lite
+        "com.facebook.orca",         // Messenger
+        "com.instagram.android",     // Instagram
+        "com.instagram.barcelona",   // Threads
+        "com.google.android.youtube",// YouTube
+        "com.zhiliaoapp.musically",  // TikTok
+        "com.ss.android.ugc.trill",  // TikTok
+        "com.zing.zalo",             // Zalo
+        "com.garena.game.kgvn",      // Liên Quân Mobile
+        "com.dts.freefireth"         // Free Fire
+    )
+
+    init {
+        commandReceiver.policyUpdateListener = { wl, bl, isWlMode ->
+            updatePolicies(wl, bl, isWlMode)
+        }
+    }
 
     fun updatePolicies(whitelist: List<String>, blacklist: List<String>, isWhitelistMode: Boolean) {
         this.whitelist = whitelist
@@ -41,6 +64,12 @@ class RuleDetector @Inject constructor(
         val appName = currentApp?.appName ?: packageName
 
         if (packageName == null || packageName.isEmpty()) return
+
+        // Luôn bỏ qua chính ứng dụng MDM Agent (để không tự chặn màn hình cảnh báo / màn hình khóa)
+        val ownPkg = context.packageName ?: "com.edusphere.agent"
+        if (packageName == ownPkg || packageName == "com.edusphere.agent") {
+            return
+        }
 
         // Ignore system UI, launchers, and device manufacturer packages (Home screens)
         val isLauncherOrSystem = packageName.contains("launcher") || 
@@ -65,8 +94,8 @@ class RuleDetector @Inject constructor(
         var isCategoryBlocked = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
-                when (appInfo.category) {
+                val appInfo = context.packageManager?.getApplicationInfo(packageName, 0)
+                when (appInfo?.category) {
                     ApplicationInfo.CATEGORY_GAME -> {
                         isCategoryBlocked = true
                         details = "App $packageName is a Game (CATEGORY_GAME)."
@@ -84,7 +113,7 @@ class RuleDetector @Inject constructor(
                         details = "App $packageName is Audio Entertainment (CATEGORY_AUDIO)."
                     }
                 }
-            } catch (e: PackageManager.NameNotFoundException) {
+            } catch (e: Exception) {
                 // Ignore if package not found
             }
         }
@@ -92,11 +121,8 @@ class RuleDetector @Inject constructor(
         if (isCategoryBlocked) {
             isViolated = true
         }
-        // Check hardcoded forbidden apps (Fallback)
-        else if (packageName == "com.facebook.katana" || 
-            packageName == "com.google.android.youtube" ||
-            packageName == "com.zhiliaoapp.musically" || 
-            packageName == "com.ss.android.ugc.trill") {
+        // Check hardcoded forbidden social media / entertainment apps (Fallback)
+        else if (forbiddenSocialAndEntertainmentApps.contains(packageName)) {
             isViolated = true
             details = "App $packageName is explicitly forbidden for studying."
         } else if (isWhitelistMode) {
@@ -112,7 +138,7 @@ class RuleDetector @Inject constructor(
         }
 
         if (isViolated) {
-            Log.w("RuleDetector", "Violation detected: $details")
+            try { Log.w("RuleDetector", "Violation detected: $details") } catch (_: Exception) {}
             
             // LUÔN LUÔN khoá/đẩy học sinh ra khỏi app NGAY LẬP TỨC
             actionManager.clearRecents()
@@ -127,16 +153,18 @@ class RuleDetector @Inject constructor(
                 
                 val deviceInfo = deviceRepository.getDeviceInfo()
                 if (deviceInfo != null) {
-                    val request = ViolationRequest(
-                        deviceId = deviceInfo.deviceId,
-                        eventType = "BLACKLIST_APP_DETECTED",
-                        timestamp = now,
-                        payload = mapOf(
-                            "packageName" to packageName,
-                            "details" to details
-                        )
-                    )
-                    deviceRepository.sendViolation(request)
+                    val eventJson = JSONObject().apply {
+                        put("deviceId", deviceInfo.deviceId)
+                        put("eventType", "BLACKLIST_APP_DETECTED")
+                        put("timestamp", now)
+                        val payload = JSONObject().apply {
+                            put("packageName", packageName)
+                            put("appName", appName)
+                            put("details", details)
+                        }
+                        put("payload", payload)
+                    }
+                    commandReceiver.sendEvent(eventJson)
                 }
             }
         } else {

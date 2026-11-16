@@ -62,13 +62,13 @@ class MainViewModel @Inject constructor(
     }
 
     fun checkStatus() {
-        val isDeviceOwner = dpm.isDeviceOwnerApp(context.packageName)
+        val hasMdmPrivilege = dpm.isDeviceOwnerApp(context.packageName) || dpm.isAdminActive(adminComponent)
         val isPaused = sharedPreferencesManager.isMdmPaused()
         
         viewModelScope.launch {
             val deviceInfo = deviceRepository.getDeviceInfo()
             _uiState.value = _uiState.value.copy(
-                isDeviceOwner = isDeviceOwner,
+                isDeviceOwner = hasMdmPrivilege,
                 isRegistered = deviceInfo?.isRegistered == true,
                 isPaused = isPaused
             )
@@ -126,8 +126,9 @@ class MainViewModel @Inject constructor(
             deviceRepository.clearDeviceInfo()
             // Disconnect websocket
             commandReceiver.disconnect()
-            // Turn off pause if it was on
+            // Turn off pause and lock if it was on
             sharedPreferencesManager.setMdmPaused(false)
+            sharedPreferencesManager.setDeviceLocked(false)
             // Update UI
             checkStatus()
             loadDeviceInfo()
@@ -136,6 +137,9 @@ class MainViewModel @Inject constructor(
 
     fun togglePause(isPaused: Boolean) {
         sharedPreferencesManager.setMdmPaused(isPaused)
+        if (isPaused) {
+            sharedPreferencesManager.setDeviceLocked(false)
+        }
         checkStatus()
         
         if (isPaused) {

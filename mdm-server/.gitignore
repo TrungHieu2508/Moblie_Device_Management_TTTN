@@ -1,48 +1,42 @@
-HELP.md
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+# Distribution / packaging
+dist/
 build/
-!**/src/main/**/build/
-!**/src/test/**/build/
+*.egg-info/
+.eggs/
 
-### VS Code ###
-.vscode/
-
-### macOS ###
-.DS_Store
-
-### Environment Variables ###
+# ── Environment Variables (chứa secrets) ──────────────────
 .env
 .env.local
 .env.production
+.env.staging
 
-### Application Properties (sensitive) ###
-src/main/resources/application-local.yml
-src/main/resources/application-prod.yml
+# ── IDE ───────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Alembic ───────────────────────────────────────────────
+# Giữ lại versions/ nhưng bỏ cache
+alembic/versions/__pycache__/
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
+logs/
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

@@ -41,23 +41,33 @@ class DeviceMonitor @Inject constructor(
         )
     }
 
-    fun getCurrentApp(): CurrentApp? {
+    fun getCurrentApp(includeIcon: Boolean = true): CurrentApp? {
         try {
             val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
             val time = System.currentTimeMillis()
-            val events = usageStatsManager.queryEvents(time - 1000 * 60 * 60, time)
-            
             var currentPackageName: String? = null
             val event = android.app.usage.UsageEvents.Event()
-            
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
+
+            // Truy vấn nhanh 5 phút gần nhất trước để tối ưu tốc độ phát hiện app
+            val recentEvents = usageStatsManager.queryEvents(time - 1000 * 60 * 5, time)
+            while (recentEvents.hasNextEvent()) {
+                recentEvents.getNextEvent(event)
                 if (event.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED) {
                     currentPackageName = event.packageName
                 }
             }
 
-            
+            // Nếu học sinh treo 1 app quá 5 phút thì mở rộng tìm trong 60 phút
+            if (currentPackageName == null) {
+                val events = usageStatsManager.queryEvents(time - 1000 * 60 * 60, time)
+                while (events.hasNextEvent()) {
+                    events.getNextEvent(event)
+                    if (events.let { event.eventType == android.app.usage.UsageEvents.Event.ACTIVITY_RESUMED }) {
+                        currentPackageName = event.packageName
+                    }
+                }
+            }
+
             if (currentPackageName != null) {
                 val appName = try {
                     val packageManager = context.packageManager
@@ -68,23 +78,25 @@ class DeviceMonitor @Inject constructor(
                 }
 
                 var appIconBase64: String? = null
-                try {
-                    val packageManager = context.packageManager
-                    val icon = packageManager.getApplicationIcon(currentPackageName)
-                    val bitmap = if (icon is android.graphics.drawable.BitmapDrawable) {
-                        icon.bitmap
-                    } else {
-                        val bmp = android.graphics.Bitmap.createBitmap(icon.intrinsicWidth, icon.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
-                        val canvas = android.graphics.Canvas(bmp)
-                        icon.setBounds(0, 0, canvas.width, canvas.height)
-                        icon.draw(canvas)
-                        bmp
-                    }
-                    val outputStream = java.io.ByteArrayOutputStream()
-                    // Compress aggressive to save payload size
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 50, outputStream)
-                    appIconBase64 = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
-                } catch (e: Exception) {}
+                if (includeIcon) {
+                    try {
+                        val packageManager = context.packageManager
+                        val icon = packageManager.getApplicationIcon(currentPackageName)
+                        val bitmap = if (icon is android.graphics.drawable.BitmapDrawable) {
+                            icon.bitmap
+                        } else {
+                            val bmp = android.graphics.Bitmap.createBitmap(icon.intrinsicWidth, icon.intrinsicHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(bmp)
+                            icon.setBounds(0, 0, canvas.width, canvas.height)
+                            icon.draw(canvas)
+                            bmp
+                        }
+                        val outputStream = java.io.ByteArrayOutputStream()
+                        // Compress aggressive to save payload size
+                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 50, outputStream)
+                        appIconBase64 = android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
+                    } catch (e: Exception) {}
+                }
 
                 return CurrentApp(currentPackageName, appName, appIconBase64)
             }

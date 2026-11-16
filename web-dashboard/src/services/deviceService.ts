@@ -13,6 +13,17 @@ export interface DeviceDto {
   campus?: { id: string; name: string };
   classroom?: { id: string; name: string };
   lastHeartbeatAt: string;
+  metrics?: {
+    batteryLevel?: number;
+    ramUsage?: number;
+    storageUsage?: number;
+    wifiSsid?: string;
+    currentApp?: {
+      packageName?: string;
+      appName?: string;
+      appIconBase64?: string;
+    };
+  };
   currentApp?: {
     packageName?: string;
     appName?: string;
@@ -35,12 +46,22 @@ export const registerDevice = async (deviceData: any) => {
   return data.data;
 };
 
-export const updateDevice = async (id: string, updateData: { deviceName?: string, notes?: string, campusId?: string, schoolId?: string }) => {
+export const updateDevice = async (id: string, updateData: { deviceName?: string, notes?: string, campusId?: string, schoolId?: string, classroomId?: string }) => {
   const { data } = await axiosInstance.put(`/devices/${id}`, updateData);
+  return data.data;
+};
+
+export const assignDeviceLocation = async (id: string, assignData: { campusId?: string, schoolId?: string, classroomId?: string }) => {
+  const { data } = await axiosInstance.patch(`/devices/${id}/assign`, assignData);
   return data.data;
 };
 
 export const deleteDevice = async (id: string) => {
   const { data } = await axiosInstance.delete(`/devices/${id}`);
+  return data.data;
+};
+
+export const sendDeviceCommand = async (id: string, commandType: string, payload: Record<string, any> = {}) => {
+  const { data } = await axiosInstance.post(`/devices/${id}/command`, { commandType, payload });
   return data.data;
 };

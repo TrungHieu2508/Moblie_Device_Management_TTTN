@@ -13,9 +13,9 @@ export interface UserDto {
   createdAt: string;
 }
 
-export const getUsers = async (params: { page?: number, size?: number, search?: string, role?: string, campusId?: string }) => {
+export const getUsers = async (params: { page?: number, size?: number, search?: string, role?: string, campusId?: string, paged?: boolean }) => {
   const { data } = await axiosInstance.get('/users', { params });
-  return data.data; // ApiResponse.data (which is Page<UserDto>)
+  return data.data; // ApiResponse.data (List<UserDto> or Page<UserDto> when paged=true)
 };
 
 export const createUser = async (payload: any) => {

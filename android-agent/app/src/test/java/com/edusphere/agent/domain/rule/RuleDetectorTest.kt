@@ -5,6 +5,7 @@ import com.edusphere.agent.domain.repository.DeviceRepository
 import com.edusphere.agent.domain.action.DeviceActionManager
 import com.edusphere.agent.data.local.SharedPreferencesManager
 import com.edusphere.agent.data.remote.model.CurrentApp
+import com.edusphere.agent.data.remote.websocket.CommandReceiver
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,6 +22,7 @@ class RuleDetectorTest {
     private lateinit var deviceRepository: DeviceRepository
     private lateinit var actionManager: DeviceActionManager
     private lateinit var sharedPreferencesManager: SharedPreferencesManager
+    private lateinit var commandReceiver: CommandReceiver
     private lateinit var ruleDetector: RuleDetector
 
     private lateinit var context: android.content.Context
@@ -31,7 +33,8 @@ class RuleDetectorTest {
         deviceRepository = mock()
         actionManager = mock()
         sharedPreferencesManager = mock()
-        ruleDetector = RuleDetector(context, deviceRepository, actionManager, sharedPreferencesManager)
+        commandReceiver = mock()
+        ruleDetector = RuleDetector(context, deviceRepository, actionManager, sharedPreferencesManager, commandReceiver)
     }
 
     @Test
@@ -49,7 +52,7 @@ class RuleDetectorTest {
 
             ruleDetector.checkForegroundApp(CurrentApp("com.example.game", "Game App", ""))
 
-            verify(deviceRepository).sendViolation(any())
+            verify(commandReceiver).sendEvent(any())
         }
     }
 
@@ -68,7 +71,7 @@ class RuleDetectorTest {
 
             ruleDetector.checkForegroundApp(CurrentApp("com.example.education", "Education App", ""))
 
-            verify(deviceRepository, never()).sendViolation(any())
+            verify(commandReceiver, never()).sendEvent(any())
         }
     }
 
@@ -87,7 +90,7 @@ class RuleDetectorTest {
 
             ruleDetector.checkForegroundApp(CurrentApp("com.example.game", "Game App", ""))
 
-            verify(deviceRepository).sendViolation(any())
+            verify(commandReceiver).sendEvent(any())
         }
     }
 }

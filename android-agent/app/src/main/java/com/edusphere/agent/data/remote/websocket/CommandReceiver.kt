@@ -42,6 +42,8 @@ class CommandReceiver @Inject constructor(
 
     private var isConnecting = false
 
+    var policyUpdateListener: ((List<String>, List<String>, Boolean) -> Unit)? = null
+
     init {
         try {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
@@ -66,7 +68,6 @@ class CommandReceiver @Inject constructor(
 
     @Synchronized
     fun connect(serverUrl: String, token: String, deviceId: String) {
-        // Use user-defined Server URL from SharedPreferences if available, otherwise fallback to serverUrl parameter
         val prefsUrl = sharedPreferencesManager.getServerUrl()
         val actualServerUrl = if (!prefsUrl.isNullOrEmpty()) prefsUrl else serverUrl
         
@@ -81,23 +82,23 @@ class CommandReceiver @Inject constructor(
             return
         }
 
-        // Construct STOMP endpoint URL
+        // URL format: ws://host:8081/ws/agent/{deviceId}?token={token}
         var wsUrl = if (actualServerUrl.startsWith("http")) {
             actualServerUrl.replaceFirst("http", "ws")
         } else {
             actualServerUrl
         }
         
-        // Ensure wsUrl ends with /api/ws-agent if it doesn't already
-        if (!wsUrl.endsWith("/api/ws-agent")) {
-            if (!wsUrl.endsWith("/")) {
-                wsUrl += "/"
-            }
-            wsUrl += "api/ws-agent"
+        // Remove trailing slash or /api if present
+        wsUrl = wsUrl.replace(Regex("/api/?$"), "")
+        if (wsUrl.endsWith("/")) {
+            wsUrl = wsUrl.substring(0, wsUrl.length - 1)
         }
+        
+        wsUrl += "/ws/agent/$deviceId?token=$token"
 
         val uri = URI(wsUrl)
-        val headers = mapOf("Authorization" to "Device $token")
+        val headers = mapOf<String, String>() // No headers needed, token is in query
 
         isConnecting = true
         
@@ -110,33 +111,51 @@ class CommandReceiver @Inject constructor(
         webSocketClient = object : WebSocketClient(uri, headers) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 isConnecting = false
-                Log.i(TAG, "WebSocket Opened, sending STOMP CONNECT...")
-                val connectFrame = "CONNECT\n" +
-                        "accept-version:1.2,1.1,1.0\n" +
-                        "heart-beat:0,0\n" +
-                        "Authorization:Device $token\n" +
-                        "\n\u0000"
-                webSocketClient?.send(connectFrame)
+                Log.i(TAG, "WebSocket Opened!")
+                _isConnected.value = true
             }
 
             override fun onMessage(message: String?) {
                 Log.i(TAG, "Received message: $message")
                 message?.let {
-                    if (it.startsWith("CONNECTED")) {
-                        Log.i(TAG, "STOMP Connected! Subscribing to command topic...")
-                        val subscribeFrame = "SUBSCRIBE\n" +
-                                "id:sub-0\n" +
-                                "destination:/topic/devices/$deviceId/command\n" +
-                                "\n\u0000"
-                        webSocketClient?.send(subscribeFrame)
-                        _isConnected.value = true
-                    } else if (it.startsWith("MESSAGE")) {
-                        // Extract JSON payload from STOMP MESSAGE frame
-                        val payloadIndex = it.indexOf("\n\n")
-                        if (payloadIndex != -1) {
-                            val jsonPayload = it.substring(payloadIndex + 2).replace("\u0000", "")
-                            handleCommand(jsonPayload)
+                    try {
+                        val json = JSONObject(it)
+                        val type = json.optString("type")
+                        if (type == "COMMAND") {
+                            val data = json.optJSONObject("data")
+                            if (data != null) {
+                                val commandType = data.optString("commandType")
+                                val payload = data.optJSONObject("payload")
+                                val commandId = data.optString("id") // To acknowledge later
+                                executeCommand(commandType, payload)
+                                
+                                if (commandId.isNotEmpty()) {
+                                    sendCommandAck(commandId, "EXECUTED", null)
+                                }
+                            }
+                        } else if (type == "SYNC_POLICIES") {
+                            val data = json.optJSONObject("data")
+                            if (data != null) {
+                                val wlArr = data.optJSONArray("whitelist")
+                                val blArr = data.optJSONArray("blacklist")
+                                val wl = mutableListOf<String>()
+                                val bl = mutableListOf<String>()
+                                if (wlArr != null) {
+                                    for (i in 0 until wlArr.length()) {
+                                        wlArr.optString(i)?.takeIf { it.isNotEmpty() }?.let { wl.add(it) }
+                                    }
+                                }
+                                if (blArr != null) {
+                                    for (i in 0 until blArr.length()) {
+                                        blArr.optString(i)?.takeIf { it.isNotEmpty() }?.let { bl.add(it) }
+                                    }
+                                }
+                                val isWlMode = data.optBoolean("isWhitelistMode", wl.isNotEmpty())
+                                policyUpdateListener?.invoke(wl, bl, isWlMode)
+                            }
                         }
+                    } catch (e: Exception) {
+                         Log.e(TAG, "Failed to parse incoming WS message", e)
                     }
                 }
             }
@@ -155,8 +174,8 @@ class CommandReceiver @Inject constructor(
             }
         }
         
-        // Set connection lost timeout to ping the server every 30 seconds
-        webSocketClient?.setConnectionLostTimeout(30)
+        // Tắt timeout tự ngắt kết nối khi đường truyền đang bận gửi frame hình ảnh liên tục
+        webSocketClient?.setConnectionLostTimeout(0)
         
         try {
             webSocketClient?.connect()
@@ -235,14 +254,37 @@ class CommandReceiver @Inject constructor(
                     context.startService(intent)
                 }
                 "START_STREAM" -> {
-                    val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        try {
+                            if (com.edusphere.agent.presentation.service.ScreenCaptureService.canStartDirectly()) {
+                                val serviceIntent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java).apply {
+                                    action = "RESUME_OR_RESEND"
+                                }
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    context.startForegroundService(serviceIntent)
+                                } else {
+                                    context.startService(serviceIntent)
+                                }
+                            } else {
+                                val intent = Intent(context, com.edusphere.agent.presentation.main.ScreenCaptureActivity::class.java)
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                context.startActivity(intent)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to start screen stream", e)
+                        }
+                    }
                 }
                 "STOP_STREAM" -> {
-                    val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)
-                    intent.action = "STOP"
-                    context.startService(intent)
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        try {
+                            val intent = Intent(context, com.edusphere.agent.presentation.service.ScreenCaptureService::class.java)
+                            intent.action = "STOP"
+                            context.startService(intent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to stop ScreenCaptureService", e)
+                        }
+                    }
                 }
                 "REBOOT_DEVICE" -> {
                     actionManager.reboot()
@@ -286,14 +328,14 @@ class CommandReceiver @Inject constructor(
                     actionManager.setFactoryResetDisabled(disabled)
                 }
                 "SHOW_VIOLATION_LOCK" -> {
-                    val intent = Intent(context, LockActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                     val message = payload?.optString("message", "Thiết bị đang bị khóa do vi phạm kỷ luật!")
-                    intent.putExtra("LOCK_MESSAGE", message)
-                    context.startActivity(intent)
+                    actionManager.lockScreen(message)
                 }
                 "UNLOCK_DEVICE" -> {
-                    val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE")
+                    sharedPreferencesManager.setDeviceLocked(false)
+                    val intent = Intent("com.edusphere.agent.ACTION_UNLOCK_DEVICE").apply {
+                        setPackage(context.packageName)
+                    }
                     context.sendBroadcast(intent)
                 }
                 "UPDATE_APP" -> {
@@ -323,14 +365,74 @@ class CommandReceiver @Inject constructor(
     }
 
     fun sendScreenFrame(base64Frame: String) {
+        val client = webSocketClient
+        if (_isConnected.value && currentDeviceId != null && client?.isOpen == true) {
+            // Tránh dồn ứ hàng đợi TCP gây trễ hình (lag): nếu frame trước đang gửi dở thì bỏ qua frame trung gian
+            if (client.hasBufferedData()) return
+            try {
+                val dataJson = JSONObject().apply {
+                    put("deviceId", currentDeviceId)
+                    put("frame", base64Frame)
+                }
+                val json = JSONObject().apply {
+                    put("type", "SCREEN_FRAME")
+                    put("data", dataJson)
+                }
+                client.send(json.toString())
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to send screen frame: ${e.message}")
+            }
+        }
+    }
+
+    fun sendMetrics(metricsJson: JSONObject) {
+        if (_isConnected.value && currentDeviceId != null && webSocketClient?.isOpen == true) {
+            try {
+                val json = JSONObject().apply {
+                    put("type", "METRICS")
+                    put("data", metricsJson)
+                }
+                webSocketClient?.send(json.toString())
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to send metrics: ${e.message}")
+            }
+        }
+    }
+
+    fun sendCurrentApp(currentAppJson: JSONObject) {
         if (_isConnected.value && currentDeviceId != null) {
             val json = JSONObject().apply {
-                put("deviceId", currentDeviceId)
-                put("frame", base64Frame)
+                put("type", "CURRENT_APP")
+                put("data", currentAppJson)
             }
-            val destination = "/app/stream/frame"
-            val message = "SEND\ndestination:$destination\ncontent-type:application/json\n\n${json.toString()}\u0000"
-            webSocketClient?.send(message)
+            webSocketClient?.send(json.toString())
+        }
+    }
+
+    fun sendCommandAck(commandId: String, status: String, errorMessage: String?) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val dataJson = JSONObject().apply {
+                put("commandId", commandId)
+                put("status", status)
+                if (errorMessage != null) {
+                    put("errorMessage", errorMessage)
+                }
+            }
+            val json = JSONObject().apply {
+                put("type", "COMMAND_ACK")
+                put("data", dataJson)
+            }
+            webSocketClient?.send(json.toString())
+        }
+    }
+
+    fun sendEvent(eventJson: JSONObject) {
+        if (_isConnected.value && currentDeviceId != null) {
+            val json = JSONObject().apply {
+                put("type", "EVENT")
+                put("data", eventJson)
+            }
+            webSocketClient?.send(json.toString())
         }
     }
 }

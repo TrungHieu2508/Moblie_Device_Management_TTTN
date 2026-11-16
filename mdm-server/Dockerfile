@@ -1,15 +1,22 @@
-# Stage 1: Build
-FROM maven:3.9.6-eclipse-temurin-17 AS build
-WORKDIR /app
-COPY pom.xml .
-# Download dependencies to cache them
-RUN mvn dependency:go-offline -B
-COPY src ./src
-RUN mvn clean package -DskipTests
+FROM python:3.12-slim
 
-# Stage 2: Run
-FROM eclipse-temurin:17-jre
+# Cài đặt thư viện hệ thống cần thiết cho asyncpg và bcrypt
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+
+# Cài dependencies trước (cache layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy toàn bộ source code
+COPY . .
+
+# Port 8081 (giống Spring Boot cũ)
 EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Khởi động: chạy Alembic migration trước, sau đó khởi động server
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8081 --ws-ping-interval 20 --ws-ping-timeout 20"]

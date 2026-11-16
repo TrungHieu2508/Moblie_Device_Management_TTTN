@@ -1,17 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Card, Typography, Progress, Button, Tag, Space, Divider, message, Spin, Modal, Input } from 'antd';
-import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { Card, Typography, Button, Tag, Divider, message, Spin, Modal, Input, Table } from 'antd';
+import { LockOutlined, DeleteOutlined, AlertOutlined, MobileOutlined, SendOutlined, ClearOutlined, DatabaseOutlined, DashboardOutlined, HddOutlined, ThunderboltOutlined, WifiOutlined, CloudDownloadOutlined, QrcodeOutlined, HistoryOutlined } from '@ant-design/icons';
 import { useWebSocket } from '../../../hooks/useWebSocket';
+import { LiveScreenViewer } from '../components/LiveScreenViewer';
 import { QRCodeSVG } from 'qrcode.react';
 import axiosInstance from '../../../config/axios';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDeviceById } from '../../../services/deviceService';
 
 const { Title, Text } = Typography;
 
 const DeviceDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   
   const [initialMetrics, setInitialMetrics] = useState<any>(null);
   const [isUpdateModalVisible, setIsUpdateModalVisible] = useState(false);
@@ -23,6 +25,16 @@ const DeviceDetailPage = () => {
     queryFn: () => getDeviceById(id!),
     enabled: !!id,
     refetchInterval: 30000,
+  });
+
+  const { data: commandHistory = [], isLoading: loadingCommands } = useQuery({
+    queryKey: ['deviceCommands', id],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/devices/${id}/commands`);
+      return res.data?.data || [];
+    },
+    enabled: !!id,
+    refetchInterval: 15000,
   });
 
   useEffect(() => {
@@ -37,25 +49,30 @@ const DeviceDetailPage = () => {
     }
   }, [deviceInfo?.deviceId]);
 
-  // Connect to WebSocket to receive real-time metrics for this specific device
-  const { isConnected, metrics, deviceStatus, screenFrame, currentApp } = useWebSocket(deviceInfo?.deviceId);
+  // Connect to WebSocket to receive real-time metrics & live screen frames for this specific device
+  const { isConnected, metrics, deviceStatus, subscribeScreenFrame, clearScreenFrame, currentApp, commandAck } = useWebSocket(deviceInfo?.deviceId);
 
   useEffect(() => {
-    // Không tự động gọi START_STREAM nữa vì không ổn định (Theo yêu cầu)
-  }, [isConnected, deviceInfo?.deviceId]);
+    if (commandAck) {
+      queryClient.invalidateQueries({ queryKey: ['deviceCommands', id] });
+    }
+  }, [commandAck, id, queryClient]);
 
-  const handleSendCommand = async (commandType: string, payloadData: any = {}) => {
+  const handleSendCommand = useCallback(async (commandType: string, payloadData: any = {}) => {
     try {
       await axiosInstance.post(`/devices/${id}/commands`, {
         commandType,
         payload: payloadData
       });
+      if (commandType === 'STOP_STREAM') {
+        clearScreenFrame();
+      }
       message.success(`Đã gửi lệnh ${commandType} thành công!`);
-    } catch (error) {
-      // For demo purposes, we will still show success if API fails due to no backend running
-      message.success(`(Demo) Đã gửi lệnh ${commandType}`);
+      queryClient.invalidateQueries({ queryKey: ['deviceCommands', id] });
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || `Không thể gửi lệnh ${commandType} tới thiết bị.`);
     }
-  };
+  }, [id, clearScreenFrame, queryClient]);
 
   const handleUpdateApp = () => {
     if (!updateApkUrl) {
@@ -69,8 +86,9 @@ const DeviceDetailPage = () => {
 
   if (loading) return <div className="p-8 flex justify-center"><Spin size="large" /></div>;
 
-  // Use real-time status if available, otherwise fallback to initial info
+  // Use real-time status & metrics if available, otherwise fallback to initial info
   const currentStatus = deviceStatus || deviceInfo?.status;
+  const activeMetrics = metrics || initialMetrics || (deviceInfo as any)?.metrics;
   
 
   return (
@@ -92,16 +110,16 @@ const DeviceDetailPage = () => {
           {/* Real-time System Metrics */}
           <div className="flex flex-wrap gap-2 mt-4">
             <Tag color="purple" icon={<DatabaseOutlined />} className="px-3 py-1 border border-purple-500/30">
-              RAM: {metrics?.ramUsedMb || 0} / {metrics?.ramTotalMb || 0} MB
+              RAM: {activeMetrics?.ramUsedMb ?? activeMetrics?.ramUsageMb ?? 0} / {activeMetrics?.ramTotalMb ?? 0} MB
             </Tag>
             <Tag color="green" icon={<HddOutlined />} className="px-3 py-1 border border-green-500/30">
-              Lưu trữ: {(metrics?.storageUsedGb ?? 0).toFixed(1)} / {(metrics?.storageTotalGb ?? 0).toFixed(1)} GB
+              Lưu trữ: {(activeMetrics?.storageUsedGb ?? (activeMetrics?.storageUsedMb ? activeMetrics.storageUsedMb / 1024 : 0)).toFixed(1)} / {(activeMetrics?.storageTotalGb ?? (activeMetrics?.storageTotalMb ? activeMetrics.storageTotalMb / 1024 : 0)).toFixed(1)} GB
             </Tag>
-            <Tag color={(metrics?.batteryLevel ?? 100) < 20 ? "error" : "gold"} icon={<ThunderboltOutlined />} className="px-3 py-1 border border-yellow-500/30">
-                Pin: {metrics?.batteryLevel ?? 0}% {metrics?.batteryCharging ? '(Đang sạc)' : ''}
+            <Tag color={(activeMetrics?.batteryLevel ?? 100) < 20 ? "error" : "gold"} icon={<ThunderboltOutlined />} className="px-3 py-1 border border-yellow-500/30">
+                Pin: {activeMetrics?.batteryLevel ?? 0}% {(activeMetrics?.batteryCharging === true || activeMetrics?.batteryCharging === 'CHARGING') ? '(Đang sạc)' : ''}
             </Tag>
             <Tag color="blue" icon={<WifiOutlined />} className="px-3 py-1 border border-blue-500/30">
-              WiFi: {metrics?.wifiSsid || 'Không có'}
+              WiFi: {activeMetrics?.wifiSsid || 'Không có'}
             </Tag>
             <Tag color="default" icon={<DashboardOutlined />} className="px-3 py-1 opacity-60 border-0">
               CPU: Không khả dụng (Bảo mật Android)
@@ -116,104 +134,18 @@ const DeviceDetailPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Live Metrics */}
+        {/* Left Column: Live Screen Stream & 3D Digital Twin */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* Live Incident View (App View) */}
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg" title={<span className="text-gray-300">Live Incident View</span>}>
-            <div className="bg-black/50 border border-dashed border-[#2e303a] h-64 flex flex-col items-center justify-center rounded-lg overflow-hidden relative">
-              <MobileOutlined className="text-6xl text-[var(--color-primary)] mb-4" />
-              <Text className="text-gray-400 mb-2 font-medium">
-                {isConnected ? 'Thiết bị đang trực tuyến' : 'Màn hình hiện đang tắt / Mất kết nối'}
-              </Text>
-              
-              <div className="flex flex-col items-center gap-3">
-                {(currentApp || deviceInfo?.currentApp) ? (
-                  <div className="flex flex-col items-center gap-2">
-                    {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) && (
-                      <img 
-                        src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
-                        alt="App Icon"
-                        className="w-12 h-12 rounded-lg shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.5)] border border-[#2e303a]"
-                      />
-                    )}
-                    <Tag color="cyan" className="px-4 py-2 text-sm border border-cyan-500/30 rounded-lg text-lg">
-                      Đang mở ứng dụng: <span className="font-bold text-white">{(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName)}</span>
-                    </Tag>
-                  </div>
-                ) : (
-                  <Tag color="default" className="px-4 py-2 text-sm border-0 rounded-lg text-gray-400">
-                    Chưa xác định ứng dụng đang mở
-                  </Tag>
-                )}
-
-                <Button 
-                  type="primary" 
-                  className="bg-[var(--color-primary)] border-none text-white hover:opacity-80 transition-colors shadow-[0_0_15px_rgba(170,59,255,0.4)] mt-4" 
-                  onClick={() => handleSendCommand('FORCE_HEARTBEAT')}
-                >
-                  Làm mới thông tin Ứng dụng
-                </Button>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6 overflow-hidden p-0">
-            <div className="relative flex items-center justify-center bg-gradient-to-br from-[#1a1c23] to-[#0a0a0f]" style={{ height: '350px', perspective: '1000px' }}>
-              <div className="absolute top-4 left-4 bg-[var(--color-primary)] text-xs font-bold px-3 py-1 rounded-full z-10 shadow-lg flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
-                Live 3D Digital Twin (Android)
-              </div>
-              
-              {/* CSS 3D Android Phone */}
-              <div className="relative w-48 h-96 transition-transform duration-1000 hover:rotate-y-12 hover:-rotate-x-12" style={{ transformStyle: 'preserve-3d', transform: 'rotateY(-15deg) rotateX(5deg)' }}>
-                {/* Phone Body */}
-                <div className="absolute inset-0 bg-[#2a2d36] rounded-[2rem] border-[4px] border-[#3e414c] shadow-2xl flex flex-col overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-tr before:from-transparent before:to-white/10 before:z-10" style={{ transform: 'translateZ(10px)' }}>
-                  
-                  {/* Camera hole */}
-                  <div className="absolute top-3 left-1/2 -translate-x-1/2 w-3 h-3 bg-black rounded-full z-20 shadow-inner border border-gray-800"></div>
-                  
-                  {/* Screen Content */}
-                  <div className="flex-1 bg-[#121318] m-1.5 rounded-[1.5rem] relative overflow-hidden flex flex-col p-4 z-0">
-                    {/* Status bar */}
-                    <div className="flex justify-between items-center text-[8px] text-gray-400 mb-4 px-1">
-                      <span>12:00</span>
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
-                      </div>
-                    </div>
-                    
-                    {/* App Display */}
-                    <div className="flex-1 flex flex-col items-center justify-center opacity-80">
-                      {(currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64) ? (
-                        <img 
-                          src={`data:image/png;base64,${currentApp?.appIconBase64 || deviceInfo?.currentApp?.appIconBase64}`} 
-                          alt="App Icon"
-                          className="w-10 h-10 rounded-lg shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)] mb-2"
-                        />
-                      ) : (
-                        <MobileOutlined className="text-4xl text-[var(--color-primary)] mb-2 drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.5)]" />
-                      )}
-                      <div className="text-white text-sm font-bold text-center truncate w-full px-2">
-                        {deviceInfo?.deviceName || deviceInfo?.model || 'Android Device'}
-                      </div>
-                      <div className="text-cyan-400 text-xs mt-2 bg-cyan-900/30 px-2 py-0.5 rounded border border-cyan-500/20 truncate max-w-full">
-                        {(currentApp?.appName || deviceInfo?.currentApp?.appName) || (currentApp?.packageName || deviceInfo?.currentApp?.packageName) || 'Màn hình chính'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Phone Edge (3D effect) */}
-                <div className="absolute inset-0 bg-[#15161c] rounded-[2rem] -z-10" style={{ transform: 'translateZ(-5px)' }}></div>
-                
-                {/* Shadow */}
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-8 bg-black/50 blur-xl rounded-[100%] -z-20" style={{ transform: 'rotateX(90deg) translateZ(-40px)' }}></div>
-              </div>
-            </div>
-          </Card>
+          {/* Live Incident View (Tách riêng thành component độc lập & bỏ mô hình 3D để đạt độ mượt tối đa) */}
+          <LiveScreenViewer
+            isConnected={isConnected}
+            subscribeScreenFrame={subscribeScreenFrame}
+            currentApp={currentApp}
+            initialCurrentApp={deviceInfo?.currentApp}
+            deviceLabel={deviceInfo?.deviceName || deviceInfo?.model}
+            onSendCommand={handleSendCommand}
+          />
         </div>
 
         {/* Right Column: Remote Control Panel */}
@@ -312,6 +244,70 @@ const DeviceDetailPage = () => {
           </Card>
         </div>
       </div>
+
+      {/* Lịch sử lệnh điều khiển thời gian thực (bên dưới) */}
+      <Card
+        className="bg-[#16171d] border-[#2e303a] rounded-xl shadow-lg mt-6"
+        title={
+          <span className="text-[var(--color-primary)] font-bold flex items-center gap-2">
+            <HistoryOutlined /> Lịch sử Lệnh Điều khiển Thiết bị (Real-time ACK)
+          </span>
+        }
+      >
+        <Table
+          dataSource={commandHistory}
+          rowKey="id"
+          loading={loadingCommands}
+          pagination={{ pageSize: 5 }}
+          className="custom-dark-table"
+          columns={[
+            {
+              title: 'Lệnh Điều khiển',
+              dataIndex: 'commandType',
+              key: 'commandType',
+              render: (cmd: string) => <Tag color="purple" className="font-mono font-bold">{cmd}</Tag>,
+            },
+            {
+              title: 'Tham số (Payload)',
+              dataIndex: 'payload',
+              key: 'payload',
+              render: (p: any) => (
+                <Text className="text-gray-400 font-mono text-xs">
+                  {p && Object.keys(p).length > 0 ? JSON.stringify(p) : '---'}
+                </Text>
+              ),
+            },
+            {
+              title: 'Trạng thái',
+              dataIndex: 'status',
+              key: 'status',
+              render: (st: string) => {
+                const color =
+                  st === 'EXECUTED'
+                    ? 'success'
+                    : st === 'SENT' || st === 'ACKNOWLEDGED'
+                    ? 'processing'
+                    : st === 'FAILED'
+                    ? 'error'
+                    : 'warning';
+                return <Tag color={color}>{st}</Tag>;
+              },
+            },
+            {
+              title: 'Thời gian gửi',
+              dataIndex: 'createdAt',
+              key: 'createdAt',
+              render: (t: string) => <Text className="text-gray-400 text-xs">{t ? new Date(t).toLocaleString() : '---'}</Text>,
+            },
+            {
+              title: 'Thời gian thực thi',
+              dataIndex: 'executedAt',
+              key: 'executedAt',
+              render: (t: string) => <Text className="text-green-400 text-xs">{t ? new Date(t).toLocaleString() : 'Đang chờ...'}</Text>,
+            },
+          ]}
+        />
+      </Card>
 
       <Modal
         title="Cập Nhật Ứng Dụng Agent Từ Xa (OTA)"

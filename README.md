@@ -10,16 +10,16 @@
 ```
 ┌─────────────────────────┐     ┌──────────────────────────┐     ┌──────────────────────┐
 │    Android Agent        │────▶│    MDM Server            │────▶│   IT Dashboard       │
-│    (Kotlin/Device Owner)│◀────│    (Spring Boot)         │◀────│   (React/TypeScript) │
+│    (Kotlin/Device Owner)│◀────│    (Python/FastAPI)      │◀────│   (React/TypeScript) │
 │                         │     │                          │     │                      │
-│  • Foreground Service   │     │  • REST API              │     │  • Device Monitor    │
-│  • WorkManager          │     │  • WebSocket (STOMP)     │     │  • Alert Center      │
-│  • UsageStatsManager    │     │  • Rule Engine           │     │  • Remote Control    │
-│  • Event Detection      │     │  • Alert Center          │     │  • Statistics        │
+│  • Foreground Service   │     │  • Async REST API        │     │  • Device Monitor    │
+│  • Pure WebSocket       │     │  • Pure WebSocket        │     │  • Alert Center      │
+│  • Event Detection      │     │  • Rule Engine           │     │  • Remote Control    │
+│  • UsageStatsManager    │     │  • Alert Center          │     │  • 3D Map            │
 └─────────────────────────┘     │                          │     └──────────────────────┘
-                                │  ┌──────────┐ ┌───────┐ │
-                                │  │PostgreSQL│ │ Redis │ │
-                                │  └──────────┘ └───────┘ │
+                                │  ┌──────────┐            │
+                                │  │PostgreSQL│            │
+                                │  └──────────┘            │
                                 └──────────────────────────┘
 ```
 
@@ -28,33 +28,24 @@
 ```
 Moblie_Device_Management_TTTN/
 ├── android-agent/              # Thành viên A - Android Agent (Kotlin)
-├── mdm-server/                 # Thành viên B - Backend (Spring Boot)
-│   └── src/main/java/com/edusphere/mdmserver/
-│       ├── common/             # Shared utilities
-│       │   ├── entity/         # BaseEntity
-│       │   ├── exception/      # ErrorCode, MdmException, GlobalExceptionHandler
-│       │   └── response/       # ApiResponse<T>
-│       ├── domain/             # Business domains
-│       │   ├── auth/           # Authentication & JWT
-│       │   ├── device/         # Device management + Heartbeat
-│       │   ├── school/         # School, Campus, Classroom
-│       │   ├── alert/          # Alert Center
-│       │   ├── command/        # Remote Commands
-│       │   ├── rule/           # Rule Engine
-│       │   ├── event/          # Device Events
-│       │   └── report/         # Reporting
-│       ├── infrastructure/     # Technical concerns
-│       │   ├── config/         # Spring config classes
-│       │   ├── security/       # Security & JWT implementation
-│       │   ├── redis/          # Redis configuration & repositories
-│       │   └── websocket/      # WebSocket configuration
-│       └── MdmServerApplication.java
+├── MDM-server/                 # Thành viên B - Backend (Python FastAPI)
+│   ├── app/                    # Mã nguồn chính
+│   │   ├── api/                # REST API Routers
+│   │   ├── core/               # Configuration, Security
+│   │   ├── db/                 # Database config (SQLAlchemy)
+│   │   ├── models/             # Database Models
+│   │   ├── schemas/            # Pydantic schemas cho API
+│   │   ├── services/           # Business logic
+│   │   └── ws/                 # WebSocket Endpoint (Connection Manager, Notifier)
+│   ├── alembic/                # Database migrations
+│   ├── requirements.txt        # Thư viện Python
+│   └── start_servers.bat       # Script khởi động tự động
 ├── web-dashboard/              # Thành viên B - Frontend (React/TypeScript)
+│   ├── src/                    # Component, Hooks, API Services
+│   ├── package.json            # Thư viện Node.js
+│   └── vite.config.ts          # Cấu hình Vite
 ├── docs/                       # Tài liệu kỹ thuật
-│   ├── ERD.md                  # Database design
-│   ├── API_CONTRACT.md         # REST API specification
-│   └── WEBSOCKET_PROTOCOL.md  # WebSocket protocol spec
-├── docker-compose.yml          # PostgreSQL + Redis
+├── docker-compose.yml          # PostgreSQL Server
 └── README.md
 ```
 
@@ -62,39 +53,42 @@ Moblie_Device_Management_TTTN/
 
 ### Yêu cầu
 - Docker Desktop
-- JDK 17+
+- Python 3.10+
 - Node.js 20+
-- Maven 3.9+
+- Android Studio (Để cài đặt Agent)
 
-### 1. Khởi động Database & Redis
+### 1. Khởi động Database
 
 ```bash
-# Chỉ PostgreSQL + Redis
 docker compose up -d
-
-# Bao gồm pgAdmin và Redis Commander (công cụ quản trị)
-docker compose --profile dev up -d
 ```
 
-### 2. Chạy Backend
+### 2. Chạy Backend và Frontend Tự động
 
+Chúng tôi đã chuẩn bị sẵn Script `start_servers.bat` để chạy cả Backend và Frontend chỉ với 1 thao tác. 
+
+Từ thư mục gốc, click đúp vào file `start_servers.bat` (chỉ hỗ trợ trên Windows). File sẽ tự động:
+- Cài đặt thư viện Python (nếu chưa có) vào `.venv`.
+- Cài đặt thư viện Node.js (nếu chưa có).
+- Khởi động Backend (FastAPI) ở port 8081.
+- Khởi động Frontend (React) ở port 5173.
+
+Hoặc bạn có thể chạy thủ công:
+**Backend:**
 ```bash
-cd mdm-server
-./mvnw spring-boot:run
+cd MDM-server
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
 ```
 
-Backend sẽ chạy tại: `http://localhost:8081/api`
-Swagger UI: `http://localhost:8081/api/swagger-ui.html`
-
-### 3. Chạy Frontend
-
+**Frontend:**
 ```bash
 cd web-dashboard
 npm install
 npm run dev
 ```
-
-Frontend sẽ chạy tại: `http://localhost:5173`
 
 ---
 
@@ -102,45 +96,45 @@ Frontend sẽ chạy tại: `http://localhost:5173`
 
 | Service | URL | Username | Password |
 |---------|-----|----------|---------|
-| IT Dashboard | http://localhost:5173 | admin | Admin@123456 |
-| Swagger UI | http://localhost:8081/api/swagger-ui.html | - | - |
+| IT Dashboard | http://localhost:5173 | superadmin | admin123 |
+| Swagger API | http://localhost:8081/docs | - | - |
 | pgAdmin | http://localhost:5050 | admin@eduguardian.vn | admin123 |
-| Redis Commander | http://localhost:8081 | - | - |
 
 ---
 
 ## 📋 Tech Stack
 
 ### Backend
-- **Java 17** + **Spring Boot 3.3**
-- **Spring Security** + **JJWT** (JWT)
-- **Spring Data JPA** + **PostgreSQL 16**
-- **Spring Data Redis** + **Lettuce**
-- **Spring WebSocket** + **STOMP**
-- **Flyway** (Database Migration)
-- **SpringDoc OpenAPI** (Swagger UI)
-- **Lombok** + **MapStruct**
+- **Python 3.10+** + **FastAPI**
+- **SQLAlchemy 2.0** + **asyncpg**
+- **Alembic** (Database Migration)
+- **WebSockets** (Pure WebSocket, không dùng STOMP)
+- **PyJWT**, **Passlib**
 
 ### Frontend
-- **React 19** + **TypeScript**
-- **Vite**
-- **Ant Design 6**
-- **Axios** + **React Query**
-- **SockJS** + **STOMP.js** (WebSocket)
+- **React 19** + **TypeScript** + **Vite**
+- **Ant Design 6** + **TailwindCSS**
+- **Zustand** (State management)
+- **React Query** (Data fetching)
 - **Recharts** (Charts)
+- **Three.js** + **React Three Fiber** (Mô hình 3D Trường học)
 
 ### Infrastructure
 - **Docker** + **Docker Compose**
-- **PostgreSQL 16** (Primary Database)
-- **Redis 7** (Cache + Message Broker)
+- **PostgreSQL 17** (Primary Database)
 
 ---
 
-## 📚 Tài liệu
+## 📱 Hướng dẫn cài đặt Android Agent
 
-- [ERD & Database Design](docs/ERD.md)
-- [REST API Contract](docs/API_CONTRACT.md)
-- [WebSocket Protocol](docs/WEBSOCKET_PROTOCOL.md)
+Để máy tính và thiết bị (hoặc máy ảo) có thể kết nối được:
+1. Mở Project `android-agent` bằng Android Studio.
+2. Build và Install App lên Máy ảo (Emulator) hoặc máy thật.
+3. Để cấp quyền **Device Owner** (Bắt buộc), mở Terminal của Android Studio và gõ lệnh:
+   ```bash
+   adb shell dpm set-device-owner com.edusphere.agent/.receiver.MDMAdminReceiver
+   ```
+4. Trên App sẽ hiển thị trạng thái "Active". Sau đó nhập Mã Ghi Danh (Lấy từ Dashboard) để tham gia hệ thống.
 
 ---
 
@@ -149,4 +143,4 @@ Frontend sẽ chạy tại: `http://localhost:5173`
 | Thành viên | Trách nhiệm |
 |-----------|------------|
 | Thành viên A | Android Agent (Kotlin + Device Owner) |
-| Thành viên B | Backend (Spring Boot) + IT Dashboard (React) |
+| Thành viên B | Backend (Python FastAPI) + IT Dashboard (React) |

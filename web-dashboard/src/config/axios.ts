@@ -31,8 +31,8 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // Tránh loop vô hạn nếu lỗi 401/403 khi đang gọi API refresh
-    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
+    // Tránh loop vô hạn nếu lỗi 401 khi đang gọi API refresh (không tự động logout khi 403 Forbidden)
+    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
       originalRequest._retry = true;
       
       try {

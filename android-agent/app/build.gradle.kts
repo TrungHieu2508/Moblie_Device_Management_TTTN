@@ -77,3 +77,34 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }
+
+// Tự động cấp quyền PROJECT_MEDIA, GET_USAGE_STATS, SYSTEM_ALERT_WINDOW cho MỌI thiết bị Android
+// đang kết nối qua ADB ngay sau khi cài đặt APK (installDebug / installRelease)
+tasks.matching { it.name == "installDebug" || it.name == "installRelease" }.configureEach {
+    doLast {
+        try {
+            val adbExe = android.adbExecutable.absolutePath
+            val devicesProc = ProcessBuilder(adbExe, "devices").redirectErrorStream(true).start()
+            val output = devicesProc.inputStream.bufferedReader().readText()
+            devicesProc.waitFor()
+
+            val serials = output.lines()
+                .drop(1)
+                .map { it.trim() }
+                .filter { it.endsWith("\tdevice") || it.matches(Regex("^\\S+\\s+device$")) }
+                .map { it.split(Regex("\\s+"))[0] }
+
+            for (serial in serials) {
+                for (op in listOf("PROJECT_MEDIA", "GET_USAGE_STATS", "SYSTEM_ALERT_WINDOW")) {
+                    ProcessBuilder(adbExe, "-s", serial, "shell", "appops", "set", "com.edusphere.agent", op, "allow")
+                        .redirectErrorStream(true)
+                        .start()
+                        .waitFor()
+                }
+                println("Auto-granted PROJECT_MEDIA, GET_USAGE_STATS, SYSTEM_ALERT_WINDOW on device: $serial")
+            }
+        } catch (e: Exception) {
+            println("Note: Could not auto-grant appops via ADB: ${e.message}")
+        }
+    }
+}

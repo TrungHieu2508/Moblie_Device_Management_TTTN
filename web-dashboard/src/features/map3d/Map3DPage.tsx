@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Html } from '@react-three/drei';
 import { useQuery } from '@tanstack/react-query';
-import { getAllCampuses, getSchools, getClassrooms } from '../../services/schoolService';
+import { getAllCampuses, getSchools, getClassrooms, getAllClassrooms } from '../../services/schoolService';
 import { getDevices } from '../../services/deviceService';
 import { useAuthStore } from '../../store/authStore';
 import { Button, Typography, Spin } from 'antd';
@@ -457,27 +457,36 @@ const Map3DPage = () => {
   const role = user?.role;
 
   const [viewLevel, setViewLevel] = useState<'CAMPUS' | 'SCHOOL' | 'CLASSROOM' | 'DEVICE'>(
-    role === 'SUPER_ADMIN' ? 'CAMPUS' : role === 'IT_ADMIN' ? 'SCHOOL' : 'CLASSROOM'
+    role === 'SUPER_ADMIN' ? 'CAMPUS' : 'SCHOOL'
   );
-  const [selectedCampusId, setSelectedCampusId] = useState<string | null>(null);
+  const [selectedCampusId, setSelectedCampusId] = useState<string | null>(role !== 'SUPER_ADMIN' ? (user?.campusId || null) : null);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(role !== 'SUPER_ADMIN' ? (user?.schoolId || null) : null);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string | null>(null);
 
   const { data: campuses = [], isLoading: loadingCampuses } = useQuery({ queryKey: ['campuses'], queryFn: getAllCampuses, enabled: viewLevel === 'CAMPUS' });
-  const { data: schoolsData, isLoading: loadingSchools } = useQuery({ queryKey: ['schools', { campusId: selectedCampusId, size: 100 }], queryFn: () => getSchools({ page: 0, size: 100, campusId: selectedCampusId || undefined }), enabled: viewLevel === 'SCHOOL' || (role !== 'SUPER_ADMIN' && role !== 'TEACHER') });
-  const schools = schoolsData?.content || [];
+  const { data: schoolsData, isLoading: loadingSchools } = useQuery({ queryKey: ['schools', { campusId: selectedCampusId, size: 100 }], queryFn: () => getSchools({ page: 0, size: 100, campusId: selectedCampusId || undefined }), enabled: viewLevel === 'SCHOOL' || role !== 'SUPER_ADMIN' });
+  const schools = (Array.isArray(schoolsData) ? schoolsData : (schoolsData?.content)) || [];
   
   // Fetch all schools to count them for campuses
   const { data: allSchoolsData } = useQuery({ queryKey: ['all_schools'], queryFn: () => getSchools({ page: 0, size: 500 }), enabled: viewLevel === 'CAMPUS' });
-  const allSchools = allSchoolsData?.content || [];
+  const allSchools = (Array.isArray(allSchoolsData) ? allSchoolsData : (allSchoolsData?.content)) || [];
 
-  const { data: classrooms = [], isLoading: loadingClassrooms } = useQuery({ queryKey: ['classrooms', selectedSchoolId], queryFn: () => getClassrooms(selectedSchoolId as string), enabled: (viewLevel === 'CLASSROOM' || role === 'TEACHER') && !!selectedSchoolId });
+  const { data: allClassroomsData } = useQuery({ queryKey: ['all_classrooms'], queryFn: getAllClassrooms, enabled: viewLevel === 'SCHOOL' });
+  const allClassrooms = (Array.isArray(allClassroomsData) ? allClassroomsData : (allClassroomsData?.content)) || [];
+
+  const { data: allDevicesMapData } = useQuery({ queryKey: ['all_devices_map'], queryFn: () => getDevices({ page: 0, size: 500 }), enabled: viewLevel === 'SCHOOL' });
+  const allDevicesMap = (Array.isArray(allDevicesMapData) ? allDevicesMapData : (allDevicesMapData?.content)) || [];
+
+  const getSchoolClassroomCount = (schoolId: string) => allClassrooms.filter((c: any) => c.schoolId === schoolId).length;
+  const getSchoolDeviceCount = (schoolId: string) => allDevicesMap.filter((d: any) => d.school?.id === schoolId).length;
+
+  const { data: classrooms = [], isLoading: loadingClassrooms } = useQuery({ queryKey: ['classrooms', selectedSchoolId], queryFn: () => getClassrooms(selectedSchoolId as string), enabled: viewLevel === 'CLASSROOM' && !!selectedSchoolId });
   const { data: devicesData, isLoading: loadingDevices } = useQuery({ queryKey: ['devices_map', selectedSchoolId], queryFn: () => getDevices({ page: 0, size: 500, schoolId: selectedSchoolId || undefined }), enabled: (viewLevel === 'CLASSROOM' || viewLevel === 'DEVICE') && !!selectedSchoolId });
-  const devices = devicesData?.content || [];
+  const devices = (Array.isArray(devicesData) ? devicesData : (devicesData?.content)) || [];
 
   const handleBack = () => {
     if (viewLevel === 'DEVICE') { setViewLevel('CLASSROOM'); setSelectedClassroomId(null); }
-    else if (viewLevel === 'CLASSROOM') { if (role === 'TEACHER') return; setViewLevel('SCHOOL'); setSelectedSchoolId(null); }
+    else if (viewLevel === 'CLASSROOM') { setViewLevel('SCHOOL'); setSelectedSchoolId(null); }
     else if (viewLevel === 'SCHOOL') { if (role !== 'SUPER_ADMIN') return; setViewLevel('CAMPUS'); setSelectedCampusId(null); }
   };
 
@@ -530,8 +539,8 @@ const Map3DPage = () => {
           position={layout[i] as [number, number, number]}
           name={s.name}
           campusName={s.campusName}
-          classroomCount={s.classroomCount}
-          deviceCount={s.deviceCount}
+          classroomCount={s.classroomCount || getSchoolClassroomCount(s.id)}
+          deviceCount={s.deviceCount || getSchoolDeviceCount(s.id)}
           onClick={() => { setSelectedSchoolId(s.id); setViewLevel('CLASSROOM'); }}
         />
       ));
@@ -578,7 +587,7 @@ const Map3DPage = () => {
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={handleBack}
-            disabled={(viewLevel === 'CAMPUS') || (viewLevel === 'SCHOOL' && role !== 'SUPER_ADMIN') || (viewLevel === 'CLASSROOM' && role === 'TEACHER')}
+            disabled={(viewLevel === 'CAMPUS') || (viewLevel === 'SCHOOL' && role !== 'SUPER_ADMIN')}
             style={{ background: 'rgba(20,21,30,0.9)', border: '1px solid rgba(46,48,58,0.7)', color: '#9ca3af', borderRadius: 10 }}
           >
             Quay Lại
